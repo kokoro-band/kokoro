@@ -1,0 +1,37 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Node projects
+**/node_modules/
+**/dist/
+**/.env
+**/.env.local
+**/coverage/
+
+# Frontend
+frontend/.vite/
+
+# Unity generated directories
+unity/[Ll]ibrary/
+unity/[Tt]emp/
+unity/[Oo]bj/
+unity/[Bb]uild/
+unity/[Bb]uilds/
+unity/[Ll]ogs/
+unity/[Uu]ser[Ss]ettings/
+unity/MemoryCaptures/
+
+# Unity IDE files
+unity/*.csproj
+unity/*.sln
+unity/*.suo
+unity/*.user
+unity/*.userprefs
+unity/*.pidb
+unity/*.booproj
+unity/*.svd
+unity/*.pdb
+unity/*.mdb
+unity/*.opendb
+unity/*.VC.db

@@ -1,0 +1,158 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/noto-sans-kr";
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans:
+    "Geist Variable", "Noto Sans KR Variable", "Malgun Gothic", sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--brand);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-label: var(--label);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-disabled: var(--disabled);
+  --color-warning: var(--warning);
+  --color-floor: var(--floor);
+  --color-table: var(--table);
+  --color-away: var(--away);
+  --shadow-ambient: 0 2px 8px rgb(0 0 0 / 0.08);
+  --shadow-elevated: 0 8px 24px rgb(0 0 0 / 0.16);
+  --radius-sm: 0;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+}
+
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #17191d;
+  --card: #ffffff;
+  --card-foreground: #17191d;
+  --popover: #ffffff;
+  --popover-foreground: #17191d;
+  --primary: #00de5a;
+  --primary-foreground: #000000;
+  --secondary: #f2f3f4;
+  --secondary-foreground: #17191d;
+  --accent: #ebfff3;
+  --accent-foreground: #17191d;
+  --destructive: #c9372c;
+  --ink: #17191d;
+  --body: #666c75;
+  --label: #4a4e57;
+  --muted: #666c75;
+  --disabled: #9fa1a7;
+  --line: #dfe1e4;
+  --brand: #00de5a;
+  --warning: #ffb020;
+  --floor: #f5f5f2;
+  --table: #e6e7e3;
+  --away: #fff7df;
+  --radius: 4px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply scroll-smooth font-sans antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-width: 320px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a[href] {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--brand);
+    color: #000000;
+  }
+
+  :focus-visible {
+    outline-color: var(--brand);
+  }
+}
+
+@layer components {
+  .floor-plan {
+    animation: floor-reveal 360ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+  }
+
+  .selection-rail {
+    animation: selection-travel 240ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+  }
+
+  .selection-connector {
+    stroke-dasharray: 12 6;
+    animation: connector-travel 420ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+  }
+}
+
+@keyframes connector-travel {
+  from {
+    stroke-dashoffset: 72;
+    opacity: 0;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes selection-travel {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes floor-reveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

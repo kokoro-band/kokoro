@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T16:13:34Z",
+  "title": "Design System: Kokoro",
+  "extensions": {
+    "colorMeta": {
+      "brand-green": {
+        "role": "primary",
+        "displayName": "집중 초록",
+        "canonical": "#00de5a",
+        "tonalRamp": [
+          "#003d19",
+          "#006b2b",
+          "#009b3f",
+          "#00c850",
+          "#00de5a",
+          "#58ed8c",
+          "#a8f8c6",
+          "#edfff4"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "운영 잉크",
+        "canonical": "#17191d",
+        "tonalRamp": [
+          "#111216",
+          "#292b30",
+          "#44474e",
+          "#62666f",
+          "#858a94",
+          "#adb1b8",
+          "#d8dade",
+          "#f3f4f5"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "자리 비움 주황",
+        "canonical": "#ffb020",
+        "tonalRamp": [
+          "#3d2700",
+          "#6b4600",
+          "#9b6700",
+          "#c98700",
+          "#ffb020",
+          "#ffc968",
+          "#ffe0a8",
+          "#fff7e8"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "무거운 질문",
+        "purpose": "최상위 예약 질문에만 사용합니다."
+      },
+      "body": {
+        "displayName": "명확한 설명",
+        "purpose": "이용 규칙과 상태를 짧게 설명합니다."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient",
+        "value": "0 2px 8px rgb(0 0 0 / 0.08)",
+        "purpose": "바닥에서 떠 있는 보조 정보 카드에만 사용합니다."
+      },
+      {
+        "name": "elevated",
+        "value": "0 8px 24px rgb(0 0 0 / 0.16)",
+        "purpose": "후속 오버레이 표면을 위한 예비 토큰입니다."
+      }
+    ],
+    "motion": [
+      {
+        "name": "selection-travel",
+        "value": "240ms cubic-bezier(0.2, 0.6, 0.25, 1)",
+        "purpose": "지도 안 선택 레일을 열어 현재 좌석을 보여줍니다."
+      },
+      {
+        "name": "connector-travel",
+        "value": "420ms cubic-bezier(0.2, 0.6, 0.25, 1)",
+        "purpose": "예약 요약과 실제 좌석 사이의 점선을 이동시킵니다."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "예약 선택을 완료하는 초록 버튼입니다.",
+      "html": "<button class=\"ds-primary-action\">이 자리 선택 <span aria-hidden=\"true\">→</span></button>",
+      "css": ".ds-primary-action{display:flex;align-items:center;justify-content:space-between;width:100%;height:44px;padding:0 20px;border:0;border-radius:0;background:var(--brand,#00de5a);color:var(--ink,#17191d);font:700 14px 'Noto Sans KR',sans-serif;transition:background-color 150ms}.ds-primary-action:hover{background:#00c850}.ds-primary-action:focus-visible{outline:3px solid var(--brand,#00de5a);outline-offset:3px}"
+    },
+    {
+      "name": "Selected Time",
+      "kind": "chip",
+      "description": "선택된 이용 시간을 검은 면으로 강조합니다.",
+      "html": "<button class=\"ds-selected-time\">20:00</button>",
+      "css": ".ds-selected-time{height:44px;padding:0 28px;border:1px solid var(--ink,#17191d);border-radius:0;background:var(--ink,#17191d);color:#fff;font:700 14px Geist,sans-serif}.ds-selected-time:hover{background:#292b30}.ds-selected-time:focus-visible{outline:3px solid var(--brand,#00de5a);outline-offset:2px}"
+    },
+    {
+      "name": "Available Seat",
+      "kind": "custom",
+      "description": "선택할 수 있는 좌석의 기본 상태입니다.",
+      "html": "<button class=\"ds-seat-available\"><strong>A1</strong><span aria-hidden=\"true\">□</span></button>",
+      "css": ".ds-seat-available{display:flex;align-items:center;justify-content:space-between;width:172px;height:48px;padding:0 12px;border:1px solid var(--line,#dfe1e4);border-radius:0;background:#fff;color:var(--ink,#17191d);font:700 12px Geist,sans-serif}.ds-seat-available:hover{border-color:var(--ink,#17191d)}.ds-seat-available:focus-visible{outline:3px solid var(--brand,#00de5a);outline-offset:3px}"
+    },
+    {
+      "name": "Selected Seat",
+      "kind": "custom",
+      "refersTo": "seat-selected",
+      "description": "현재 예약 요약과 연결된 좌석입니다.",
+      "html": "<button class=\"ds-seat-selected\"><strong>A3</strong><span aria-hidden=\"true\">□</span></button>",
+      "css": ".ds-seat-selected{display:flex;align-items:center;justify-content:space-between;width:172px;height:48px;padding:0 12px;border:1px solid var(--brand,#00de5a);border-radius:0;background:var(--brand,#00de5a);color:var(--ink,#17191d);font:700 12px Geist,sans-serif}.ds-seat-selected:focus-visible{outline:3px solid var(--brand,#00de5a);outline-offset:3px}"
+    },
+    {
+      "name": "Away Seat",
+      "kind": "custom",
+      "description": "자리 비움 상태를 크림 배경과 주황 표시로 알립니다.",
+      "html": "<button class=\"ds-seat-away\"><strong>A4</strong><span class=\"ds-away-dot\" aria-hidden=\"true\"></span></button>",
+      "css": ".ds-seat-away{position:relative;display:flex;align-items:center;justify-content:space-between;width:172px;height:48px;padding:0 12px;border:1px solid var(--line,#dfe1e4);border-radius:0;background:var(--away,#fff7df);color:var(--label,#4a4e57);font:700 12px Geist,sans-serif}.ds-away-dot{position:absolute;top:-4px;right:-4px;width:10px;height:10px;border:2px solid #fff;background:var(--warning,#ffb020)}.ds-seat-away:focus-visible{outline:3px solid var(--brand,#00de5a);outline-offset:3px}"
+    },
+    {
+      "name": "Floor Container",
+      "kind": "card",
+      "refersTo": "floor-container",
+      "description": "좌석과 구역을 톤 차이로 묶는 평면 지도입니다.",
+      "html": "<section class=\"ds-floor\"><strong>NORTH WINDOW</strong><div class=\"ds-floor-line\"></div><span>조용한 구역</span></section>",
+      "css": ".ds-floor{width:360px;padding:28px;border:1px solid var(--line,#dfe1e4);border-radius:0;background:var(--floor,#f5f5f2);color:var(--ink,#17191d);font:700 12px Geist,sans-serif;letter-spacing:.08em}.ds-floor-line{height:1px;margin:20px 0;background:rgba(23,25,29,.15)}.ds-floor span{color:var(--label,#4a4e57);font-weight:400;letter-spacing:0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "조용한 좌석 관제판",
+    "overview": "코코로의 화면은 장식적인 메타버스 포스터가 아니라 현재 선택과 공간 상태를 빠르게 판단하는 운영 도구에 가깝습니다. 흰 캔버스와 검은 물성을 기본으로 삼고 전기 초록은 사용자가 지금 내린 결정에만 사용합니다.",
+    "keyCharacteristics": [
+      "낮은 반경과 직각의 기능적인 조형",
+      "상태를 보조하는 절제된 전기 초록",
+      "좌석 선택과 예약 요약을 잇는 선형 피드백",
+      "한국어 화면에서도 무게감을 유지하는 굵은 제목"
+    ],
+    "rules": [
+      {
+        "name": "The One Green Decision Rule",
+        "body": "초록은 한 화면에서 현재 선택과 다음 주요 동작을 설명하는 데만 사용합니다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heavy Question Rule",
+        "body": "최상위 질문은 큰 크기와 가장 두꺼운 무게를 사용하되 한 화면에 한 번만 등장합니다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Operations Rule",
+        "body": "구조는 선과 톤으로 보여주고 음영을 장식으로 사용하지 않습니다.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "초록으로 현재 선택과 주요 동작의 관계를 보여줍니다.",
+      "좌석 상태를 색상과 텍스트와 비활성 상태로 함께 전달합니다.",
+      "모바일에서 예약 판단과 주요 동작을 지도보다 먼저 배치합니다."
+    ],
+    "donts": [
+      "여러 강조색을 추가해 초록의 상태 의미를 약하게 만들지 않습니다.",
+      "큰 반경과 강한 음영을 장식적으로 반복하지 않습니다.",
+      "카메라나 마이크 사용을 필수 조건처럼 표현하지 않습니다."
+    ]
+  }
+}

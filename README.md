@@ -1,18 +1,31 @@
-# 코코로 (Kokoro)
+# 코코로 리모델링 스튜디오
 
-마음이 모이는 곳과 내가 집중하는 여기라는 의미를 담은 3D 온라인 스터디 카페 프로젝트입니다. 좌석 예약과 3D 착석과 집중 상태를 하나의 흐름으로 연결합니다.
+도면을 3D 공간으로 바꾸고 대화로 가구를 배치한 뒤 일반 웹 화면과 웹 VR에서 직접 위치를 조절하는 리모델링 플랫폼 MVP입니다.
 
-세 애플리케이션은 하나의 Git 저장소에 있지만 각각 독립적으로 실행합니다. 루트 워크스페이스와 공용 `package.json`은 사용하지 않습니다.
+프론트엔드와 백엔드는 하나의 Git 저장소에 있지만 각각 독립적으로 실행합니다. 2D 편집과 일반 3D 미리보기와 VR은 모두 같은 웹 프론트엔드에서 실행합니다.
+
+## 현재 구현 범위
+
+- PDF와 PNG와 JPG 도면 업로드 및 형식 검증
+- 도면 변환 상태와 공간 치수 표시
+- Three.js 기반 2D 도면 보기와 일반 3D 방 편집
+- 가구 카탈로그와 추가와 선택과 이동과 회전과 삭제
+- 자연어 명령을 이용한 가구 배치
+- 같은 웹 주소에서 실행되는 WebXR VR 진입과 컨트롤러 배치
+- 실행 취소와 다시 실행과 브라우저 저장과 JSON 내보내기
+- Spring Boot 프로젝트와 도면과 배치 명령 API
+
+도면 자동 인식과 실제 제품 3D 모델과 생성형 AI와 영구 데이터베이스는 외부 시스템이 필요한 다음 단계입니다. 지금은 동일한 API 계약을 따르는 규칙 기반 처리기와 메모리 저장소를 사용합니다.
 
 ## 프로젝트 구조
 
 ```text
 .
-├── frontend/   React + TypeScript + Vite + shadcn/ui
-├── backend/    NestJS API
-├── unity/      Unity 6.3 LTS Web 프로젝트
-├── docs/       API와 실시간 이벤트 계약
-└── PRODUCT.md  제품 원칙과 범위
+├── frontend/   React와 TypeScript와 Vite와 Three.js와 WebXR
+├── backend/    Java 17과 Spring Boot 4.1.1
+├── docs/       시스템 구조와 API와 WebXR 계약
+├── PRODUCT.md  제품 범위와 단계
+└── DESIGN.md   구현된 디자인 원칙
 ```
 
 ## 프론트엔드 실행
@@ -23,29 +36,32 @@ pnpm install
 pnpm dev
 ```
 
-기본 주소는 `http://localhost:5173`입니다.
+기본 주소는 `http://localhost:5173`입니다. 별도 설정이 없으면 모든 기능이 브라우저 안에서 동작하는 로컬 데모로 실행됩니다.
+
+Spring 서버에 연결하려면 `frontend/.env.example`을 참고해 `VITE_API_MODE=server`를 설정합니다.
 
 ## 백엔드 실행
 
+Java 17 이상이 필요합니다. 저장소에 포함된 Maven Wrapper가 필요한 Maven을 내려받습니다.
+
 ```bash
 cd backend
-cp .env.example .env
-pnpm install
-pnpm start:dev
+./mvnw spring-boot:run
 ```
 
-기본 주소는 `http://localhost:3000/api`입니다. 상태 확인은 `GET /api/health`를 사용합니다.
+기본 주소는 `http://localhost:8080`입니다. 상태 확인은 `GET /api/health`를 사용합니다.
 
-## Unity 실행
+## 검증
 
-Unity Hub에서 `unity/` 폴더를 Unity `6000.3.23f1`로 엽니다. Web Build Support 모듈이 필요합니다. 프로젝트를 처음 열면 Unity가 기본 장면과 `.meta` 파일을 생성하므로 Unity 담당자가 한 번에 커밋합니다.
+```bash
+cd frontend
+pnpm lint
+pnpm typecheck
+pnpm build
 
-브라우저와 Unity 사이의 초기 실행 문맥은 `AppBootstrap` JSON으로 전달합니다. 필드 정의는 `docs/contracts/runtime-context.md`에 있습니다.
+cd ../backend
+./mvnw test
+./mvnw package
+```
 
-## 작업 원칙
-
-- 각 담당자는 자신의 폴더에서 명령을 실행합니다.
-- 예약과 착석과 세션 상태의 최종 판단은 백엔드가 담당합니다.
-- API와 WebSocket 이벤트를 바꿀 때는 `docs/contracts/` 문서를 먼저 함께 수정합니다.
-- Unity 바이너리 에셋은 Git LFS로 관리합니다.
-- `.env`와 서비스 키는 커밋하지 않습니다.
+WebXR은 지원 헤드셋과 브라우저와 보안 연결이 필요합니다. VR 모드는 별도 앱 설치 없이 프론트엔드의 같은 프로젝트 화면에서 시작합니다.

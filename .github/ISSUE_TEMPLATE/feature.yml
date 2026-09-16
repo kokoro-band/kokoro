@@ -1,0 +1,35 @@
+name: 기능
+description: 사용자가 사용할 새 기능을 제안합니다.
+title: "[Feature] "
+labels:
+  - "type:feature"
+assignees: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 해결할 문제
+      description: 사용자가 어떤 불편을 겪는지 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 제안 기능
+      description: 사용자 흐름을 기준으로 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건
+      placeholder: |
+        - [ ] 첫 번째 완료 조건
+        - [ ] 두 번째 완료 조건
+    validations:
+      required: true
+  - type: textarea
+    id: excluded
+    attributes:
+      label: 제외 범위
+      description: 이번 작업에서 다루지 않는 범위를 적어주세요.

@@ -1,0 +1,31 @@
+import type { CatalogItem, Project } from "./types"
+
+export const catalog: CatalogItem[] = [
+  { id: "sofa-cloud", name: "클라우드 소파", category: "소파", description: "차분한 패브릭 3인 소파", price: 890000, width: 2.2, depth: 0.92, color: "#D8C8B8" },
+  { id: "sofa-moss", name: "모스 소파", category: "소파", description: "낮은 실루엣의 모듈 소파", price: 1240000, width: 2.1, depth: 0.95, color: "#697866" },
+  { id: "table-oak", name: "오크 테이블", category: "테이블", description: "공간의 중심이 되는 원목", price: 320000, width: 1.25, depth: 0.7, color: "#B98958" },
+  { id: "table-white", name: "라운드 테이블", category: "테이블", description: "부드럽게 연결하는 원형 상판", price: 245000, width: 1.0, depth: 1.0, color: "#E6E1D8" },
+  { id: "chair-shell", name: "셸 체어", category: "의자", description: "가벼운 곡선의 라운지 체어", price: 185000, width: 0.65, depth: 0.65, color: "#4A665A" },
+  { id: "chair-sand", name: "샌드 체어", category: "의자", description: "따뜻한 톤의 패브릭 체어", price: 210000, width: 0.65, depth: 0.65, color: "#D9B986" },
+  { id: "plant-olive", name: "올리브 화분", category: "장식", description: "햇빛이 드는 자리에 작은 초록", price: 68000, width: 0.55, depth: 0.55, color: "#69805E" },
+  { id: "lamp-arc", name: "아크 플로어 램프", category: "장식", description: "저녁의 분위기를 바꾸는 빛", price: 149000, width: 0.5, depth: 0.5, color: "#B7A788" },
+]
+
+export const sampleProject: Project = {
+  id: "living-room-01",
+  name: "성수동 거실",
+  roomType: "거실",
+  dimensions: { width: 5.8, depth: 4.2, height: 2.4 },
+  floorPlan: { fileName: "sample-floor-plan.pdf", size: 842000, status: "READY", progress: 100, uploadedAt: new Date().toISOString() },
+  furniture: [
+    { id: "sofa-01", catalogId: "sofa-cloud", name: "클라우드 소파", category: "소파", x: 28, z: 68, rotation: 0, color: "#D8C8B8" },
+    { id: "table-01", catalogId: "table-oak", name: "오크 테이블", category: "테이블", x: 55, z: 52, rotation: 0, color: "#B98958" },
+    { id: "chair-01", catalogId: "chair-shell", name: "셸 체어", category: "의자", x: 73, z: 32, rotation: 25, color: "#4A665A" },
+    { id: "plant-01", catalogId: "plant-olive", name: "올리브 화분", category: "장식", x: 84, z: 76, rotation: 0, color: "#69805E" },
+  ],
+  updatedAt: new Date().toISOString(),
+}
+
+export const initialMessages = [
+  { id: "welcome", role: "assistant" as const, text: "어떤 방을 만들고 싶으세요? 원하는 분위기와 필요한 가구를 알려주시면 함께 배치해 볼게요." },
+]

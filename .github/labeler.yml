@@ -1,0 +1,43 @@
+area:frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "frontend/**"
+
+area:3d-vr:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "frontend/src/features/studio/RoomScene.tsx"
+          - "frontend/src/**/*3d*"
+          - "frontend/src/**/*xr*"
+          - "frontend/public/**/*.glb"
+          - "frontend/public/**/*.gltf"
+          - "frontend/public/**/*.hdr"
+
+area:backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/**"
+
+area:product:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "PRODUCT.md"
+          - "DESIGN.md"
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "docs/**"
+          - "**/*.md"
+
+area:infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - ".gitignore"
+          - "**/Dockerfile"
+          - "**/docker-compose.yml"
+          - "**/pom.xml"
+          - "**/package.json"
+          - "**/*lock.yaml"

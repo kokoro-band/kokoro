@@ -54,10 +54,19 @@ PR의 `area:*` 라벨은 변경 경로에 따라 자동으로 붙는다. 이슈�
 
 ```bash
 cd frontend
-pnpm lint
-pnpm typecheck
-pnpm build
+vp check
+vp run build
 ```
+
+### Vite+ 사용법
+
+프론트엔드는 Vite+를 사용한다. Vite+는 Vite, Oxlint, Oxfmt, Vitest와 런타임 및 패키지 관리 기능을 `vp` 명령으로 제공한다.
+
+- `vp <name>`은 Vite+ 내장 명령을 실행한다. `package.json` 스크립트나 `vite.config.ts` 태스크는 `vp run <name>`으로 실행한다.
+- 원격 변경을 받은 뒤 작업을 시작하기 전에 `vp install`을 실행한다. 의존성 변경에는 `vp add`, `vp remove`를 사용한다.
+- 도구 버전은 `vp toolchain`으로 확인한다.
+- 환경 문제가 있으면 `vp env doctor`를 실행한다.
+- 로컬 문서는 `frontend/node_modules/vite-plus/docs`에 있다.
 
 백엔드를 변경했다면 다음 검증을 실행한다.
 

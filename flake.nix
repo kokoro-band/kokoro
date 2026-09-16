@@ -6,6 +6,8 @@
     nixpkgs-unfree.url = "github:numtide/nixpkgs-unfree/nixos-unstable";
     nixpkgs-unfree.inputs.nixpkgs.follows = "nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    nix-vite-plus.url = "github:ryoppippi/nix-vite-plus";
+    nix-vite-plus.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -14,6 +16,7 @@
       nixpkgs,
       nixpkgs-unfree,
       flake-utils,
+      nix-vite-plus,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -166,26 +169,28 @@
         devShells.default = pkgs.mkShell {
           packages =
             (with pkgs; [
-              nodejs_22
-              corepack
               git-lfs
               unityCli
               unityInstall
             ])
+            ++ [ nix-vite-plus.packages.${system}.vp ]
             ++ pkgs.lib.optionals (unityHub != null) [ unityHub ];
 
           shellHook = ''
+            cat <<'EOF'
              _  __     _
             | |/ /    | |
             | ' / ___ | | _____  _ __ ___
             |  < / _ \| |/ / _ \| '__/ _ \
             | . \ (_) |   < (_) | | | (_) |
             |_|\_\___/|_|\_\___/|_|  \___/
+            EOF
 
+            eval "$(vp env print node)"
           '';
         };
 
-        formatter = pkgs.nixfmt;
+        formatter = pkgs.nixfmt-tree;
       }
     );
 }

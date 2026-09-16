@@ -1,25 +1,12 @@
-# Kokoro Frontend
+# 프론트엔드
 
-코코로의 좌석 예약과 세션 기록과 Unity Web 실행을 담당하는 웹 애플리케이션입니다.
-
-## 실행
+도면과 가구 카탈로그와 2D 편집과 Three.js 3D 미리보기와 WebXR VR을 모두 제공하는 React 웹 애플리케이션입니다. VR용 별도 앱은 사용하지 않습니다.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-## 검증
+기본값은 서버 없이 사용할 수 있는 로컬 데모입니다. `VITE_API_MODE=server`와 `VITE_API_BASE_URL=http://localhost:8080/api`를 설정하면 Spring 서버에 연결됩니다.
 
-```bash
-pnpm lint
-pnpm typecheck
-pnpm build
-```
-
-## UI 원칙
-
-- shadcn/ui 컴포넌트를 프로젝트 토큰에 맞춰 사용합니다.
-- 초록색은 주요 행동과 선택 상태에만 사용합니다.
-- 버튼은 각진 형태를 유지합니다.
-- 카메라와 마이크를 허용하지 않아도 핵심 흐름을 사용할 수 있어야 합니다.
+검증은 `pnpm lint && pnpm typecheck && pnpm build`로 실행합니다. WebXR은 지원 기기에서 별도로 확인해야 합니다.

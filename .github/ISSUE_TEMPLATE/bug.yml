@@ -1,0 +1,40 @@
+name: 버그
+description: 재현 가능한 문제를 등록합니다.
+title: "[Bug] "
+labels:
+  - "type:bug"
+assignees: []
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 문제
+      description: 실제로 발생한 결과를 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. 첫 번째 단계
+        2. 두 번째 단계
+        3. 발생한 결과
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+    validations:
+      required: true
+  - type: textarea
+    id: cause
+    attributes:
+      label: 원인 추정
+      description: 모르면 비워두세요.
+  - type: textarea
+    id: environment
+    attributes:
+      label: 환경
+      description: 브라우저와 기기와 브랜치와 버전을 적어주세요.

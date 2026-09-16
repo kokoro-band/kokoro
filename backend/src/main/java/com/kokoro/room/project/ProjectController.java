@@ -1,0 +1,72 @@
+package com.kokoro.room.project;
+
+import com.kokoro.room.project.ProjectModels.ChatCommandRequest;
+import com.kokoro.room.project.ProjectModels.ChatCommandResponse;
+import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
+import com.kokoro.room.project.ProjectModels.RenovationProject;
+import com.kokoro.room.project.ProjectModels.SaveLayoutRequest;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/projects")
+public class ProjectController {
+    private final ProjectService projectService;
+
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
+    }
+
+    @GetMapping
+    public List<RenovationProject> findAll() {
+        return projectService.findAll();
+    }
+
+    @GetMapping("/{projectId}")
+    public RenovationProject find(@PathVariable String projectId) {
+        return projectService.find(projectId);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public RenovationProject create(@Valid @RequestBody CreateProjectRequest request) {
+        return projectService.create(request);
+    }
+
+    @PostMapping(path = "/{projectId}/floor-plan", consumes = "multipart/form-data")
+    public RenovationProject uploadFloorPlan(
+            @PathVariable String projectId,
+            @RequestPart("file") MultipartFile file
+    ) throws IOException {
+        return projectService.uploadFloorPlan(projectId, file);
+    }
+
+    @PutMapping("/{projectId}/layout")
+    public RenovationProject saveLayout(
+            @PathVariable String projectId,
+            @Valid @RequestBody SaveLayoutRequest request
+    ) {
+        return projectService.saveLayout(projectId, request.furniture());
+    }
+
+    @PostMapping("/{projectId}/layout/commands")
+    public ChatCommandResponse applyCommand(
+            @PathVariable String projectId,
+            @Valid @RequestBody ChatCommandRequest request
+    ) {
+        return projectService.applyCommand(projectId, request.message());
+    }
+}

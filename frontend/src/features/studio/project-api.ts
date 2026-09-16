@@ -19,8 +19,24 @@ export function readSavedProject(): Project {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, init)
-  if (!response.ok) throw new Error("서버 요청을 처리하지 못했습니다. 서버 실행 상태를 확인해 주세요.")
+  let response: Response
+  try {
+    response = await fetch(`${apiBase}${path}`, init)
+  } catch {
+    throw new Error("서버에 연결할 수 없습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.")
+  }
+
+  if (!response.ok) {
+    let message = "서버 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    try {
+      const error = await response.json() as { detail?: unknown; message?: unknown }
+      const detail = typeof error.detail === "string" ? error.detail : error.message
+      if (typeof detail === "string" && detail.trim()) message = detail
+    } catch {
+      // Fall back to a status-based default message when the body is not a JSON error.
+    }
+    throw new Error(message)
+  }
   return response.json() as Promise<T>
 }
 

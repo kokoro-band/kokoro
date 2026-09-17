@@ -7,6 +7,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -18,7 +23,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Testcontainers
 class ProjectApiTest {
+    @Container
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("kokoro")
+            .withUsername("kokoro")
+            .withPassword("kokoro");
+
+    @DynamicPropertySource
+    static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
+    }
+
     @Autowired MockMvc mockMvc;
 
     @Test
@@ -69,5 +89,34 @@ class ProjectApiTest {
                         .content("{\"furniture\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.furniture", hasSize(0)));
+    }
+
+    @Test
+    void persistsFurnitureOrderAndCoordinatesInPostgres() throws Exception {
+        String response = mockMvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"저장 확인","roomType":"거실","dimensions":{"width":5.0,"depth":4.0,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = response.split("\"id\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(put("/api/projects/{id}/layout", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[
+                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":12.5,"z":30.0,"rotation":15,"color":"#D8C8B8"},
+                                  {"id":"second","catalogId":"plant-olive","name":"화분","category":"장식","x":80.0,"z":70.0,"rotation":0,"color":"#69805E"}
+                                ]}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture", hasSize(2)))
+                .andExpect(jsonPath("$.furniture[0].id").value("first"))
+                .andExpect(jsonPath("$.furniture[0].x").value(12.5))
+                .andExpect(jsonPath("$.furniture[1].id").value("second"));
     }
 }

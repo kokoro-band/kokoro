@@ -116,6 +116,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .uploaded-file { display: flex; align-items: center; gap: 9px; margin: 0 14px 12px; padding: 10px; background: #fff; border: 1px solid var(--line); border-radius: 7px; }
 .uploaded-file > svg:first-child { color: var(--primary); }
 .uploaded-file > svg:last-child { margin-left: auto; color: var(--primary); }
+.uploaded-file.failed { border-color: #dfb7b2; background: #fff8f7; }
+.uploaded-file.failed > svg { color: #a43b32; }
 .uploaded-file div { min-width: 0; }
 .uploaded-file strong, .uploaded-file span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uploaded-file strong { font-size: 11px; }
@@ -127,6 +129,14 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .progress-track { height: 4px; margin-top: 11px; overflow: hidden; background: #d7e2d8; border-radius: 9px; }
 .progress-track span { display: block; height: 100%; background: var(--primary); transition: width 500ms ease; }
 .conversion-card p { margin: 9px 0 0; color: #5e6b60; font-size: 10px; line-height: 1.5; }
+.conversion-card.processing .progress-track span { animation: upload-pulse 1.4s ease-in-out infinite; }
+.conversion-card.failed { background: #fff3f1; border-color: #dfb7b2; }
+.conversion-card.failed [data-slot="badge"] { color: #8e332c; background: #fff; border-color: #dfb7b2; }
+.conversion-card.failed .progress-track { background: #efd9d6; }
+.conversion-card.failed .progress-track span { background: #b4453c; }
+.conversion-card.failed p { color: #7d352f; }
+.retry-upload { width: 100%; height: 32px; margin-top: 11px; color: #8e332c; background: #fff; border-color: #d8aaa5; font-size: 10px; }
+.retry-upload:hover { color: #762a25; background: #fff9f8; border-color: #c98e87; }
 .plan-panel > h3 { margin: 0 14px 9px; font-size: 12px; }
 .room-dimensions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 14px; }
 .room-dimensions div { padding: 10px 6px; background: #fff; border: 1px solid var(--line); border-radius: 7px; text-align: center; }
@@ -235,6 +245,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .new-project-dialog button { border-radius: 7px; }
 .spin { animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes upload-pulse { 50% { opacity: 0.62; } }
 
 @media (max-width: 1180px) {
   .editor-grid { grid-template-columns: minmax(220px, 240px) minmax(500px, 1fr); grid-template-areas: "library scene" "assistant assistant"; overflow: visible; }
@@ -276,4 +287,5 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  .conversion-card.processing .progress-track span { animation: none; }
 }

@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useRef, useState } from "react"
 import {
-  Armchair, ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check,
+  AlertCircle, Armchair, ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check,
   ChevronDown, ChevronRight, CircleHelp, FileImage, FileUp, Flower2,
   Grid2X2, Layers3, LayoutDashboard, LoaderCircle, Maximize2, Move,
-  Minus, PanelLeftClose, Plus, Redo2, RotateCw, Save, Send,
+  Minus, PanelLeftClose, Plus, Redo2, RefreshCw, RotateCw, Save, Send,
   Settings2, Sofa, Sparkles, Table2, Trash2, Undo2, View,
 } from "lucide-react"
 
@@ -15,6 +15,24 @@ import type { Category, ChatMessage, Furniture, Project, ViewMode } from "@/feat
 
 const categories: Category[] = ["전체", "소파", "테이블", "의자", "장식"]
 const money = new Intl.NumberFormat("ko-KR")
+const maxFloorPlanBytes = 15 * 1024 * 1024
+const supportedFloorPlanTypes = ["application/pdf", "image/png", "image/jpeg"]
+
+type UploadAttempt = {
+  file: File
+  status: "PROCESSING" | "FAILED"
+  phase: "UPLOADING" | "CONVERTING"
+  progress: number
+  error: string
+  retryable: boolean
+}
+function validateFloorPlan(file: File) {
+  if (!supportedFloorPlanTypes.includes(file.type)) return "PDF, PNG, JPG 형식의 도면을 선택해 주세요."
+  if (file.size > maxFloorPlanBytes) return "도면 파일은 15MB 이하여야 합니다."
+  if (file.size === 0) return "비어 있는 파일은 업로드할 수 없습니다."
+  return null
+}
+
 const RoomScene = lazy(async () => {
   const module = await import("@/features/studio/RoomScene")
   return { default: module.RoomScene }
@@ -37,7 +55,7 @@ export default function App() {
   const [input, setInput] = useState("")
   const [notice, setNotice] = useState("")
   const [busy, setBusy] = useState<"chat" | "save" | "upload" | "create" | null>(null)
-  const [progress, setProgress] = useState(0)
+  const [uploadAttempt, setUploadAttempt] = useState<UploadAttempt | null>(null)
   const [past, setPast] = useState<Furniture[][]>([])
   const [future, setFuture] = useState<Furniture[][]>([])
   const [dirty, setDirty] = useState(false)
@@ -47,6 +65,21 @@ export default function App() {
   const nameRef = useRef<HTMLInputElement>(null)
   const selected = project.furniture.find((item) => item.id === selectedId)
   const budget = project.furniture.reduce((total, item) => total + (catalog.find((entry) => entry.id === item.catalogId)?.price ?? 0), 0)
+  const displayedFloorPlan = uploadAttempt ? { fileName: uploadAttempt.file.name, size: uploadAttempt.file.size } : project.floorPlan
+  const floorPlanStatus = uploadAttempt?.status ?? project.floorPlan.status
+  const floorPlanProgress = uploadAttempt?.progress ?? project.floorPlan.progress
+  const floorPlanStatusLabel = floorPlanStatus === "PROCESSING"
+    ? uploadAttempt?.phase === "UPLOADING" ? "업로드 중" : "변환 중"
+    : floorPlanStatus === "READY" ? "예제 모델 준비됨"
+      : floorPlanStatus === "FAILED" ? "처리 실패"
+        : "도면 대기"
+  const floorPlanMessage = floorPlanStatus === "FAILED"
+    ? uploadAttempt?.error ?? "도면을 처리하지 못했습니다. 다른 파일을 선택해 주세요."
+    : floorPlanStatus === "PROCESSING"
+      ? uploadAttempt?.phase === "UPLOADING" ? "도면을 안전하게 업로드하고 있습니다." : "방 치수를 적용하고 있습니다."
+      : floorPlanStatus === "READY"
+        ? "방을 만들었습니다. 자동 벽 인식은 AI 변환기 연결 후 사용할 수 있습니다."
+        : "PDF, PNG, JPG 형식의 15MB 이하 도면을 선택해 주세요."
 
   function commitFurniture(next: Furniture[]) {
     setPast((history) => [...history.slice(-29), project.furniture])
@@ -124,28 +157,39 @@ export default function App() {
 
   async function handleUpload(file?: File) {
     if (!file) return
-    if (!["application/pdf", "image/png", "image/jpeg"].includes(file.type) || file.size > 15 * 1024 * 1024) {
-      setNotice("PDF와 PNG와 JPG 형식의 15MB 이하 도면을 선택해 주세요.")
+    setNotice("")
+    const validationError = validateFloorPlan(file)
+    setLeftTab("plan")
+    if (validationError) {
+      setUploadAttempt({ file, status: "FAILED", phase: "UPLOADING", progress: 0, error: validationError, retryable: false })
+      if (uploadRef.current) uploadRef.current.value = ""
       return
     }
+
     setBusy("upload")
-    setProgress(20)
-    setLeftTab("plan")
+    setUploadAttempt({ file, status: "PROCESSING", phase: "UPLOADING", progress: 18, error: "", retryable: true })
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 550))
-      setProgress(65)
+      await new Promise((resolve) => window.setTimeout(resolve, 350))
+      setUploadAttempt((current) => current?.file === file ? { ...current, progress: 42 } : current)
       const uploaded = await uploadPlan(project, file)
-      await new Promise((resolve) => window.setTimeout(resolve, 500))
-      setProgress(100)
+      setUploadAttempt((current) => current?.file === file ? { ...current, phase: "CONVERTING", progress: 74 } : current)
+      await new Promise((resolve) => window.setTimeout(resolve, 450))
       setProject(uploaded)
+      setUploadAttempt(null)
       setDirty(true)
       setNotice("도면을 등록했습니다. 현재 변환기는 예제 방 치수를 사용합니다.")
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "도면을 등록하지 못했습니다.")
+      const message = error instanceof Error ? error.message : "도면을 등록하지 못했습니다. 다시 시도해 주세요."
+      setUploadAttempt((current) => current?.file === file ? { ...current, status: "FAILED", error: message } : current)
     } finally {
       setBusy(null)
       if (uploadRef.current) uploadRef.current.value = ""
     }
+  }
+
+  function retryUpload() {
+    if (uploadAttempt?.status !== "FAILED" || !uploadAttempt.retryable) return
+    void handleUpload(uploadAttempt.file)
   }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
@@ -159,6 +203,7 @@ export default function App() {
       setPast([])
       setFuture([])
       setMessages(initialMessages)
+      setUploadAttempt(null)
       setLeftTab("plan")
       setDirty(true)
       newProjectDialogRef.current?.close()
@@ -190,7 +235,7 @@ export default function App() {
 
       <main id="workspace" className="workspace">
         <div className="project-bar">
-          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={() => { setProject(structuredClone(sampleProject)); setDirty(true); setNotice("예제 프로젝트를 열었습니다.") }}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
+          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={() => { setProject(structuredClone(sampleProject)); setUploadAttempt(null); setDirty(true); setNotice("예제 프로젝트를 열었습니다.") }}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
           <div className="project-actions"><span className="save-status">{dirty ? "저장하지 않은 변경" : "모든 변경 저장됨"}</span><Button variant="outline" className="export-button" onClick={exportProject}><ArrowDownToLine size={16} />내보내기</Button><Button className="save-button" onClick={handleSave} disabled={busy !== null}>{busy === "save" ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}저장</Button></div>
         </div>
 
@@ -202,7 +247,20 @@ export default function App() {
               <div className="category-list" aria-label="가구 종류">{categories.map((entry) => <button key={entry} className={category === entry ? "active" : ""} aria-pressed={category === entry} onClick={() => setCategory(entry)}>{entry}</button>)}</div>
               <div className="catalog-grid">{catalog.filter((item) => category === "전체" || item.category === category).map((item) => <button className="catalog-card" key={item.id} onClick={() => addFurniture(item.id)}><div className="catalog-visual" style={{ "--item-color": item.color } as React.CSSProperties}><FurnitureIcon category={item.category} size={46} /><span className="add-icon"><Plus size={14} /></span></div><strong>{item.name}</strong><span>{item.description}</span><div className="catalog-meta"><span>{Math.round(item.width * 100)} × {Math.round(item.depth * 100)} cm</span><b>₩{money.format(item.price)}</b></div></button>)}</div>
               <div className="library-footnote"><Box size={14} /><span>규격 기반 기본 모델입니다.<br />실제 제품 모델은 추후 연결됩니다.</span></div>
-            </> : <div className="plan-panel"><div className="library-heading"><h2>도면에서 시작하기</h2><p>평면도를 올리고 내 공간의 뼈대를 만드세요.</p></div><button className="upload-zone" onClick={() => uploadRef.current?.click()} disabled={busy !== null}><span className="upload-icon"><FileUp size={26} /></span><strong>도면 업로드</strong><span>PDF, PNG, JPG 형식이며 최대 15MB</span></button>{project.floorPlan.fileName && <div className="uploaded-file"><FileImage size={20} /><div><strong>{project.floorPlan.fileName}</strong><span>{(project.floorPlan.size / 1024).toFixed(0)} KB</span></div><Check size={16} /></div>}<div className="conversion-card"><div><span className="small-label">3D 변환</span><Badge variant="outline">{busy === "upload" ? "처리 중" : project.floorPlan.status === "READY" ? "예제 모델 준비됨" : "도면 대기"}</Badge></div><div className="progress-track"><span style={{ width: `${busy === "upload" ? progress : project.floorPlan.progress}%` }} /></div><p>현재는 업로드를 검증한 뒤 예제 치수의 방을 생성합니다. 자동 벽 인식은 AI 변환기 연결 후 사용할 수 있습니다.</p></div><h3>공간 치수</h3><div className="room-dimensions">{Object.entries(project.dimensions).map(([key, value]) => <div key={key}><span>{key === "width" ? "가로" : key === "depth" ? "세로" : "높이"}</span><strong>{value.toFixed(1)}<small>m</small></strong></div>)}</div><div className="tip-card"><CircleHelp size={17} /><p>치수가 표기된 도면을 사용하면 실제 공간에 가까운 모델을 만들 수 있습니다.</p></div></div>}
+            </> : <div className="plan-panel">
+              <div className="library-heading"><h2>도면에서 시작하기</h2><p>평면도를 올리고 내 공간의 뼈대를 만드세요.</p></div>
+              <button className="upload-zone" onClick={() => uploadRef.current?.click()} disabled={busy !== null}><span className="upload-icon"><FileUp size={26} /></span><strong>{floorPlanStatus === "FAILED" ? "다른 도면 선택" : "도면 업로드"}</strong><span>PDF, PNG, JPG 형식, 최대 15MB</span></button>
+              {displayedFloorPlan.fileName && <div className={`uploaded-file ${floorPlanStatus.toLowerCase()}`}><FileImage size={20} /><div><strong>{displayedFloorPlan.fileName}</strong><span>{(displayedFloorPlan.size / 1024).toFixed(0)} KB</span></div>{floorPlanStatus === "PROCESSING" ? <LoaderCircle className="spin" size={16} /> : floorPlanStatus === "FAILED" ? <AlertCircle size={16} /> : <Check size={16} />}</div>}
+              <div className={`conversion-card ${floorPlanStatus.toLowerCase()}`} aria-live="polite">
+                <div><span className="small-label">3D 변환</span><Badge variant="outline">{floorPlanStatusLabel}</Badge></div>
+                <div className="progress-track" role="progressbar" aria-label="도면 처리 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={floorPlanProgress}><span style={{ width: `${floorPlanProgress}%` }} /></div>
+                <p role={floorPlanStatus === "FAILED" ? "alert" : undefined}>{floorPlanMessage}</p>
+                {floorPlanStatus === "FAILED" && uploadAttempt?.retryable && <Button type="button" variant="outline" className="retry-upload" onClick={retryUpload} disabled={busy !== null}><RefreshCw size={14} />같은 파일 다시 시도</Button>}
+              </div>
+              <h3>공간 치수</h3>
+              <div className="room-dimensions">{Object.entries(project.dimensions).map(([key, value]) => <div key={key}><span>{key === "width" ? "가로" : key === "depth" ? "세로" : "높이"}</span><strong>{value.toFixed(1)}<small>m</small></strong></div>)}</div>
+              <div className="tip-card"><CircleHelp size={17} /><p>치수가 표기된 도면을 사용하면 실제 공간에 가까운 모델을 만들 수 있습니다.</p></div>
+            </div>}
           </aside>}
 
           <section className="scene-panel" aria-label="공간 편집">

@@ -82,12 +82,16 @@ export default function App() {
   const [past, setPast] = useState<Furniture[][]>([])
   const [future, setFuture] = useState<Furniture[][]>([])
   const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [showLeft, setShowLeft] = useState(true)
   const uploadRef = useRef<HTMLInputElement>(null)
   const newProjectDialogRef = useRef<HTMLDialogElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
   const activeProjectIdRef = useRef(readActiveProjectId() ?? sampleProject.id)
   const startedInitialLoadRef = useRef(false)
+  const projectRef = useRef(project)
+  const queuedSaveRef = useRef<Project | null>(null)
+  const saveLoopRef = useRef<Promise<void> | null>(null)
   const selected = project.furniture.find((item) => item.id === selectedId)
   const budget = project.furniture.reduce((total, item) => total + (catalog.find((entry) => entry.id === item.catalogId)?.price ?? 0), 0)
   const displayedFloorPlan = uploadAttempt ? { fileName: uploadAttempt.file.name, size: uploadAttempt.file.size } : project.floorPlan
@@ -106,12 +110,40 @@ export default function App() {
         ? "방을 만들었습니다. 자동 벽 인식은 AI 변환기 연결 후 사용할 수 있습니다."
         : "PDF, PNG, JPG 형식의 15MB 이하 도면을 선택해 주세요."
 
+  const queueServerSave = useCallback(function queueServerSave(snapshot: Project) {
+    if (!isServerMode) return
+    queuedSaveRef.current = snapshot
+    if (saveLoopRef.current) return
+
+    saveLoopRef.current = (async () => {
+      setSaving(true)
+      try {
+        while (queuedSaveRef.current) {
+          const next = queuedSaveRef.current
+          queuedSaveRef.current = null
+          try {
+            await saveProject(next)
+            if (projectRef.current === next) setDirty(false)
+          } catch (error) {
+            queuedSaveRef.current = null
+            setDirty(true)
+            setNotice(error instanceof Error ? error.message : "배치를 자동 저장하지 못했습니다.")
+          }
+        }
+      } finally {
+        saveLoopRef.current = null
+        setSaving(false)
+      }
+    })()
+  }, [])
+
   const loadServerProject = useCallback(async function loadServerProject(projectId: string) {
     activeProjectIdRef.current = projectId
     setProjectLoad({ status: "loading", message: "" })
     try {
       const loaded = await getProject(projectId)
       rememberActiveProject(loaded.id)
+      projectRef.current = loaded
       setProject(loaded)
       setSelectedId(loaded.furniture[0]?.id ?? null)
       setPast([])
@@ -131,10 +163,13 @@ export default function App() {
   }, [loadServerProject])
 
   function commitFurniture(next: Furniture[]) {
+    const updated = { ...projectRef.current, furniture: next }
     setPast((history) => [...history.slice(-29), project.furniture])
     setFuture([])
-    setProject((current) => ({ ...current, furniture: next }))
+    projectRef.current = updated
+    setProject(updated)
     setDirty(true)
+    queueServerSave(updated)
   }
 
   const selectFurniture = useCallback(function selectFurniture(id: string | null) {
@@ -142,9 +177,15 @@ export default function App() {
   }, [])
 
   const moveFurniture = useCallback(function moveFurniture(id: string, x: number, z: number) {
-    setProject((current) => ({ ...current, furniture: current.furniture.map((item) => item.id === id ? { ...item, x, z } : item) }))
+    const updated = { ...projectRef.current, furniture: projectRef.current.furniture.map((item) => item.id === id ? { ...item, x, z } : item) }
+    projectRef.current = updated
+    setProject(updated)
     setDirty(true)
   }, [])
+
+  const saveMovedFurniture = useCallback(function saveMovedFurniture() {
+    queueServerSave(projectRef.current)
+  }, [queueServerSave])
 
   function updateSelected(update: Partial<Furniture>) {
     commitFurniture(project.furniture.map((item) => item.id === selectedId ? { ...item, ...update } : item))
@@ -162,8 +203,11 @@ export default function App() {
     if (!previous) return
     setFuture((history) => [project.furniture, ...history])
     setPast((history) => history.slice(0, -1))
-    setProject((current) => ({ ...current, furniture: previous }))
+    const updated = { ...projectRef.current, furniture: previous }
+    projectRef.current = updated
+    setProject(updated)
     setDirty(true)
+    queueServerSave(updated)
   }
 
   function redo() {
@@ -171,15 +215,23 @@ export default function App() {
     if (!next) return
     setPast((history) => [...history, project.furniture])
     setFuture((history) => history.slice(1))
-    setProject((current) => ({ ...current, furniture: next }))
+    const updated = { ...projectRef.current, furniture: next }
+    projectRef.current = updated
+    setProject(updated)
     setDirty(true)
+    queueServerSave(updated)
   }
 
   async function handleSave() {
+    const snapshot = projectRef.current
     setBusy("save")
     try {
-      setProject(await saveProject(project))
-      setDirty(false)
+      const saved = await saveProject(snapshot)
+      if (projectRef.current === snapshot) {
+        projectRef.current = saved
+        setProject(saved)
+        setDirty(false)
+      }
       setNotice(isServerMode ? "서버에 배치를 저장했습니다." : "이 브라우저에 프로젝트를 저장했습니다.")
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "저장하지 못했습니다.")
@@ -223,6 +275,7 @@ export default function App() {
       const uploaded = await uploadPlan(project, file)
       setUploadAttempt((current) => current?.file === file ? { ...current, phase: "CONVERTING", progress: 74 } : current)
       await new Promise((resolve) => window.setTimeout(resolve, 450))
+      projectRef.current = uploaded
       setProject(uploaded)
       setUploadAttempt(null)
       setDirty(true)
@@ -248,6 +301,7 @@ export default function App() {
     setBusy("create")
     try {
       const created = await createProject(name)
+      projectRef.current = created
       setProject(created)
       if (isServerMode) {
         activeProjectIdRef.current = created.id
@@ -268,6 +322,19 @@ export default function App() {
     } finally {
       setBusy(null)
     }
+  }
+
+  function openSampleProject() {
+    if (isServerMode) {
+      void loadServerProject(sampleProject.id)
+      return
+    }
+    const sample = structuredClone(sampleProject)
+    projectRef.current = sample
+    setProject(sample)
+    setUploadAttempt(null)
+    setDirty(true)
+    setNotice("예제 프로젝트를 열었습니다.")
   }
 
   function exportProject() {
@@ -291,8 +358,8 @@ export default function App() {
       <main id="workspace" className="workspace">
         {projectLoad.status !== "ready" ? <ProjectStartup state={projectLoad} onRetry={() => void loadServerProject(activeProjectIdRef.current)} onCreate={() => newProjectDialogRef.current?.showModal()} /> : <>
         <div className="project-bar">
-          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={() => { if (isServerMode) { void loadServerProject(sampleProject.id); return } setProject(structuredClone(sampleProject)); setUploadAttempt(null); setDirty(true); setNotice("예제 프로젝트를 열었습니다.") }}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
-          <div className="project-actions"><span className="save-status">{dirty ? "저장하지 않은 변경" : "모든 변경 저장됨"}</span><Button variant="outline" className="export-button" onClick={exportProject}><ArrowDownToLine size={16} />내보내기</Button><Button className="save-button" onClick={handleSave} disabled={busy !== null}>{busy === "save" ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}저장</Button></div>
+          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={openSampleProject}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
+          <div className="project-actions"><span className="save-status" aria-live="polite">{saving ? "변경 사항 저장 중" : dirty ? "저장하지 않은 변경" : "모든 변경 저장됨"}</span><Button variant="outline" className="export-button" onClick={exportProject}><ArrowDownToLine size={16} />내보내기</Button><Button className="save-button" onClick={handleSave} disabled={busy !== null || saving}>{busy === "save" || saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}저장</Button></div>
         </div>
 
         <div className={`editor-grid ${!showLeft ? "left-hidden" : ""}`}>
@@ -321,7 +388,7 @@ export default function App() {
 
           <section className="scene-panel" aria-label="공간 편집">
             <div className="scene-toolbar"><div className="toolbar-left"><button className="icon-button" aria-label={showLeft ? "라이브러리 접기" : "라이브러리 열기"} onClick={() => setShowLeft(!showLeft)}><PanelLeftClose size={17} /></button><span className="toolbar-divider" /><div className="view-switch" aria-label="웹 보기 방식">{([{ id: "2d", label: "2D", icon: Grid2X2 }, { id: "3d", label: "3D", icon: Box }, { id: "vr", label: "웹 VR", icon: View }] as const).map((view) => <button key={view.id} aria-pressed={mode === view.id} className={mode === view.id ? "active" : ""} onClick={() => setMode(view.id)}><view.icon size={15} />{view.label}</button>)}</div></div><div className="toolbar-right"><button className="icon-button" aria-label="실행 취소" disabled={!past.length} onClick={undo}><Undo2 size={17} /></button><button className="icon-button" aria-label="다시 실행" disabled={!future.length} onClick={redo}><Redo2 size={17} /></button><span className="toolbar-divider" /><button className="icon-button" aria-label="편집 영역 전체 화면" onClick={() => document.querySelector(".scene-panel")?.requestFullscreen().catch(() => setNotice("전체 화면을 시작하지 못했습니다."))}><Maximize2 size={16} /></button></div></div>
-            <div className="scene-area"><div className="scene-caption"><span className="scene-dot" /><span>{mode === "vr" ? "같은 웹에서 VR로 확인하는 중" : mode === "2d" ? "위에서 보는 2D 배치" : "브라우저 3D로 꾸미는 중"}</span></div><Suspense fallback={<div className="scene-loading"><LoaderCircle className="spin" size={20} />3D 공간을 준비하고 있어요</div>}><RoomScene furniture={project.furniture} selectedId={selectedId} mode={mode} onSelect={selectFurniture} onMove={moveFurniture} /></Suspense><div className="scene-scale"><span />1 m</div><div className="scene-hint"><Move size={14} /><span>{mode === "vr" ? "헤드셋에서 가구를 집고 바닥을 가리켜 놓으세요" : "가구를 드래그하면 이동합니다. 빈 공간을 드래그하면 회전하고 스크롤하면 확대합니다."}</span></div>{mode === "vr" && <div className="vr-information"><View size={20} /><strong>앱 설치 없이 웹에서 들어가세요</strong><p>WebXR 지원 헤드셋과 HTTPS 연결이 필요합니다. 아래 웹 VR 버튼에서 이 기기의 지원 여부를 확인할 수 있습니다.</p></div>}</div>
+            <div className="scene-area"><div className="scene-caption"><span className="scene-dot" /><span>{mode === "vr" ? "같은 웹에서 VR로 확인하는 중" : mode === "2d" ? "위에서 보는 2D 배치" : "브라우저 3D로 꾸미는 중"}</span></div><Suspense fallback={<div className="scene-loading"><LoaderCircle className="spin" size={20} />3D 공간을 준비하고 있어요</div>}><RoomScene furniture={project.furniture} selectedId={selectedId} mode={mode} onSelect={selectFurniture} onMove={moveFurniture} onMoveEnd={saveMovedFurniture} /></Suspense><div className="scene-scale"><span />1 m</div><div className="scene-hint"><Move size={14} /><span>{mode === "vr" ? "헤드셋에서 가구를 집고 바닥을 가리켜 놓으세요" : "가구를 드래그하면 이동합니다. 빈 공간을 드래그하면 회전하고 스크롤하면 확대합니다."}</span></div>{mode === "vr" && <div className="vr-information"><View size={20} /><strong>앱 설치 없이 웹에서 들어가세요</strong><p>WebXR 지원 헤드셋과 HTTPS 연결이 필요합니다. 아래 웹 VR 버튼에서 이 기기의 지원 여부를 확인할 수 있습니다.</p></div>}</div>
             <div className="scene-bottom"><div><Layers3 size={16} /><strong>{project.furniture.length}개의 가구</strong><span className="bottom-divider" /><span>{(project.dimensions.width * project.dimensions.depth).toFixed(1)} m²</span></div><span className="scene-note">배치 기준 모델</span></div>
             <div className="layout-summary"><div className="summary-icon"><LayoutDashboard size={21} /></div><div><strong>지금의 공간 계획</strong><p>가구를 바꾸고 위치를 조절하며 가장 편한 배치를 찾아보세요.</p></div><div className="budget"><span>가구 예상 금액</span><strong>₩{money.format(budget)}</strong></div></div>
           </section>

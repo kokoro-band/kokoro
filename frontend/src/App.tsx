@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertCircle, Armchair, ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check,
   ChevronDown, ChevronRight, CircleHelp, FileImage, FileUp, Flower2,
@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { catalog, initialMessages, sampleProject } from "@/features/studio/data"
-import { createProject, isServerMode, makeFurniture, readSavedProject, saveProject, sendCommand, uploadPlan } from "@/features/studio/project-api"
+import { createProject, getProject, isServerMode, makeFurniture, readActiveProjectId, readSavedProject, rememberActiveProject, saveProject, sendCommand, uploadPlan } from "@/features/studio/project-api"
 import type { Category, ChatMessage, Furniture, Project, ViewMode } from "@/features/studio/types"
 
 const categories: Category[] = ["전체", "소파", "테이블", "의자", "장식"]
@@ -26,6 +26,7 @@ type UploadAttempt = {
   error: string
   retryable: boolean
 }
+type ProjectLoadState = { status: "loading"; message: "" } | { status: "ready"; message: "" } | { status: "error"; message: string }
 function validateFloorPlan(file: File) {
   if (!supportedFloorPlanTypes.includes(file.type)) return "PDF, PNG, JPG 형식의 도면을 선택해 주세요."
   if (file.size > maxFloorPlanBytes) return "도면 파일은 15MB 이하여야 합니다."
@@ -45,8 +46,30 @@ function FurnitureIcon({ category, size = 28 }: { category: string; size?: numbe
   return <Flower2 size={size} strokeWidth={1.5} />
 }
 
+function ProjectStartup({ state, onRetry, onCreate }: { state: ProjectLoadState; onRetry: () => void; onCreate: () => void }) {
+  if (state.status === "loading") {
+    return (
+      <section className="project-startup" aria-live="polite" aria-busy="true">
+        <div className="startup-loading-icon"><LoaderCircle className="spin" size={22} /></div>
+        <h1>마지막 프로젝트를 불러오고 있어요</h1>
+        <p>서버에 저장된 도면과 가구 배치를 확인하고 있습니다.</p>
+        <div className="startup-skeleton" aria-hidden="true"><span /><span /><span /></div>
+      </section>
+    )
+  }
+  return (
+    <section className="project-startup error" role="alert">
+      <div className="startup-error-icon"><AlertCircle size={23} /></div>
+      <h1>프로젝트를 불러오지 못했어요</h1>
+      <p>{state.message}</p>
+      <div className="startup-actions"><Button onClick={onRetry}><RefreshCw size={16} />다시 시도</Button><Button variant="outline" onClick={onCreate}>새 프로젝트 시작</Button></div>
+    </section>
+  )
+}
+
 export default function App() {
   const [project, setProject] = useState<Project>(readSavedProject)
+  const [projectLoad, setProjectLoad] = useState<ProjectLoadState>(isServerMode ? { status: "loading", message: "" } : { status: "ready", message: "" })
   const [selectedId, setSelectedId] = useState<string | null>("sofa-01")
   const [mode, setMode] = useState<ViewMode>("3d")
   const [category, setCategory] = useState<Category>("전체")
@@ -63,6 +86,8 @@ export default function App() {
   const uploadRef = useRef<HTMLInputElement>(null)
   const newProjectDialogRef = useRef<HTMLDialogElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const activeProjectIdRef = useRef(readActiveProjectId() ?? sampleProject.id)
+  const startedInitialLoadRef = useRef(false)
   const selected = project.furniture.find((item) => item.id === selectedId)
   const budget = project.furniture.reduce((total, item) => total + (catalog.find((entry) => entry.id === item.catalogId)?.price ?? 0), 0)
   const displayedFloorPlan = uploadAttempt ? { fileName: uploadAttempt.file.name, size: uploadAttempt.file.size } : project.floorPlan
@@ -80,6 +105,30 @@ export default function App() {
       : floorPlanStatus === "READY"
         ? "방을 만들었습니다. 자동 벽 인식은 AI 변환기 연결 후 사용할 수 있습니다."
         : "PDF, PNG, JPG 형식의 15MB 이하 도면을 선택해 주세요."
+
+  const loadServerProject = useCallback(async function loadServerProject(projectId: string) {
+    activeProjectIdRef.current = projectId
+    setProjectLoad({ status: "loading", message: "" })
+    try {
+      const loaded = await getProject(projectId)
+      rememberActiveProject(loaded.id)
+      setProject(loaded)
+      setSelectedId(loaded.furniture[0]?.id ?? null)
+      setPast([])
+      setFuture([])
+      setUploadAttempt(null)
+      setDirty(false)
+      setProjectLoad({ status: "ready", message: "" })
+    } catch (error) {
+      setProjectLoad({ status: "error", message: error instanceof Error ? error.message : "서버에서 프로젝트를 불러오지 못했습니다." })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isServerMode || startedInitialLoadRef.current) return
+    startedInitialLoadRef.current = true
+    void loadServerProject(activeProjectIdRef.current)
+  }, [loadServerProject])
 
   function commitFurniture(next: Furniture[]) {
     setPast((history) => [...history.slice(-29), project.furniture])
@@ -198,14 +247,20 @@ export default function App() {
     if (!name) return
     setBusy("create")
     try {
-      setProject(await createProject(name))
+      const created = await createProject(name)
+      setProject(created)
+      if (isServerMode) {
+        activeProjectIdRef.current = created.id
+        rememberActiveProject(created.id)
+        setProjectLoad({ status: "ready", message: "" })
+      }
       setSelectedId(null)
       setPast([])
       setFuture([])
       setMessages(initialMessages)
       setUploadAttempt(null)
       setLeftTab("plan")
-      setDirty(true)
+      setDirty(!isServerMode)
       newProjectDialogRef.current?.close()
       setNotice("새 프로젝트를 만들었습니다. 도면을 업로드해 주세요.")
     } catch (error) {
@@ -234,8 +289,9 @@ export default function App() {
       </header>
 
       <main id="workspace" className="workspace">
+        {projectLoad.status !== "ready" ? <ProjectStartup state={projectLoad} onRetry={() => void loadServerProject(activeProjectIdRef.current)} onCreate={() => newProjectDialogRef.current?.showModal()} /> : <>
         <div className="project-bar">
-          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={() => { setProject(structuredClone(sampleProject)); setUploadAttempt(null); setDirty(true); setNotice("예제 프로젝트를 열었습니다.") }}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
+          <div className="project-heading"><button className="icon-button back-button" aria-label="예제 프로젝트 열기" onClick={() => { if (isServerMode) { void loadServerProject(sampleProject.id); return } setProject(structuredClone(sampleProject)); setUploadAttempt(null); setDirty(true); setNotice("예제 프로젝트를 열었습니다.") }}><ArrowLeft size={18} /></button><div><div className="breadcrumb">내 공간 <ChevronRight size={12} /> 리모델링 프로젝트</div><h1>{project.name}<ChevronDown size={16} /></h1></div><Badge className="project-badge" variant="outline">{project.roomType}</Badge></div>
           <div className="project-actions"><span className="save-status">{dirty ? "저장하지 않은 변경" : "모든 변경 저장됨"}</span><Button variant="outline" className="export-button" onClick={exportProject}><ArrowDownToLine size={16} />내보내기</Button><Button className="save-button" onClick={handleSave} disabled={busy !== null}>{busy === "save" ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}저장</Button></div>
         </div>
 
@@ -274,6 +330,7 @@ export default function App() {
             <div className="properties"><div className="properties-heading"><h3><Settings2 size={16} />선택한 가구</h3>{selected && <button className="icon-button danger" aria-label="선택한 가구 삭제" onClick={() => { commitFurniture(project.furniture.filter((item) => item.id !== selectedId)); setSelectedId(null) }}><Trash2 size={16} /></button>}</div>{selected ? <><div className="selected-item"><span style={{ color: selected.color }}><FurnitureIcon category={selected.category} size={28} /></span><div><strong>{selected.name}</strong><span>{selected.category}</span></div></div><div className="position-fields"><label>가로 위치<input type="number" min={7} max={93} value={Math.round(selected.x)} onChange={(event) => updateSelected({ x: Math.min(93, Math.max(7, Number(event.target.value))) })} /><span>%</span></label><label>세로 위치<input type="number" min={8} max={92} value={Math.round(selected.z)} onChange={(event) => updateSelected({ z: Math.min(92, Math.max(8, Number(event.target.value))) })} /><span>%</span></label></div><div className="rotation-control"><span>회전</span><button className="icon-button" aria-label="15도 왼쪽 회전" onClick={() => updateSelected({ rotation: (selected.rotation - 15 + 360) % 360 })}><Minus size={14} /></button><strong>{selected.rotation}°</strong><button className="icon-button" aria-label="15도 오른쪽 회전" onClick={() => updateSelected({ rotation: (selected.rotation + 15) % 360 })}><Plus size={14} /></button><button className="icon-button" aria-label="회전 초기화" onClick={() => updateSelected({ rotation: 0 })}><RotateCw size={14} /></button></div></> : <div className="selection-empty"><Move size={24} /><p>공간에서 가구를 선택하면<br />위치와 회전을 조절할 수 있어요.</p></div>}</div>
           </aside>
         </div>
+        </>}
       </main>
       <footer className="app-footer"><span><Check size={13} />도면과 배치 데이터를 하나의 프로젝트로</span><span>코코로 리모델링 스튜디오</span></footer>
       <div className={`notice ${notice ? "visible" : ""}`} role="status">{notice}<button aria-label="알림 닫기" onClick={() => setNotice("")}>×</button></div>

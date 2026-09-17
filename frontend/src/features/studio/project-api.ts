@@ -2,6 +2,7 @@ import { catalog, sampleProject } from "./data"
 import type { Furniture, Project } from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
+const activeProjectStorageKey = "kokoro-active-server-project-v1"
 export const isServerMode = import.meta.env.VITE_API_MODE === "server"
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api"
 
@@ -16,6 +17,22 @@ export function readSavedProject(): Project {
     // 손상된 기기 저장소는 샘플 프로젝트로 복구합니다.
   }
   return structuredClone(sampleProject)
+}
+
+export function readActiveProjectId(): string | null {
+  try {
+    return localStorage.getItem(activeProjectStorageKey)
+  } catch {
+    return null
+  }
+}
+
+export function rememberActiveProject(projectId: string) {
+  try {
+    localStorage.setItem(activeProjectStorageKey, projectId)
+  } catch {
+    // The open project still works when browser storage is unavailable.
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -38,6 +55,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message)
   }
   return response.json() as Promise<T>
+}
+
+export function getProject(projectId: string): Promise<Project> {
+  return request<Project>(`/projects/${projectId}`)
 }
 
 export async function saveProject(project: Project): Promise<Project> {

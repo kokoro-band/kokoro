@@ -28,7 +28,59 @@
 
 `POST /projects/{projectId}/floor-plan`에 `file`이라는 이름으로 multipart 파일을 전송합니다. PDF와 PNG와 JPG만 허용하고 최대 크기는 15MB입니다.
 
-현재 응답은 검증이 끝나면 바로 `READY` 상태를 반환합니다. 실제 변환기가 연결되면 `PROCESSING`과 진행률을 반환하고 별도 상태 조회 API를 추가합니다.
+업로드 응답은 기존 프로젝트 형식을 유지하면서 `floorPlan.jobId`를 함께 반환합니다. 업로드 직후에는 `PROCESSING` 상태이며, 변환 작업은 로컬 저장소 기반 비동기 데모 프로세서가 처리합니다.
+
+`GET /projects/{projectId}/floor-plan/jobs/{jobId}`로 변환 상태를 조회합니다.
+
+```json
+{
+  "jobId": "…",
+  "projectId": "…",
+  "objectKey": "project-id/uuid/plan.pdf",
+  "status": "PROCESSING",
+  "progress": 25,
+  "errorCode": null,
+  "errorMessage": null,
+  "retryable": true
+}
+```
+
+완료 상태는 `READY`, 실패 상태는 `FAILED`이며 실패 시 `errorCode`, `errorMessage`, `retryable`을 확인합니다. 현재 저장소 구현은 로컬 파일 시스템이고, 운영 object storage는 `FloorPlanStorage` 구현체를 교체하는 방식으로 연결합니다.
+
+처리 중인 도면이 있는 프로젝트에 새 도면을 업로드하면 `409 Conflict`를 반환합니다. 기존 작업이 완료되거나 실패한 뒤 새 도면을 업로드할 수 있습니다.
+
+### 변환 결과 계약 초안
+
+실제 변환기가 반환할 공간 모델은 `schemaVersion: "1.0"`을 기준으로 합니다. 길이 단위는 미터이며, 바닥면 좌표는 Three.js의 X/Z 축을 사용하고 높이는 Y 축으로 올립니다. 벽의 `start`와 `end`는 바닥면 좌표이고, 개구부의 `offset`은 해당 벽의 시작점에서 잰 거리입니다.
+
+```json
+{
+  "schemaVersion": "1.0",
+  "jobId": "…",
+  "unit": "m",
+  "room": { "width": 5.8, "depth": 4.2, "height": 2.4 },
+  "walls": [
+    {
+      "id": "wall-01",
+      "start": { "x": 0, "z": 0 },
+      "end": { "x": 5.8, "z": 0 },
+      "height": 2.4,
+      "thickness": 0.15
+    }
+  ],
+  "openings": [
+    {
+      "id": "window-01",
+      "wallId": "wall-01",
+      "type": "WINDOW",
+      "offset": 1.2,
+      "width": 1.8,
+      "height": 1.4,
+      "sillHeight": 0.9
+    }
+  ]
+}
+```
 
 ## 배치 저장
 

@@ -6,6 +6,8 @@ import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
 import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
+import com.kokoro.room.project.ProjectModels.FloorPlanJob;
+import com.kokoro.room.floorplan.FloorPlanStorage;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,22 +22,30 @@ import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class ProjectService {
     private static final long MAX_FLOOR_PLAN_BYTES = 15L * 1024 * 1024;
     private final ProjectRepository projectRepository;
+    private final FloorPlanStorage floorPlanStorage;
+    private final FloorPlanJobRepository floorPlanJobRepository;
+    private final FloorPlanJobDispatcher floorPlanJobDispatcher;
 
-    public ProjectService(ProjectRepository projectRepository) {
+    public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
+                          FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher) {
         this.projectRepository = projectRepository;
+        this.floorPlanStorage = floorPlanStorage;
+        this.floorPlanJobRepository = floorPlanJobRepository;
+        this.floorPlanJobDispatcher = floorPlanJobDispatcher;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
                     "성수동 거실",
                     "거실",
                     new Dimensions(5.8, 4.2, 2.4),
-                    new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now()),
+                    new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now(), null, null, null, null, false),
                     new ArrayList<>(List.of(
                             furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 28, 68, 0, "#D8C8B8"),
                             furniture("table-01", "table-oak", "오크 테이블", "테이블", 55, 52, 0, "#B98958"),
@@ -65,7 +75,7 @@ public class ProjectService {
                 request.name(),
                 request.roomType(),
                 request.dimensions(),
-                new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null),
+                new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null, null, null, null, null, false),
                 new ArrayList<>(),
                 Instant.now()
         );
@@ -73,7 +83,6 @@ public class ProjectService {
         return project;
     }
 
-    @Transactional
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
         RenovationProject project = find(id);
         if (file.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "도면 파일이 비어 있습니다.");
@@ -83,13 +92,27 @@ public class ProjectService {
         if (!List.of("application/pdf", "image/png", "image/jpeg").contains(contentType)) {
             throw new ResponseStatusException(BAD_REQUEST, "PDF, PNG, JPG 도면만 업로드할 수 있습니다.");
         }
+        if (project.floorPlan().status() == ConversionStatus.PROCESSING && project.floorPlan().jobId() != null) {
+            throw new ResponseStatusException(CONFLICT, "현재 도면 변환 작업이 진행 중입니다.");
+        }
 
-        file.getBytes();
+        FloorPlanStorage.StoredFloorPlan stored = floorPlanStorage.store(id, file);
+        String jobId = UUID.randomUUID().toString();
+        Instant createdAt = Instant.now();
+        floorPlanJobRepository.insert(new FloorPlanJob(jobId, id, stored.objectKey(), ConversionStatus.PROCESSING,
+                0, null, null, true, createdAt, null, null));
         FloorPlan floorPlan = new FloorPlan(
-                file.getOriginalFilename(), file.getSize(), ConversionStatus.READY, 100, Instant.now());
+                stored.fileName(), stored.size(), ConversionStatus.PROCESSING, 0, createdAt, jobId,
+                stored.objectKey(), null, null, true);
         RenovationProject updated = copy(project, floorPlan, project.furniture());
         projectRepository.replace(updated);
+        floorPlanJobDispatcher.dispatch(id, jobId);
         return updated;
+    }
+
+    public FloorPlanJob findFloorPlanJob(String projectId, String jobId) {
+        return floorPlanJobRepository.findById(projectId, jobId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "도면 변환 작업을 찾을 수 없습니다."));
     }
 
     @Transactional

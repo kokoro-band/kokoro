@@ -1,5 +1,6 @@
 package com.kokoro.room.project;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,8 +20,61 @@ public final class ProjectModels {
             long size,
             ConversionStatus status,
             int progress,
-            Instant uploadedAt
+            Instant uploadedAt,
+            String jobId,
+            @JsonIgnore
+            String objectKey,
+            String errorCode,
+            String errorMessage,
+            boolean retryable
     ) {}
+
+    public record FloorPlanJob(
+            String jobId,
+            String projectId,
+            @JsonIgnore
+            String objectKey,
+            ConversionStatus status,
+            int progress,
+            String errorCode,
+            String errorMessage,
+            boolean retryable,
+            Instant createdAt,
+            Instant startedAt,
+            Instant completedAt
+    ) {}
+
+    /** Versioned shape contract for a future floor-plan converter and the 3D client. */
+    public record FloorPlanConversionResult(
+            String schemaVersion,
+            String jobId,
+            String unit,
+            RoomBounds room,
+            List<Wall> walls,
+            List<Opening> openings
+    ) {}
+
+    public record RoomBounds(double width, double depth, double height) {}
+
+    public record Wall(
+            String id,
+            Point start,
+            Point end,
+            double height,
+            double thickness
+    ) {}
+
+    public record Opening(
+            String id,
+            String wallId,
+            String type,
+            double offset,
+            double width,
+            double height,
+            double sillHeight
+    ) {}
+
+    public record Point(double x, double z) {}
 
     public record FurnitureItem(
             @NotBlank String id,

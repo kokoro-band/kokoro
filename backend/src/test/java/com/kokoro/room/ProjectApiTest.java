@@ -65,9 +65,13 @@ class ProjectApiTest {
 
         MockMultipartFile floorPlan = new MockMultipartFile(
                 "file", "plan.pdf", "application/pdf", "floor-plan".getBytes());
-        mockMvc.perform(multipart("/api/projects/{id}/floor-plan", id).file(floorPlan))
+        String uploadResponse = mockMvc.perform(multipart("/api/projects/{id}/floor-plan", id).file(floorPlan))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.floorPlan.status").value("READY"));
+                .andExpect(jsonPath("$.floorPlan.jobId").isNotEmpty())
+                .andExpect(jsonPath("$.floorPlan.objectKey").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String jobId = uploadResponse.split("\"jobId\":\"")[1].split("\"")[0];
+        awaitReady(id, jobId);
 
         mockMvc.perform(post("/api/projects/{id}/layout/commands", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,5 +122,16 @@ class ProjectApiTest {
                 .andExpect(jsonPath("$.furniture[0].id").value("first"))
                 .andExpect(jsonPath("$.furniture[0].x").value(12.5))
                 .andExpect(jsonPath("$.furniture[1].id").value("second"));
+    }
+
+    private void awaitReady(String projectId, String jobId) throws Exception {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            String response = mockMvc.perform(get("/api/projects/{projectId}/floor-plan/jobs/{jobId}", projectId, jobId))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            if (response.contains("\"status\":\"READY\"")) return;
+            Thread.sleep(25);
+        }
+        throw new AssertionError("도면 변환 작업이 READY 상태가 되지 않았습니다.");
     }
 }

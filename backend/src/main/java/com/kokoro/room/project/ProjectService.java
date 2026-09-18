@@ -32,13 +32,16 @@ public class ProjectService {
     private final FloorPlanStorage floorPlanStorage;
     private final FloorPlanJobRepository floorPlanJobRepository;
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
+    private final FurniturePlacementValidator furniturePlacementValidator;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
-                          FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher) {
+                          FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
+                          FurniturePlacementValidator furniturePlacementValidator) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
         this.floorPlanJobDispatcher = floorPlanJobDispatcher;
+        this.furniturePlacementValidator = furniturePlacementValidator;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -118,6 +121,7 @@ public class ProjectService {
     @Transactional
     public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
         RenovationProject project = find(id);
+        furniturePlacementValidator.validate(project.dimensions(), furniture);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
         projectRepository.replace(updated);
         return updated;

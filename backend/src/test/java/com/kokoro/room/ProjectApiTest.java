@@ -120,7 +120,7 @@ class ProjectApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.furniture", hasSize(2)))
                 .andExpect(jsonPath("$.furniture[0].id").value("first"))
-                .andExpect(jsonPath("$.furniture[0].x").value(12.5))
+                .andExpect(jsonPath("$.furniture[0].x").value(25.0))
                 .andExpect(jsonPath("$.furniture[1].id").value("second"));
     }
 

@@ -108,9 +108,22 @@ public final class ProjectModels {
 
     public record ChatCommandRequest(@NotBlank String message) {}
 
+    public enum LayoutActionType { ADD, MOVE, ROTATE, REMOVE, CLEAR }
+
+    public record LayoutCommand(
+            LayoutActionType type,
+            String catalogId,
+            String furnitureId,
+            Double x,
+            Double z,
+            Integer rotation
+    ) {}
+
     public record ChatCommandResponse(
             String reply,
             List<String> appliedActions,
+            List<LayoutCommand> commands,
+            boolean requiresConfirmation,
             RenovationProject project
     ) {}
 }

@@ -7,6 +7,8 @@ import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
+import com.kokoro.room.project.ProjectModels.LayoutActionType;
+import com.kokoro.room.project.ProjectModels.LayoutCommand;
 import com.kokoro.room.floorplan.FloorPlanStorage;
 import com.kokoro.room.security.CurrentUser;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
@@ -35,16 +37,19 @@ public class ProjectService {
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
     private final FurniturePlacementValidator furniturePlacementValidator;
     private final CurrentUser currentUser;
+    private final LayoutCommandInterpreter layoutCommandInterpreter;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
                           FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
-                          FurniturePlacementValidator furniturePlacementValidator, CurrentUser currentUser) {
+                          FurniturePlacementValidator furniturePlacementValidator,
+                          CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
         this.floorPlanJobDispatcher = floorPlanJobDispatcher;
         this.furniturePlacementValidator = furniturePlacementValidator;
         this.currentUser = currentUser;
+        this.layoutCommandInterpreter = layoutCommandInterpreter;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -145,46 +150,73 @@ public class ProjectService {
     @Transactional
     public ChatCommandResponse applyCommand(String id, String message) {
         RenovationProject project = find(id);
-        String normalized = message.replace(" ", "").toLowerCase();
+        LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message);
+        if (interpretation.requiresConfirmation()) {
+            return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true, project);
+        }
         List<FurnitureItem> next = new ArrayList<>(project.furniture());
         List<String> actions = new ArrayList<>();
-
-        if (normalized.contains("비워") || normalized.contains("전부삭제")) {
-            next.clear();
-            actions.add("가구 전체 제거");
-        } else {
-            if (normalized.contains("소파")) {
-                next.add(furniture(unique("sofa"), "sofa-cloud", "클라우드 소파", "소파", 24, 67, 0, "#D8C8B8"));
-                actions.add("소파를 창가 반대편에 배치");
-            }
-            if (normalized.contains("테이블") || normalized.contains("책상")) {
-                next.add(furniture(unique("table"), "table-oak", "오크 테이블", "테이블", 54, 48, 0, "#B98958"));
-                actions.add("테이블을 공간 중앙에 배치");
-            }
-            if (normalized.contains("의자")) {
-                next.add(furniture(unique("chair"), "chair-shell", "셸 체어", "의자", 68, 34, 15, "#4A665A"));
-                actions.add("의자를 테이블 가까이에 배치");
-            }
-            if (normalized.contains("식물") || normalized.contains("화분")) {
-                next.add(furniture(unique("plant"), "plant-olive", "올리브 화분", "장식", 84, 74, 0, "#69805E"));
-                actions.add("화분을 채광이 좋은 모서리에 배치");
+        for (LayoutCommand command : interpretation.commands()) {
+            FurnitureItem target = next.stream().filter(item -> item.catalogId().equals(command.catalogId())).findFirst().orElse(null);
+            if (command.type() == LayoutActionType.ADD) {
+                FurnitureItem item = furniture(unique(command.catalogId()), command.catalogId(), displayName(command.catalogId()),
+                        category(command.catalogId()), command.x(), command.z(), command.rotation(), color(command.catalogId()));
+                next.add(item);
+                actions.add(item.name() + " 배치");
+            } else if (target != null && command.type() == LayoutActionType.REMOVE) {
+                next.remove(target);
+                actions.add(target.name() + " 삭제");
+            } else if (target != null && command.type() == LayoutActionType.MOVE) {
+                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(), target.category(),
+                        command.x(), command.z(), target.rotation(), target.color()));
+                actions.add(target.name() + " 이동");
+            } else if (target != null && command.type() == LayoutActionType.ROTATE) {
+                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(), target.category(),
+                        target.x(), target.z(), command.rotation(), target.color()));
+                actions.add(target.name() + " 회전");
             }
         }
-
         if (actions.isEmpty()) {
             return new ChatCommandResponse(
-                    "소파, 테이블, 의자, 화분 중 원하는 가구와 위치를 함께 말해 주세요.",
-                    List.of(),
+                    interpretation.reply(), List.of(), interpretation.commands(), false,
                     project
             );
         }
 
         RenovationProject updated = saveLayout(id, next);
         return new ChatCommandResponse(
-                String.join("하고 ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
-                actions,
+                String.join(", ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
+                actions, interpretation.commands(), false,
                 updated
         );
+    }
+
+    private static String displayName(String catalogId) {
+        return switch (catalogId) {
+            case "sofa-cloud" -> "클라우드 소파";
+            case "table-oak" -> "오크 테이블";
+            case "chair-shell" -> "셸 체어";
+            case "plant-olive" -> "올리브 화분";
+            default -> catalogId;
+        };
+    }
+
+    private static String category(String catalogId) {
+        return switch (catalogId) {
+            case "sofa-cloud" -> "소파";
+            case "table-oak" -> "테이블";
+            case "chair-shell" -> "의자";
+            default -> "장식";
+        };
+    }
+
+    private static String color(String catalogId) {
+        return switch (catalogId) {
+            case "sofa-cloud" -> "#D8C8B8";
+            case "table-oak" -> "#B98958";
+            case "chair-shell" -> "#4A665A";
+            default -> "#69805E";
+        };
     }
 
     private RenovationProject copy(RenovationProject project, FloorPlan floorPlan, List<FurnitureItem> furniture) {

@@ -1,5 +1,6 @@
 package com.kokoro.room.project;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,6 +22,7 @@ public final class ProjectModels {
             int progress,
             Instant uploadedAt,
             String jobId,
+            @JsonIgnore
             String objectKey,
             String errorCode,
             String errorMessage,
@@ -30,6 +32,7 @@ public final class ProjectModels {
     public record FloorPlanJob(
             String jobId,
             String projectId,
+            @JsonIgnore
             String objectKey,
             ConversionStatus status,
             int progress,

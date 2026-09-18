@@ -110,7 +110,7 @@ class ProjectApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
-                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":12.5,"z":30.0,"rotation":15,"color":"#D8C8B8"},
+                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":25.0,"z":30.0,"rotation":15,"color":"#D8C8B8"},
                                   {"id":"second","catalogId":"plant-olive","name":"화분","category":"장식","x":80.0,"z":70.0,"rotation":0,"color":"#69805E"}
                                 ]}
                                 """))

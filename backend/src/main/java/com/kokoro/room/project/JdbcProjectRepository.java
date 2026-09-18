@@ -66,7 +66,7 @@ public class JdbcProjectRepository implements ProjectRepository {
                     floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                     floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
                     floor_plan_retryable, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, project.id(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),

@@ -15,9 +15,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -25,36 +25,39 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class ProjectService {
     private static final long MAX_FLOOR_PLAN_BYTES = 15L * 1024 * 1024;
-    private final Map<String, RenovationProject> projects = new ConcurrentHashMap<>();
+    private final ProjectRepository projectRepository;
 
-    public ProjectService() {
-        RenovationProject sample = new RenovationProject(
-                "living-room-01",
-                "성수동 거실",
-                "거실",
-                new Dimensions(5.8, 4.2, 2.4),
-                new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now()),
-                new ArrayList<>(List.of(
-                        furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 28, 68, 0, "#D8C8B8"),
-                        furniture("table-01", "table-oak", "오크 테이블", "테이블", 55, 52, 0, "#B98958"),
-                        furniture("chair-01", "chair-shell", "셸 체어", "의자", 73, 32, 25, "#4A665A"),
-                        furniture("plant-01", "plant-olive", "올리브 화분", "장식", 84, 76, 0, "#69805E")
-                )),
-                Instant.now()
-        );
-        projects.put(sample.id(), sample);
+    public ProjectService(ProjectRepository projectRepository) {
+        this.projectRepository = projectRepository;
+        if (projectRepository.findById("living-room-01").isEmpty()) {
+            RenovationProject sample = new RenovationProject(
+                    "living-room-01",
+                    "성수동 거실",
+                    "거실",
+                    new Dimensions(5.8, 4.2, 2.4),
+                    new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now()),
+                    new ArrayList<>(List.of(
+                            furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 28, 68, 0, "#D8C8B8"),
+                            furniture("table-01", "table-oak", "오크 테이블", "테이블", 55, 52, 0, "#B98958"),
+                            furniture("chair-01", "chair-shell", "셸 체어", "의자", 73, 32, 25, "#4A665A"),
+                            furniture("plant-01", "plant-olive", "올리브 화분", "장식", 84, 76, 0, "#69805E")
+                    )),
+                    Instant.now()
+            );
+            projectRepository.insert(sample);
+        }
     }
 
     public List<RenovationProject> findAll() {
-        return projects.values().stream().toList();
+        return projectRepository.findAll();
     }
 
     public RenovationProject find(String id) {
-        RenovationProject project = projects.get(id);
-        if (project == null) throw new ResponseStatusException(NOT_FOUND, "프로젝트를 찾을 수 없습니다.");
-        return project;
+        return projectRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
     }
 
+    @Transactional
     public RenovationProject create(CreateProjectRequest request) {
         String id = UUID.randomUUID().toString();
         RenovationProject project = new RenovationProject(
@@ -66,10 +69,11 @@ public class ProjectService {
                 new ArrayList<>(),
                 Instant.now()
         );
-        projects.put(id, project);
+        projectRepository.insert(project);
         return project;
     }
 
+    @Transactional
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
         RenovationProject project = find(id);
         if (file.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "도면 파일이 비어 있습니다.");
@@ -84,17 +88,19 @@ public class ProjectService {
         FloorPlan floorPlan = new FloorPlan(
                 file.getOriginalFilename(), file.getSize(), ConversionStatus.READY, 100, Instant.now());
         RenovationProject updated = copy(project, floorPlan, project.furniture());
-        projects.put(id, updated);
+        projectRepository.replace(updated);
         return updated;
     }
 
+    @Transactional
     public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
         RenovationProject project = find(id);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
-        projects.put(id, updated);
+        projectRepository.replace(updated);
         return updated;
     }
 
+    @Transactional
     public ChatCommandResponse applyCommand(String id, String message) {
         RenovationProject project = find(id);
         String normalized = message.replace(" ", "").toLowerCase();

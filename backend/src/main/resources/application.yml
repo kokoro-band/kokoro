@@ -1,6 +1,13 @@
 spring:
   application:
     name: kokoro-remodel-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/kokoro}
+    username: ${DB_USERNAME:kokoro}
+    password: ${DB_PASSWORD:kokoro}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
   servlet:
     multipart:
       max-file-size: 15MB

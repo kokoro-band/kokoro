@@ -1,0 +1,130 @@
+package com.kokoro.room.project;
+
+import com.kokoro.room.project.ProjectModels.ConversionStatus;
+import com.kokoro.room.project.ProjectModels.Dimensions;
+import com.kokoro.room.project.ProjectModels.FloorPlan;
+import com.kokoro.room.project.ProjectModels.FurnitureItem;
+import com.kokoro.room.project.ProjectModels.RenovationProject;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.stereotype.Repository;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+@Repository
+@DependsOn("flyway")
+public class JdbcProjectRepository implements ProjectRepository {
+    private final JdbcTemplate jdbc;
+
+    public JdbcProjectRepository(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    @Override
+    public List<RenovationProject> findAll() {
+        Map<String, RenovationProject> projects = new LinkedHashMap<>();
+        jdbc.query("""
+                SELECT id, name, room_type, width, depth, height,
+                       floor_plan_file_name, floor_plan_size, floor_plan_status,
+                       floor_plan_progress, floor_plan_uploaded_at, updated_at
+                  FROM projects ORDER BY updated_at DESC
+                """, (rs, rowNum) -> mapProject(rs))
+                .forEach(project -> projects.put(project.id(), project));
+        projects.values().forEach(project -> replaceFurniture(project));
+        return new ArrayList<>(projects.values());
+    }
+
+    @Override
+    public Optional<RenovationProject> findById(String id) {
+        List<RenovationProject> projects = jdbc.query("""
+                SELECT id, name, room_type, width, depth, height,
+                       floor_plan_file_name, floor_plan_size, floor_plan_status,
+                       floor_plan_progress, floor_plan_uploaded_at, updated_at
+                  FROM projects WHERE id = ?
+                """, (rs, rowNum) -> mapProject(rs), id);
+        if (projects.isEmpty()) return Optional.empty();
+        RenovationProject project = projects.get(0);
+        return Optional.of(replaceFurniture(project));
+    }
+
+    @Override
+    public void insert(RenovationProject project) {
+        jdbc.update("""
+                INSERT INTO projects (
+                    id, name, room_type, width, depth, height,
+                    floor_plan_file_name, floor_plan_size, floor_plan_status,
+                    floor_plan_progress, floor_plan_uploaded_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, project.id(), project.name(), project.roomType(),
+                project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
+                project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
+                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), timestamp(project.updatedAt()));
+        insertFurniture(project);
+    }
+
+    @Override
+    public void replace(RenovationProject project) {
+        jdbc.update("DELETE FROM furniture_items WHERE project_id = ?", project.id());
+        jdbc.update("""
+                UPDATE projects
+                   SET name = ?, room_type = ?, width = ?, depth = ?, height = ?,
+                       floor_plan_file_name = ?, floor_plan_size = ?, floor_plan_status = ?,
+                       floor_plan_progress = ?, floor_plan_uploaded_at = ?, updated_at = ?
+                 WHERE id = ?
+                """, project.name(), project.roomType(),
+                project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
+                project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
+                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), timestamp(project.updatedAt()),
+                project.id());
+        insertFurniture(project);
+    }
+
+    private RenovationProject replaceFurniture(RenovationProject project) {
+        List<FurnitureItem> furniture = jdbc.query("""
+                SELECT id, catalog_id, name, category, x, z, rotation, color
+                  FROM furniture_items WHERE project_id = ? ORDER BY item_order, id
+                """, (rs, rowNum) -> new FurnitureItem(
+                rs.getString("id"), rs.getString("catalog_id"), rs.getString("name"),
+                rs.getString("category"), rs.getDouble("x"), rs.getDouble("z"),
+                rs.getInt("rotation"), rs.getString("color")), project.id());
+        project.furniture().clear();
+        project.furniture().addAll(furniture);
+        return project;
+    }
+
+    private void insertFurniture(RenovationProject project) {
+        for (int index = 0; index < project.furniture().size(); index++) {
+            FurnitureItem item = project.furniture().get(index);
+            jdbc.update("""
+                    INSERT INTO furniture_items (
+                        project_id, id, catalog_id, name, category, x, z, rotation, color, item_order
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, project.id(), item.id(), item.catalogId(), item.name(), item.category(),
+                    item.x(), item.z(), item.rotation(), item.color(), index);
+        }
+    }
+
+    private RenovationProject mapProject(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new RenovationProject(
+                rs.getString("id"), rs.getString("name"), rs.getString("room_type"),
+                new Dimensions(rs.getDouble("width"), rs.getDouble("depth"), rs.getDouble("height")),
+                new FloorPlan(rs.getString("floor_plan_file_name"), rs.getLong("floor_plan_size"),
+                        ConversionStatus.valueOf(rs.getString("floor_plan_status")), rs.getInt("floor_plan_progress"),
+                        instant(rs.getTimestamp("floor_plan_uploaded_at"))),
+                new ArrayList<>(), instant(rs.getTimestamp("updated_at")));
+    }
+
+    private static Timestamp timestamp(Instant value) {
+        return value == null ? null : Timestamp.from(value);
+    }
+
+    private static Instant instant(Timestamp value) {
+        return value == null ? null : value.toInstant();
+    }
+}

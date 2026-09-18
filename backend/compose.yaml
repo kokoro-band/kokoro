@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kokoro
+      POSTGRES_USER: kokoro
+      POSTGRES_PASSWORD: kokoro
+    ports:
+      - "5432:5432"
+    volumes:
+      - kokoro-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kokoro -d kokoro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kokoro-postgres-data:

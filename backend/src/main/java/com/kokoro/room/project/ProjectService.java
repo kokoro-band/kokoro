@@ -22,6 +22,7 @@ import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -90,6 +91,9 @@ public class ProjectService {
         String contentType = file.getContentType() == null ? "" : file.getContentType();
         if (!List.of("application/pdf", "image/png", "image/jpeg").contains(contentType)) {
             throw new ResponseStatusException(BAD_REQUEST, "PDF, PNG, JPG 도면만 업로드할 수 있습니다.");
+        }
+        if (project.floorPlan().status() == ConversionStatus.PROCESSING && project.floorPlan().jobId() != null) {
+            throw new ResponseStatusException(CONFLICT, "현재 도면 변환 작업이 진행 중입니다.");
         }
 
         FloorPlanStorage.StoredFloorPlan stored = floorPlanStorage.store(id, file);

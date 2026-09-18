@@ -28,7 +28,24 @@
 
 `POST /projects/{projectId}/floor-plan`에 `file`이라는 이름으로 multipart 파일을 전송합니다. PDF와 PNG와 JPG만 허용하고 최대 크기는 15MB입니다.
 
-현재 응답은 검증이 끝나면 바로 `READY` 상태를 반환합니다. 실제 변환기가 연결되면 `PROCESSING`과 진행률을 반환하고 별도 상태 조회 API를 추가합니다.
+업로드 응답은 기존 프로젝트 형식을 유지하면서 `floorPlan.jobId`를 함께 반환합니다. 업로드 직후에는 `PROCESSING` 상태이며, 변환 작업은 로컬 저장소 기반 비동기 데모 프로세서가 처리합니다.
+
+`GET /projects/{projectId}/floor-plan/jobs/{jobId}`로 변환 상태를 조회합니다.
+
+```json
+{
+  "jobId": "…",
+  "projectId": "…",
+  "objectKey": "project-id/uuid/plan.pdf",
+  "status": "PROCESSING",
+  "progress": 25,
+  "errorCode": null,
+  "errorMessage": null,
+  "retryable": true
+}
+```
+
+완료 상태는 `READY`, 실패 상태는 `FAILED`이며 실패 시 `errorCode`, `errorMessage`, `retryable`을 확인합니다. 현재 저장소 구현은 로컬 파일 시스템이고, 운영 object storage는 `FloorPlanStorage` 구현체를 교체하는 방식으로 연결합니다.
 
 ## 배치 저장
 

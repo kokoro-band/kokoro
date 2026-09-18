@@ -6,6 +6,8 @@ import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
 import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
+import com.kokoro.room.project.ProjectModels.FloorPlanJob;
+import com.kokoro.room.floorplan.FloorPlanStorage;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,6 +18,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
+import java.util.concurrent.Executor;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,16 +30,23 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ProjectService {
     private static final long MAX_FLOOR_PLAN_BYTES = 15L * 1024 * 1024;
     private final ProjectRepository projectRepository;
+    private final FloorPlanStorage floorPlanStorage;
+    private final FloorPlanJobRepository floorPlanJobRepository;
+    private final Executor floorPlanExecutor;
 
-    public ProjectService(ProjectRepository projectRepository) {
+    public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
+                          FloorPlanJobRepository floorPlanJobRepository, Executor floorPlanExecutor) {
         this.projectRepository = projectRepository;
+        this.floorPlanStorage = floorPlanStorage;
+        this.floorPlanJobRepository = floorPlanJobRepository;
+        this.floorPlanExecutor = floorPlanExecutor;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
                     "성수동 거실",
                     "거실",
                     new Dimensions(5.8, 4.2, 2.4),
-                    new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now()),
+                    new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now(), null, null, null, null, false),
                     new ArrayList<>(List.of(
                             furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 28, 68, 0, "#D8C8B8"),
                             furniture("table-01", "table-oak", "오크 테이블", "테이블", 55, 52, 0, "#B98958"),
@@ -65,7 +76,7 @@ public class ProjectService {
                 request.name(),
                 request.roomType(),
                 request.dimensions(),
-                new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null),
+                new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null, null, null, null, null, false),
                 new ArrayList<>(),
                 Instant.now()
         );
@@ -73,7 +84,6 @@ public class ProjectService {
         return project;
     }
 
-    @Transactional
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
         RenovationProject project = find(id);
         if (file.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "도면 파일이 비어 있습니다.");
@@ -84,12 +94,67 @@ public class ProjectService {
             throw new ResponseStatusException(BAD_REQUEST, "PDF, PNG, JPG 도면만 업로드할 수 있습니다.");
         }
 
-        file.getBytes();
+        FloorPlanStorage.StoredFloorPlan stored = floorPlanStorage.store(id, file);
+        String jobId = UUID.randomUUID().toString();
+        Instant createdAt = Instant.now();
+        floorPlanJobRepository.insert(new FloorPlanJob(jobId, id, stored.objectKey(), ConversionStatus.PROCESSING,
+                0, null, null, true, createdAt, null, null));
         FloorPlan floorPlan = new FloorPlan(
-                file.getOriginalFilename(), file.getSize(), ConversionStatus.READY, 100, Instant.now());
+                stored.fileName(), stored.size(), ConversionStatus.PROCESSING, 0, createdAt, jobId,
+                stored.objectKey(), null, null, true);
         RenovationProject updated = copy(project, floorPlan, project.furniture());
         projectRepository.replace(updated);
+        floorPlanExecutor.execute(() -> processFloorPlan(jobId, id));
         return updated;
+    }
+
+    public FloorPlanJob findFloorPlanJob(String projectId, String jobId) {
+        return floorPlanJobRepository.findById(projectId, jobId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "도면 변환 작업을 찾을 수 없습니다."));
+    }
+
+    private void processFloorPlan(String jobId, String projectId) {
+        try {
+            FloorPlanJob current = findFloorPlanJob(projectId, jobId);
+            Instant startedAt = Instant.now();
+            FloorPlanJob processing = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.PROCESSING,
+                    25, null, null, true, current.createdAt(), startedAt, null);
+            floorPlanJobRepository.update(processing);
+            updateFloorPlan(projectId, jobId, ConversionStatus.PROCESSING, 25, null, null, true);
+            Thread.sleep(50);
+            Instant completedAt = Instant.now();
+            FloorPlanJob completed = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.READY,
+                    100, null, null, false, current.createdAt(), startedAt, completedAt);
+            floorPlanJobRepository.update(completed);
+            updateFloorPlan(projectId, jobId, ConversionStatus.READY, 100, null, null, false);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            markFailed(projectId, jobId, "CONVERSION_INTERRUPTED", "도면 변환이 중단되었습니다.", true);
+        } catch (Exception exception) {
+            markFailed(projectId, jobId, "CONVERSION_FAILED", "도면 변환에 실패했습니다.", true);
+        }
+    }
+
+    private void markFailed(String projectId, String jobId, String code, String message, boolean retryable) {
+        try {
+            FloorPlanJob current = findFloorPlanJob(projectId, jobId);
+            FloorPlanJob failed = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.FAILED,
+                    current.progress(), code, message, retryable, current.createdAt(), current.startedAt(), Instant.now());
+            floorPlanJobRepository.update(failed);
+            updateFloorPlan(projectId, jobId, ConversionStatus.FAILED, current.progress(), code, message, retryable);
+        } catch (Exception ignored) {
+            // The original failure is already represented by the async task; avoid replacing it.
+        }
+    }
+
+    private void updateFloorPlan(String projectId, String jobId, ConversionStatus status, int progress,
+                                 String errorCode, String errorMessage, boolean retryable) {
+        Optional<RenovationProject> project = projectRepository.findById(projectId);
+        if (project.isEmpty()) return;
+        FloorPlan previous = project.get().floorPlan();
+        FloorPlan next = new FloorPlan(previous.fileName(), previous.size(), status, progress, previous.uploadedAt(),
+                jobId, previous.objectKey(), errorCode, errorMessage, retryable);
+        projectRepository.replace(copy(project.get(), next, project.get().furniture()));
     }
 
     @Transactional

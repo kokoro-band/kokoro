@@ -19,7 +19,26 @@ public final class ProjectModels {
             long size,
             ConversionStatus status,
             int progress,
-            Instant uploadedAt
+            Instant uploadedAt,
+            String jobId,
+            String objectKey,
+            String errorCode,
+            String errorMessage,
+            boolean retryable
+    ) {}
+
+    public record FloorPlanJob(
+            String jobId,
+            String projectId,
+            String objectKey,
+            ConversionStatus status,
+            int progress,
+            String errorCode,
+            String errorMessage,
+            boolean retryable,
+            Instant createdAt,
+            Instant startedAt,
+            Instant completedAt
     ) {}
 
     public record FurnitureItem(

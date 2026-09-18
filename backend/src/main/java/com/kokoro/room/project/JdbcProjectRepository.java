@@ -32,7 +32,9 @@ public class JdbcProjectRepository implements ProjectRepository {
         jdbc.query("""
                 SELECT id, name, room_type, width, depth, height,
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
-                       floor_plan_progress, floor_plan_uploaded_at, updated_at
+                       floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
+                       floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
+                       floor_plan_retryable, updated_at
                   FROM projects ORDER BY updated_at DESC
                 """, (rs, rowNum) -> mapProject(rs))
                 .forEach(project -> projects.put(project.id(), project));
@@ -45,7 +47,9 @@ public class JdbcProjectRepository implements ProjectRepository {
         List<RenovationProject> projects = jdbc.query("""
                 SELECT id, name, room_type, width, depth, height,
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
-                       floor_plan_progress, floor_plan_uploaded_at, updated_at
+                       floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
+                       floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
+                       floor_plan_retryable, updated_at
                   FROM projects WHERE id = ?
                 """, (rs, rowNum) -> mapProject(rs), id);
         if (projects.isEmpty()) return Optional.empty();
@@ -59,12 +63,16 @@ public class JdbcProjectRepository implements ProjectRepository {
                 INSERT INTO projects (
                     id, name, room_type, width, depth, height,
                     floor_plan_file_name, floor_plan_size, floor_plan_status,
-                    floor_plan_progress, floor_plan_uploaded_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
+                    floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
+                    floor_plan_retryable, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, project.id(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
-                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), timestamp(project.updatedAt()));
+                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
+                project.floorPlan().objectKey(), project.floorPlan().errorCode(), project.floorPlan().errorMessage(),
+                project.floorPlan().retryable(), timestamp(project.updatedAt()));
         insertFurniture(project);
     }
 
@@ -75,12 +83,16 @@ public class JdbcProjectRepository implements ProjectRepository {
                 UPDATE projects
                    SET name = ?, room_type = ?, width = ?, depth = ?, height = ?,
                        floor_plan_file_name = ?, floor_plan_size = ?, floor_plan_status = ?,
-                       floor_plan_progress = ?, floor_plan_uploaded_at = ?, updated_at = ?
+                       floor_plan_progress = ?, floor_plan_uploaded_at = ?, floor_plan_job_id = ?,
+                       floor_plan_object_key = ?, floor_plan_error_code = ?, floor_plan_error_message = ?,
+                       floor_plan_retryable = ?, updated_at = ?
                  WHERE id = ?
                 """, project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
-                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), timestamp(project.updatedAt()),
+                project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
+                project.floorPlan().objectKey(), project.floorPlan().errorCode(), project.floorPlan().errorMessage(),
+                project.floorPlan().retryable(), timestamp(project.updatedAt()),
                 project.id());
         insertFurniture(project);
     }
@@ -116,7 +128,9 @@ public class JdbcProjectRepository implements ProjectRepository {
                 new Dimensions(rs.getDouble("width"), rs.getDouble("depth"), rs.getDouble("height")),
                 new FloorPlan(rs.getString("floor_plan_file_name"), rs.getLong("floor_plan_size"),
                         ConversionStatus.valueOf(rs.getString("floor_plan_status")), rs.getInt("floor_plan_progress"),
-                        instant(rs.getTimestamp("floor_plan_uploaded_at"))),
+                        instant(rs.getTimestamp("floor_plan_uploaded_at")), rs.getString("floor_plan_job_id"),
+                        rs.getString("floor_plan_object_key"), rs.getString("floor_plan_error_code"),
+                        rs.getString("floor_plan_error_message"), rs.getBoolean("floor_plan_retryable")),
                 new ArrayList<>(), instant(rs.getTimestamp("updated_at")));
     }
 

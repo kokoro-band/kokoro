@@ -4,6 +4,7 @@ import com.kokoro.room.project.ProjectModels.ChatCommandRequest;
 import com.kokoro.room.project.ProjectModels.ChatCommandResponse;
 import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
+import com.kokoro.room.project.ProjectModels.FloorPlanJob;
 import com.kokoro.room.project.ProjectModels.SaveLayoutRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -52,6 +53,11 @@ public class ProjectController {
             @RequestPart("file") MultipartFile file
     ) throws IOException {
         return projectService.uploadFloorPlan(projectId, file);
+    }
+
+    @GetMapping("/{projectId}/floor-plan/jobs/{jobId}")
+    public FloorPlanJob floorPlanJob(@PathVariable String projectId, @PathVariable String jobId) {
+        return projectService.findFloorPlanJob(projectId, jobId);
     }
 
     @PutMapping("/{projectId}/layout")

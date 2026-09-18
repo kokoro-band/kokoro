@@ -110,7 +110,7 @@ class ProjectApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
-                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":12.5,"z":30.0,"rotation":15,"color":"#D8C8B8"},
+                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":25.0,"z":30.0,"rotation":15,"color":"#D8C8B8"},
                                   {"id":"second","catalogId":"plant-olive","name":"화분","category":"장식","x":80.0,"z":70.0,"rotation":0,"color":"#69805E"}
                                 ]}
                                 """))
@@ -120,8 +120,32 @@ class ProjectApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.furniture", hasSize(2)))
                 .andExpect(jsonPath("$.furniture[0].id").value("first"))
-                .andExpect(jsonPath("$.furniture[0].x").value(12.5))
+                .andExpect(jsonPath("$.furniture[0].x").value(25.0))
                 .andExpect(jsonPath("$.furniture[1].id").value("second"));
+    }
+
+    @Test
+    void rejectsFurnitureOutsideRoomAndOverlappingFurniture() throws Exception {
+        mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[
+                                  {"id":"outside","catalogId":"sofa-cloud","name":"소파","category":"소파","x":1,"z":50,"rotation":0,"color":"#D8C8B8"}
+                                ]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("방 경계")));
+
+        mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[
+                                  {"id":"chair-1","catalogId":"chair-shell","name":"의자","category":"의자","x":50,"z":50,"rotation":45,"color":"#4A665A"},
+                                  {"id":"chair-2","catalogId":"chair-shell","name":"의자","category":"의자","x":54,"z":50,"rotation":0,"color":"#4A665A"}
+                                ]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("겹칩니다")));
     }
 
     private void awaitReady(String projectId, String jobId) throws Exception {

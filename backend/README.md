@@ -11,6 +11,8 @@ docker compose up -d
 
 기본 포트는 `8080`입니다. 프로젝트와 가구 배치는 PostgreSQL에 저장됩니다. 연결 정보는 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` 환경 변수로 변경할 수 있습니다. Flyway가 애플리케이션 시작 시 스키마를 적용합니다. 도면 업로드는 형식과 용량을 확인하지만 실제 도면 분석은 아직 실행하지 않습니다.
 
+도면 원본 저장은 현재 #4 준비 단계로 저장소 추상화와 로컬 파일 구현만 포함합니다. 저장 경로는 `FLOOR_PLAN_STORAGE_ROOT` 환경 변수로 변경할 수 있으며, AWS S3 연결과 비동기 변환 작업은 별도 단계에서 추가합니다.
+
 ```bash
 ./mvnw test
 ./mvnw package

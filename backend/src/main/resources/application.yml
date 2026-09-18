@@ -24,3 +24,4 @@ management:
 
 app:
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+  floor-plan-storage-root: ${FLOOR_PLAN_STORAGE_ROOT:${java.io.tmpdir}/kokoro/floor-plans}

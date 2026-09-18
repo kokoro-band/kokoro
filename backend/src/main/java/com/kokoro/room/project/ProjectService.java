@@ -18,8 +18,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,14 +30,14 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final FloorPlanStorage floorPlanStorage;
     private final FloorPlanJobRepository floorPlanJobRepository;
-    private final Executor floorPlanExecutor;
+    private final FloorPlanJobDispatcher floorPlanJobDispatcher;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
-                          FloorPlanJobRepository floorPlanJobRepository, Executor floorPlanExecutor) {
+                          FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
-        this.floorPlanExecutor = floorPlanExecutor;
+        this.floorPlanJobDispatcher = floorPlanJobDispatcher;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -104,57 +102,13 @@ public class ProjectService {
                 stored.objectKey(), null, null, true);
         RenovationProject updated = copy(project, floorPlan, project.furniture());
         projectRepository.replace(updated);
-        floorPlanExecutor.execute(() -> processFloorPlan(jobId, id));
+        floorPlanJobDispatcher.dispatch(id, jobId);
         return updated;
     }
 
     public FloorPlanJob findFloorPlanJob(String projectId, String jobId) {
         return floorPlanJobRepository.findById(projectId, jobId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "도면 변환 작업을 찾을 수 없습니다."));
-    }
-
-    private void processFloorPlan(String jobId, String projectId) {
-        try {
-            FloorPlanJob current = findFloorPlanJob(projectId, jobId);
-            Instant startedAt = Instant.now();
-            FloorPlanJob processing = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.PROCESSING,
-                    25, null, null, true, current.createdAt(), startedAt, null);
-            floorPlanJobRepository.update(processing);
-            updateFloorPlan(projectId, jobId, ConversionStatus.PROCESSING, 25, null, null, true);
-            Thread.sleep(50);
-            Instant completedAt = Instant.now();
-            FloorPlanJob completed = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.READY,
-                    100, null, null, false, current.createdAt(), startedAt, completedAt);
-            floorPlanJobRepository.update(completed);
-            updateFloorPlan(projectId, jobId, ConversionStatus.READY, 100, null, null, false);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            markFailed(projectId, jobId, "CONVERSION_INTERRUPTED", "도면 변환이 중단되었습니다.", true);
-        } catch (Exception exception) {
-            markFailed(projectId, jobId, "CONVERSION_FAILED", "도면 변환에 실패했습니다.", true);
-        }
-    }
-
-    private void markFailed(String projectId, String jobId, String code, String message, boolean retryable) {
-        try {
-            FloorPlanJob current = findFloorPlanJob(projectId, jobId);
-            FloorPlanJob failed = new FloorPlanJob(jobId, projectId, current.objectKey(), ConversionStatus.FAILED,
-                    current.progress(), code, message, retryable, current.createdAt(), current.startedAt(), Instant.now());
-            floorPlanJobRepository.update(failed);
-            updateFloorPlan(projectId, jobId, ConversionStatus.FAILED, current.progress(), code, message, retryable);
-        } catch (Exception ignored) {
-            // The original failure is already represented by the async task; avoid replacing it.
-        }
-    }
-
-    private void updateFloorPlan(String projectId, String jobId, ConversionStatus status, int progress,
-                                 String errorCode, String errorMessage, boolean retryable) {
-        Optional<RenovationProject> project = projectRepository.findById(projectId);
-        if (project.isEmpty()) return;
-        FloorPlan previous = project.get().floorPlan();
-        FloorPlan next = new FloorPlan(previous.fileName(), previous.size(), status, progress, previous.uploadedAt(),
-                jobId, previous.objectKey(), errorCode, errorMessage, retryable);
-        projectRepository.replace(copy(project.get(), next, project.get().furniture()));
     }
 
     @Transactional

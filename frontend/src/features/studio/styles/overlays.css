@@ -1,0 +1,106 @@
+.notice {
+  position: fixed;
+  z-index: 30;
+  right: 22px;
+  bottom: 22px;
+  max-width: 380px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: #fff;
+  background: #26342a;
+  border-radius: 8px;
+  box-shadow: 0 15px 45px rgb(0 0 0 / 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition: 180ms ease;
+  font-size: 12px;
+}
+.notice.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.notice button {
+  margin-left: auto;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+}
+.new-project-dialog {
+  width: min(430px, calc(100% - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
+  box-shadow: 0 35px 100px rgb(0 0 0 / 0.3);
+}
+.new-project-dialog::backdrop {
+  background: rgb(23 31 26 / 0.6);
+  backdrop-filter: blur(4px);
+}
+.new-project-dialog form {
+  padding: 28px;
+}
+.dialog-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 14px 14px 5px;
+}
+.new-project-dialog h2 {
+  margin: 18px 0 0;
+  font-size: 23px;
+  letter-spacing: -0.035em;
+}
+.new-project-dialog p {
+  margin: 6px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.new-project-dialog label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.new-project-dialog input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 14px;
+}
+.new-project-dialog form > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.new-project-dialog button {
+  border-radius: 7px;
+}
+.spin {
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes upload-pulse {
+  50% {
+    opacity: 0.62;
+  }
+}
+@keyframes startup-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}

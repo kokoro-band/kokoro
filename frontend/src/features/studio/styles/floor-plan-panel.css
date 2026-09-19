@@ -1,0 +1,208 @@
+.plan-panel {
+  padding-bottom: 20px;
+}
+.upload-zone {
+  width: calc(100% - 28px);
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 14px 12px;
+  color: var(--muted);
+  background: #f7f8f4;
+  border: 1px dashed #aeb8ad;
+  border-radius: 9px;
+}
+.upload-zone:hover {
+  color: var(--primary-dark);
+  background: #f1f6f1;
+  border-color: var(--primary);
+}
+.upload-zone strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+.upload-zone > span:last-child {
+  font-size: 10px;
+}
+.upload-icon {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  color: var(--primary);
+  background: var(--accent);
+  border-radius: 16px;
+}
+.uploaded-file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 14px 12px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.uploaded-file > svg:first-child {
+  color: var(--primary);
+}
+.uploaded-file > svg:last-child {
+  margin-left: auto;
+  color: var(--primary);
+}
+.uploaded-file.failed {
+  border-color: #dfb7b2;
+  background: #fff8f7;
+}
+.uploaded-file.failed > svg {
+  color: #a43b32;
+}
+.uploaded-file div {
+  min-width: 0;
+}
+.uploaded-file strong,
+.uploaded-file span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.uploaded-file strong {
+  font-size: 11px;
+}
+.uploaded-file span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.conversion-card {
+  margin: 0 14px 18px;
+  padding: 13px;
+  background: var(--accent);
+  border: 1px solid #cddacf;
+  border-radius: 8px;
+}
+.conversion-card > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.conversion-card .small-label {
+  font-size: 11px;
+  font-weight: 700;
+}
+.conversion-card [data-slot="badge"] {
+  height: 21px;
+  color: var(--primary-dark);
+  background: #fff;
+  border-color: #bdd0c0;
+  font-size: 9px;
+}
+.progress-track {
+  height: 4px;
+  margin-top: 11px;
+  overflow: hidden;
+  background: #d7e2d8;
+  border-radius: 9px;
+}
+.progress-track span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  transition: width 500ms ease;
+}
+.conversion-card p {
+  margin: 9px 0 0;
+  color: #5e6b60;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.conversion-card.processing .progress-track span {
+  animation: upload-pulse 1.4s ease-in-out infinite;
+}
+.conversion-card.failed {
+  background: #fff3f1;
+  border-color: #dfb7b2;
+}
+.conversion-card.failed [data-slot="badge"] {
+  color: #8e332c;
+  background: #fff;
+  border-color: #dfb7b2;
+}
+.conversion-card.failed .progress-track {
+  background: #efd9d6;
+}
+.conversion-card.failed .progress-track span {
+  background: #b4453c;
+}
+.conversion-card.failed p {
+  color: #7d352f;
+}
+.retry-upload {
+  width: 100%;
+  height: 32px;
+  margin-top: 11px;
+  color: #8e332c;
+  background: #fff;
+  border-color: #d8aaa5;
+  font-size: 10px;
+}
+.retry-upload:hover {
+  color: #762a25;
+  background: #fff9f8;
+  border-color: #c98e87;
+}
+.plan-panel > h3 {
+  margin: 0 14px 9px;
+  font-size: 12px;
+}
+.room-dimensions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0 14px;
+}
+.room-dimensions div {
+  padding: 10px 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  text-align: center;
+}
+.room-dimensions span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+}
+.room-dimensions strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+}
+.room-dimensions small {
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+.tip-card {
+  display: flex;
+  gap: 8px;
+  margin: 16px 14px 0;
+  padding: 12px;
+  color: var(--muted);
+  background: #f1f2ee;
+  border-radius: 7px;
+}
+.tip-card svg {
+  flex: none;
+  color: var(--primary);
+}
+.tip-card p {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.5;
+}

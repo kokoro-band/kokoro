@@ -1,0 +1,19 @@
+.editor-grid {
+  flex: 1;
+  min-height: 760px;
+  display: grid;
+  grid-template-columns: minmax(230px, 252px) minmax(520px, 1fr) minmax(
+      290px,
+      320px
+    );
+  grid-template-areas: "library scene assistant";
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  box-shadow: var(--shadow-soft);
+}
+.editor-grid.left-hidden {
+  grid-template-columns: minmax(620px, 1fr) minmax(290px, 320px);
+  grid-template-areas: "scene assistant";
+}

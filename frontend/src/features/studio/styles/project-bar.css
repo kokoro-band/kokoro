@@ -1,0 +1,68 @@
+.project-bar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 5px 15px;
+}
+.project-heading,
+.project-actions,
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+}
+.project-heading {
+  gap: 13px;
+}
+.back-button {
+  margin-right: 2px;
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+.project-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.project-badge {
+  margin-left: 4px;
+  color: var(--primary-dark);
+  background: var(--accent);
+  border-color: #c7d8ca;
+  border-radius: 99px;
+}
+.project-actions {
+  gap: 8px;
+}
+.save-status {
+  margin-right: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.export-button,
+.save-button {
+  height: 36px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.export-button {
+  background: #fff;
+}
+.save-button {
+  background: var(--primary);
+}
+.save-button:hover {
+  background: var(--primary-dark);
+}

@@ -1,0 +1,113 @@
+.properties {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+}
+.properties-heading {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 13px;
+  border-bottom: 1px solid #eceee9;
+}
+.properties-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+}
+.selected-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 12px;
+  padding: 10px;
+  background: #f5f6f2;
+  border-radius: 7px;
+}
+.selected-item > span {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.selected-item strong,
+.selected-item span {
+  display: block;
+}
+.selected-item strong {
+  font-size: 11px;
+}
+.selected-item div span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.position-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  padding: 0 12px;
+}
+.position-fields label {
+  position: relative;
+  color: var(--muted);
+  font-size: 9px;
+}
+.position-fields input {
+  width: 100%;
+  height: 34px;
+  margin-top: 4px;
+  padding: 0 22px 0 8px;
+  color: var(--foreground);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+}
+.position-fields label > span {
+  position: absolute;
+  right: 8px;
+  bottom: 9px;
+  color: var(--soft);
+}
+.rotation-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 11px 12px 13px;
+}
+.rotation-control > span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 9px;
+}
+.rotation-control strong {
+  min-width: 34px;
+  font-size: 10px;
+  text-align: center;
+}
+.rotation-control .icon-button {
+  width: 27px;
+  height: 27px;
+  background: #f2f4ef;
+}
+.selection-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 145px;
+  color: #9aa19a;
+  text-align: center;
+}
+.selection-empty p {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.6;
+}

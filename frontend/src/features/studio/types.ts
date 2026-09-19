@@ -44,3 +44,17 @@ export type ChatMessage = {
   role: "assistant" | "user"
   text: string
 }
+
+export type ProjectLoadState =
+  | { status: "loading"; message: "" }
+  | { status: "ready"; message: "" }
+  | { status: "error"; message: string }
+
+export type UploadAttempt = {
+  file: File
+  status: "PROCESSING" | "FAILED"
+  phase: "UPLOADING" | "CONVERTING"
+  progress: number
+  error: string
+  retryable: boolean
+}

@@ -55,6 +55,10 @@ public class FloorPlanJobRepository {
                 timestamp(job.startedAt()), timestamp(job.completedAt()), job.jobId(), job.projectId());
     }
 
+    public void deleteByProject(String projectId) {
+        jdbc.update("DELETE FROM floor_plan_jobs WHERE project_id = ?", projectId);
+    }
+
     private static Timestamp timestamp(Instant value) {
         return value == null ? null : Timestamp.from(value);
     }

@@ -13,6 +13,8 @@ docker compose up -d
 
 도면 원본 저장은 현재 #4 준비 단계로 저장소 추상화와 로컬 파일 구현만 포함합니다. 저장 경로는 `FLOOR_PLAN_STORAGE_ROOT` 환경 변수로 변경할 수 있으며, AWS S3 연결과 비동기 변환 작업은 별도 단계에서 추가합니다.
 
+로컬 실행은 `local` 프로파일을 사용해 별도 인증 키 없이 `local-user` 소유자로 동작합니다. 운영에서는 `prod` 프로파일과 `COGNITO_ISSUER_URI`를 사용해 Cognito JWT를 검증합니다.
+
 ```bash
 ./mvnw test
 ./mvnw package

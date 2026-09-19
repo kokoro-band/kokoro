@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    default: local
   application:
     name: kokoro-remodel-api
   datasource:
@@ -23,5 +25,8 @@ management:
         include: health,info
 
 app:
+  security:
+    mode: ${SECURITY_MODE:local}
+    local-user: ${LOCAL_USER_ID:local-user}
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
   floor-plan-storage-root: ${FLOOR_PLAN_STORAGE_ROOT:${java.io.tmpdir}/kokoro/floor-plans}

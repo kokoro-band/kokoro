@@ -89,6 +89,7 @@ public final class ProjectModels {
 
     public record RenovationProject(
             String id,
+            @JsonIgnore String ownerId,
             String name,
             String roomType,
             Dimensions dimensions,

@@ -14,19 +14,14 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: voidzero-dev/setup-vp@v1.21.0
         with:
-          version: 10.32.1
-      - uses: actions/setup-node@v7
-        with:
+          working-directory: frontend
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm build
+          cache: true
+      - run: vp check
+      - run: vp test
+      - run: vp run build
 
   backend:
     runs-on: ubuntu-latest

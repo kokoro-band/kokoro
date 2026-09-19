@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+/* oxlint-disable react-refresh/only-export-components */
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -15,7 +15,7 @@ const badgeVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
         outline:
-          "[a]:hover:text-muted-foreground border-border text-foreground [a]:hover:bg-muted",
+          "[a]:hover:text-muted-foreground [a]:hover:bg-muted border-border text-foreground",
         ghost:
           "hover:text-muted-foreground hover:bg-muted dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",

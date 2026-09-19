@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 

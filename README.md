@@ -21,7 +21,7 @@
 
 ```text
 .
-├── frontend/   React와 TypeScript와 Vite와 Three.js와 WebXR
+├── frontend/   React와 TypeScript와 Vite+와 Three.js와 WebXR
 ├── backend/    Java 17과 Spring Boot 4.1.1
 ├── docs/       시스템 구조와 API와 WebXR 계약
 ├── PRODUCT.md  제품 범위와 단계
@@ -32,8 +32,8 @@
 
 ```bash
 cd frontend
-pnpm install
-pnpm dev
+vp install
+vp dev
 ```
 
 기본 주소는 `http://localhost:5173`입니다. 별도 설정이 없으면 모든 기능이 브라우저 안에서 동작하는 로컬 데모로 실행됩니다.
@@ -55,9 +55,8 @@ cd backend
 
 ```bash
 cd frontend
-pnpm lint
-pnpm typecheck
-pnpm build
+vp check
+vp run build
 
 cd ../backend
 ./mvnw test

@@ -1,10 +1,19 @@
+import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
+
 import { catalog, sampleProject } from "./data"
 import type { Furniture, Project } from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
 export const isServerMode = import.meta.env.VITE_API_MODE === "server"
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api"
+const projectIdPattern = /^[A-Za-z0-9_-]{1,64}$/
+
+function projectPath(projectId: string) {
+  if (!projectIdPattern.test(projectId)) {
+    throw new Error("올바르지 않은 프로젝트 ID입니다.")
+  }
+  return `/projects/${projectId}`
+}
 
 export function readSavedProject(): Project {
   try {
@@ -35,39 +44,17 @@ export function rememberActiveProject(projectId: string) {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(`${apiBase}${path}`, init)
-  } catch {
-    throw new Error("서버에 연결할 수 없습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.")
-  }
-
-  if (!response.ok) {
-    let message = "서버 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
-    try {
-      const error = await response.json() as { detail?: unknown; message?: unknown }
-      const detail = typeof error.detail === "string" ? error.detail : error.message
-      if (typeof detail === "string" && detail.trim()) message = detail
-    } catch {
-      // Fall back to a status-based default message when the body is not a JSON error.
-    }
-    throw new Error(message)
-  }
-  return response.json() as Promise<T>
-}
-
-export function getProject(projectId: string): Promise<Project> {
-  return request<Project>(`/projects/${projectId}`)
+export function getProject(projectId: string) {
+  return request<Project>({ url: projectPath(projectId) })
 }
 
 export async function saveProject(project: Project): Promise<Project> {
   const updated = { ...project, updatedAt: new Date().toISOString() }
   if (isServerMode) {
-    return request<Project>(`/projects/${project.id}/layout`, {
+    return request<Project>({
+      url: `${projectPath(project.id)}/layout`,
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ furniture: project.furniture }),
+      data: { furniture: project.furniture },
     })
   }
   localStorage.setItem(storageKey, JSON.stringify(updated))
@@ -78,7 +65,12 @@ export async function uploadPlan(project: Project, file: File): Promise<Project>
   if (isServerMode) {
     const body = new FormData()
     body.append("file", file)
-    return request<Project>(`/projects/${project.id}/floor-plan`, { method: "POST", body })
+    return request<Project>({
+      url: `${projectPath(project.id)}/floor-plan`,
+      method: "POST",
+      data: body,
+      timeout: UPLOAD_TIMEOUT_MS,
+    })
   }
   return {
     ...project,
@@ -95,10 +87,10 @@ export async function createProject(name: string): Promise<Project> {
     floorPlan: { fileName: "", size: 0, status: "EMPTY", progress: 0, uploadedAt: null },
   }
   if (!isServerMode) return project
-  return request<Project>("/projects", {
+  return request<Project>({
+    url: "/projects",
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, roomType: project.roomType, dimensions: project.dimensions }),
+    data: { name, roomType: project.roomType, dimensions: project.dimensions },
   })
 }
 
@@ -109,10 +101,10 @@ export function makeFurniture(catalogId: string, x = 50, z = 50): Furniture {
 
 export async function sendCommand(project: Project, message: string): Promise<{ reply: string; project: Project }> {
   if (isServerMode) {
-    return request(`/projects/${project.id}/layout/commands`, {
+    return request<{ reply: string; project: Project }>({
+      url: `${projectPath(project.id)}/layout/commands`,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      data: { message },
     })
   }
 

@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertCircle, Armchair, ArrowDownToLine, ArrowLeft, ArrowRight, Box, Check,
@@ -10,7 +11,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { catalog, initialMessages, sampleProject } from "@/features/studio/data"
-import { createProject, getProject, isServerMode, makeFurniture, readActiveProjectId, readSavedProject, rememberActiveProject, saveProject, sendCommand, uploadPlan } from "@/features/studio/project-api"
+import { isServerMode, makeFurniture, readActiveProjectId, readSavedProject, rememberActiveProject } from "@/features/studio/project-api"
+import {
+  createProjectMutationOptions,
+  projectQueryOptions,
+  saveProjectMutationOptions,
+  sendCommandMutationOptions,
+  uploadPlanMutationOptions,
+} from "@/features/studio/project-queries"
 import type { Category, ChatMessage, Furniture, Project, ViewMode } from "@/features/studio/types"
 
 const categories: Category[] = ["전체", "소파", "테이블", "의자", "장식"]
@@ -84,6 +92,11 @@ export default function App() {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showLeft, setShowLeft] = useState(true)
+  const queryClient = useQueryClient()
+  const createProjectMutation = useMutation(createProjectMutationOptions(queryClient))
+  const saveProjectMutation = useMutation(saveProjectMutationOptions(queryClient, project.id))
+  const uploadPlanMutation = useMutation(uploadPlanMutationOptions(queryClient, project.id))
+  const sendCommandMutation = useMutation(sendCommandMutationOptions(queryClient, project.id))
   const uploadRef = useRef<HTMLInputElement>(null)
   const newProjectDialogRef = useRef<HTMLDialogElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -92,6 +105,8 @@ export default function App() {
   const projectRef = useRef(project)
   const queuedSaveRef = useRef<Project | null>(null)
   const saveLoopRef = useRef<Promise<void> | null>(null)
+  const saveProjectAsyncRef = useRef(saveProjectMutation.mutateAsync)
+  saveProjectAsyncRef.current = saveProjectMutation.mutateAsync
   const selected = project.furniture.find((item) => item.id === selectedId)
   const budget = project.furniture.reduce((total, item) => total + (catalog.find((entry) => entry.id === item.catalogId)?.price ?? 0), 0)
   const displayedFloorPlan = uploadAttempt ? { fileName: uploadAttempt.file.name, size: uploadAttempt.file.size } : project.floorPlan
@@ -122,8 +137,12 @@ export default function App() {
           const next = queuedSaveRef.current
           queuedSaveRef.current = null
           try {
-            await saveProject(next)
-            if (projectRef.current === next) setDirty(false)
+            const saved = await saveProjectAsyncRef.current(next)
+            if (projectRef.current === next) {
+              projectRef.current = saved
+              setProject(saved)
+              setDirty(false)
+            }
           } catch (error) {
             queuedSaveRef.current = null
             setDirty(true)
@@ -141,7 +160,8 @@ export default function App() {
     activeProjectIdRef.current = projectId
     setProjectLoad({ status: "loading", message: "" })
     try {
-      const loaded = await getProject(projectId)
+      const loaded = await queryClient.fetchQuery(projectQueryOptions(projectId))
+      if (activeProjectIdRef.current !== projectId) return
       rememberActiveProject(loaded.id)
       projectRef.current = loaded
       setProject(loaded)
@@ -152,9 +172,10 @@ export default function App() {
       setDirty(false)
       setProjectLoad({ status: "ready", message: "" })
     } catch (error) {
+      if (activeProjectIdRef.current !== projectId) return
       setProjectLoad({ status: "error", message: error instanceof Error ? error.message : "서버에서 프로젝트를 불러오지 못했습니다." })
     }
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     if (!isServerMode || startedInitialLoadRef.current) return
@@ -226,7 +247,7 @@ export default function App() {
     const snapshot = projectRef.current
     setBusy("save")
     try {
-      const saved = await saveProject(snapshot)
+      const saved = await saveProjectMutation.mutateAsync(snapshot)
       if (projectRef.current === snapshot) {
         projectRef.current = saved
         setProject(saved)
@@ -246,8 +267,12 @@ export default function App() {
     setInput("")
     setBusy("chat")
     try {
-      const response = await sendCommand(project, text)
-      commitFurniture(response.project.furniture)
+      const response = await sendCommandMutation.mutateAsync({ project, message: text })
+      setPast((history) => [...history.slice(-29), project.furniture])
+      setFuture([])
+      projectRef.current = response.project
+      setProject(response.project)
+      setDirty(!isServerMode)
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text: response.reply }])
     } catch (error) {
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", text: error instanceof Error ? error.message : "요청을 처리하지 못했습니다." }])
@@ -272,7 +297,7 @@ export default function App() {
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 350))
       setUploadAttempt((current) => current?.file === file ? { ...current, progress: 42 } : current)
-      const uploaded = await uploadPlan(project, file)
+      const uploaded = await uploadPlanMutation.mutateAsync({ project, file })
       setUploadAttempt((current) => current?.file === file ? { ...current, phase: "CONVERTING", progress: 74 } : current)
       await new Promise((resolve) => window.setTimeout(resolve, 450))
       projectRef.current = uploaded
@@ -300,7 +325,7 @@ export default function App() {
     if (!name) return
     setBusy("create")
     try {
-      const created = await createProject(name)
+      const created = await createProjectMutation.mutateAsync(name)
       projectRef.current = created
       setProject(created)
       if (isServerMode) {

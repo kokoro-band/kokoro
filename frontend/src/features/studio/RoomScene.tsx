@@ -18,6 +18,7 @@ type Props = {
   mode: ViewMode
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => void
+  onMoveEnd: () => void
 }
 
 function addBox(group: THREE.Group, size: [number, number, number], position: [number, number, number], color: string) {
@@ -101,7 +102,7 @@ function disposeGroup(group: THREE.Group) {
   })
 }
 
-export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Props) {
+export function RoomScene({ furniture, selectedId, mode, onSelect, onMove, onMoveEnd }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<SceneRuntime | null>(null)
 
@@ -176,6 +177,7 @@ export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Pro
     const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
     const hitPoint = new THREE.Vector3()
     let draggingId: string | null = null
+    let furnitureMoved = false
 
     function identifyFurniture(object: THREE.Object3D): string | null {
       let current: THREE.Object3D | null = object
@@ -199,6 +201,7 @@ export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Pro
       const id = hit ? identifyFurniture(hit.object) : null
       if (id) {
         draggingId = id
+        furnitureMoved = false
         controls.enabled = false
         onSelect(id)
         renderer.domElement.setPointerCapture(event.pointerId)
@@ -209,12 +212,15 @@ export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Pro
       if (!draggingId) return
       setPointerRay(event)
       if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+        furnitureMoved = true
         onMove(draggingId, THREE.MathUtils.clamp((hitPoint.x / 5.8 + 0.5) * 100, 7, 93), THREE.MathUtils.clamp((hitPoint.z / 4.2 + 0.5) * 100, 8, 92))
       }
     }
 
     function releaseFurniture() {
+      if (draggingId && furnitureMoved) onMoveEnd()
       draggingId = null
+      furnitureMoved = false
       controls.enabled = true
     }
 
@@ -240,7 +246,10 @@ export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Pro
     function placeInVr() {
       if (!xrSelectedId) return
       setControllerRay()
-      if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) onMove(xrSelectedId, THREE.MathUtils.clamp((hitPoint.x / 5.8 + 0.5) * 100, 7, 93), THREE.MathUtils.clamp((hitPoint.z / 4.2 + 0.5) * 100, 8, 92))
+      if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+        onMove(xrSelectedId, THREE.MathUtils.clamp((hitPoint.x / 5.8 + 0.5) * 100, 7, 93), THREE.MathUtils.clamp((hitPoint.z / 4.2 + 0.5) * 100, 8, 92))
+        onMoveEnd()
+      }
       xrSelectedId = null
     }
     if (mode === "vr") {
@@ -284,7 +293,7 @@ export function RoomScene({ furniture, selectedId, mode, onSelect, onMove }: Pro
       vrButton?.remove()
       runtimeRef.current = null
     }
-  }, [mode, onMove, onSelect])
+  }, [mode, onMove, onMoveEnd, onSelect])
 
   useEffect(function synchronizeFurnitureModels() {
     const runtime = runtimeRef.current

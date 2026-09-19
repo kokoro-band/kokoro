@@ -68,6 +68,18 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .avatar { width: 32px; height: 32px; color: #fff; background: #302f2c; border: 0; border-radius: 50%; font-size: 13px; font-weight: 700; }
 
 .workspace { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 18px 20px 0; }
+.project-startup { width: min(560px, 100%); min-height: 360px; display: flex; align-items: center; justify-content: center; flex-direction: column; align-self: center; margin: auto; padding: 48px 32px; text-align: center; }
+.project-startup h1 { margin: 18px 0 0; font-size: 21px; letter-spacing: -0.03em; text-wrap: balance; }
+.project-startup p { max-width: 48ch; margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+.startup-loading-icon, .startup-error-icon { width: 48px; height: 48px; display: grid; place-items: center; color: var(--primary); background: var(--accent); border-radius: 13px; }
+.startup-error-icon { color: #983a32; background: #f9e9e7; }
+.startup-skeleton { width: min(420px, 100%); display: grid; grid-template-columns: 0.8fr 1.5fr 1fr; gap: 8px; margin-top: 32px; }
+.startup-skeleton span { height: 72px; background: #e8eae5; border-radius: 8px; animation: startup-pulse 1.4s ease-in-out infinite; }
+.startup-skeleton span:nth-child(2) { animation-delay: 120ms; }
+.startup-skeleton span:nth-child(3) { animation-delay: 240ms; }
+.startup-actions { display: flex; justify-content: center; gap: 8px; margin-top: 24px; }
+.startup-actions button { height: 38px; border-radius: 7px; }
+.project-startup small { max-width: 54ch; margin-top: 18px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .project-bar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 5px 15px; }
 .project-heading, .project-actions, .toolbar-left, .toolbar-right { display: flex; align-items: center; }
 .project-heading { gap: 13px; }
@@ -246,6 +258,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .spin { animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes upload-pulse { 50% { opacity: 0.62; } }
+@keyframes startup-pulse { 50% { opacity: 0.45; } }
 
 @media (max-width: 1180px) {
   .editor-grid { grid-template-columns: minmax(220px, 240px) minmax(500px, 1fr); grid-template-areas: "library scene" "assistant assistant"; overflow: visible; }
@@ -288,4 +301,5 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
   .conversion-card.processing .progress-track span { animation: none; }
+  .startup-skeleton span { animation: none; }
 }

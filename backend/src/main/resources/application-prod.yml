@@ -1,0 +1,10 @@
+app:
+  security:
+    mode: cognito
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${COGNITO_ISSUER_URI}

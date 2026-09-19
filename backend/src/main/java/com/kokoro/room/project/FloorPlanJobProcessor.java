@@ -65,7 +65,7 @@ public class FloorPlanJobProcessor {
         FloorPlan previous = project.get().floorPlan();
         FloorPlan next = new FloorPlan(previous.fileName(), previous.size(), status, progress, previous.uploadedAt(),
                 jobId, previous.objectKey(), errorCode, errorMessage, retryable);
-        RenovationProject updated = new RenovationProject(project.get().id(), project.get().name(),
+        RenovationProject updated = new RenovationProject(project.get().id(), project.get().ownerId(), project.get().name(),
                 project.get().roomType(), project.get().dimensions(), next, project.get().furniture(), Instant.now());
         projectRepository.replace(updated);
     }

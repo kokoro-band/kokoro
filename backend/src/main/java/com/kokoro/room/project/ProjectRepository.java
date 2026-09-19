@@ -13,4 +13,6 @@ public interface ProjectRepository {
     void insert(RenovationProject project);
 
     void replace(RenovationProject project);
+
+    void delete(String id);
 }

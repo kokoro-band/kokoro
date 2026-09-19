@@ -30,7 +30,7 @@ public class JdbcProjectRepository implements ProjectRepository {
     public List<RenovationProject> findAll() {
         Map<String, RenovationProject> projects = new LinkedHashMap<>();
         jdbc.query("""
-                SELECT id, name, room_type, width, depth, height,
+                SELECT id, owner_id, name, room_type, width, depth, height,
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
                        floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                        floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
@@ -45,7 +45,7 @@ public class JdbcProjectRepository implements ProjectRepository {
     @Override
     public Optional<RenovationProject> findById(String id) {
         List<RenovationProject> projects = jdbc.query("""
-                SELECT id, name, room_type, width, depth, height,
+                SELECT id, owner_id, name, room_type, width, depth, height,
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
                        floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                        floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
@@ -61,13 +61,13 @@ public class JdbcProjectRepository implements ProjectRepository {
     public void insert(RenovationProject project) {
         jdbc.update("""
                 INSERT INTO projects (
-                    id, name, room_type, width, depth, height,
+                    id, owner_id, name, room_type, width, depth, height,
                     floor_plan_file_name, floor_plan_size, floor_plan_status,
                     floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                     floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
                     floor_plan_retryable, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, project.id(), project.name(), project.roomType(),
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, project.id(), project.ownerId(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
                 project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
@@ -79,15 +79,15 @@ public class JdbcProjectRepository implements ProjectRepository {
     @Override
     public void replace(RenovationProject project) {
         jdbc.update("DELETE FROM furniture_items WHERE project_id = ?", project.id());
-        jdbc.update("""
+                jdbc.update("""
                 UPDATE projects
-                   SET name = ?, room_type = ?, width = ?, depth = ?, height = ?,
+                   SET owner_id = ?, name = ?, room_type = ?, width = ?, depth = ?, height = ?,
                        floor_plan_file_name = ?, floor_plan_size = ?, floor_plan_status = ?,
                        floor_plan_progress = ?, floor_plan_uploaded_at = ?, floor_plan_job_id = ?,
                        floor_plan_object_key = ?, floor_plan_error_code = ?, floor_plan_error_message = ?,
                        floor_plan_retryable = ?, updated_at = ?
                  WHERE id = ?
-                """, project.name(), project.roomType(),
+                """, project.ownerId(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
                 project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
@@ -95,6 +95,11 @@ public class JdbcProjectRepository implements ProjectRepository {
                 project.floorPlan().retryable(), timestamp(project.updatedAt()),
                 project.id());
         insertFurniture(project);
+    }
+
+    @Override
+    public void delete(String id) {
+        jdbc.update("DELETE FROM projects WHERE id = ?", id);
     }
 
     private RenovationProject replaceFurniture(RenovationProject project) {
@@ -124,7 +129,7 @@ public class JdbcProjectRepository implements ProjectRepository {
 
     private RenovationProject mapProject(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new RenovationProject(
-                rs.getString("id"), rs.getString("name"), rs.getString("room_type"),
+                rs.getString("id"), rs.getString("owner_id"), rs.getString("name"), rs.getString("room_type"),
                 new Dimensions(rs.getDouble("width"), rs.getDouble("depth"), rs.getDouble("height")),
                 new FloorPlan(rs.getString("floor_plan_file_name"), rs.getLong("floor_plan_size"),
                         ConversionStatus.valueOf(rs.getString("floor_plan_status")), rs.getInt("floor_plan_progress"),

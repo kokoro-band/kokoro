@@ -8,6 +8,7 @@ import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
 import com.kokoro.room.floorplan.FloorPlanStorage;
+import com.kokoro.room.security.CurrentUser;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,18 +34,21 @@ public class ProjectService {
     private final FloorPlanJobRepository floorPlanJobRepository;
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
     private final FurniturePlacementValidator furniturePlacementValidator;
+    private final CurrentUser currentUser;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
                           FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
-                          FurniturePlacementValidator furniturePlacementValidator) {
+                          FurniturePlacementValidator furniturePlacementValidator, CurrentUser currentUser) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
         this.floorPlanJobDispatcher = floorPlanJobDispatcher;
         this.furniturePlacementValidator = furniturePlacementValidator;
+        this.currentUser = currentUser;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
+                    currentUser.id(),
                     "성수동 거실",
                     "거실",
                     new Dimensions(5.8, 4.2, 2.4),
@@ -62,11 +66,11 @@ public class ProjectService {
     }
 
     public List<RenovationProject> findAll() {
-        return projectRepository.findAll();
+        return projectRepository.findAll().stream().filter(this::owned).toList();
     }
 
     public RenovationProject find(String id) {
-        return projectRepository.findById(id)
+        return projectRepository.findById(id).filter(this::owned)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
     }
 
@@ -75,6 +79,7 @@ public class ProjectService {
         String id = UUID.randomUUID().toString();
         RenovationProject project = new RenovationProject(
                 id,
+                currentUser.id(),
                 request.name(),
                 request.roomType(),
                 request.dimensions(),
@@ -84,6 +89,16 @@ public class ProjectService {
         );
         projectRepository.insert(project);
         return project;
+    }
+
+    @Transactional
+    public void delete(String id) throws IOException {
+        RenovationProject project = find(id);
+        if (project.floorPlan().objectKey() != null) {
+            floorPlanStorage.delete(project.floorPlan().objectKey());
+        }
+        floorPlanJobRepository.deleteByProject(id);
+        projectRepository.delete(id);
     }
 
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
@@ -174,7 +189,11 @@ public class ProjectService {
 
     private RenovationProject copy(RenovationProject project, FloorPlan floorPlan, List<FurnitureItem> furniture) {
         return new RenovationProject(
-                project.id(), project.name(), project.roomType(), project.dimensions(), floorPlan, furniture, Instant.now());
+                project.id(), project.ownerId(), project.name(), project.roomType(), project.dimensions(), floorPlan, furniture, Instant.now());
+    }
+
+    private boolean owned(RenovationProject project) {
+        return project.ownerId().equals(currentUser.id());
     }
 
     private static FurnitureItem furniture(String id, String catalogId, String name, String category,

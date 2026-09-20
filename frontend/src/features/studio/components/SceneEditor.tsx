@@ -148,6 +148,7 @@ export function SceneEditor({
             furniture={project.furniture}
             selectedId={selectedId}
             mode={mode}
+            room={project.room}
             onSelect={onSelect}
             onMove={onMove}
             onMoveEnd={onMoveEnd}

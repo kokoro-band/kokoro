@@ -23,11 +23,48 @@ export type CatalogItem = {
   color: string
 }
 
+export type Point2 = [x: number, z: number]
+
+export type Wall = {
+  id: string
+  a: Point2
+  b: Point2
+  thickness: number
+}
+
+export type Opening = {
+  id: string
+  wallId: string
+  type: "door" | "window"
+  from: number
+  to: number
+  bottom: number
+  top: number
+}
+
+export type RoomLabel = {
+  name: string
+  polygon: Point2[]
+}
+
+export type RoomModel = {
+  version: 1
+  unit: "m"
+  wallHeight: number
+  outline: Point2[]
+  walls: Wall[]
+  openings: Opening[]
+  rooms: RoomLabel[]
+  bounds: { width: number; depth: number }
+  spawn?: Point2
+}
+
 export type Project = {
   id: string
   name: string
   roomType: string
   dimensions: { width: number; depth: number; height: number }
+  room?: RoomModel
   floorPlan: {
     fileName: string
     size: number

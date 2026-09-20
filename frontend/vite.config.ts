@@ -159,6 +159,7 @@ export default defineConfig({
       "pnpm-lock.yaml",
       "package-lock.json",
       "yarn.lock",
+      "public/models/",
     ],
   },
   plugins: lazyPlugins(() => [react(), tailwindcss()]),

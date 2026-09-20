@@ -1,0 +1,13 @@
+Furniture models in this folder are from the Kenney Furniture Kit (2.0)
+https://kenney.nl/assets/furniture-kit
+License: Creative Commons Zero (CC0) — http://creativecommons.org/publicdomain/zero/1.0/
+
+Source file mapping:
+  sofa-cloud.glb   <- loungeSofa.glb
+  sofa-moss.glb    <- loungeDesignSofa.glb
+  table-oak.glb    <- table.glb
+  table-white.glb  <- tableRound.glb
+  chair-shell.glb  <- loungeChair.glb
+  chair-sand.glb   <- chairCushion.glb
+  plant-olive.glb  <- pottedPlant.glb
+  lamp-arc.glb     <- lampRoundFloor.glb

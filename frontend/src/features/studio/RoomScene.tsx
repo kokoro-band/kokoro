@@ -5,13 +5,17 @@ import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
 import {
+  instantiateFurnitureModel,
+  loadFurnitureModel,
+} from "./furniture-models"
+import {
   animateDoors,
   buildRoomGroup,
   createWalkableTest,
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
-import type { Furniture, RoomModel, ViewMode } from "./types"
+import type { CatalogItem, Furniture, RoomModel, ViewMode } from "./types"
 import { createVrLocomotion } from "./vr-locomotion"
 
 type Bounds = { width: number; depth: number }
@@ -52,9 +56,8 @@ function addBox(
   return mesh
 }
 
-function makeFurnitureModel(item: Furniture, bounds: Bounds) {
+function makeFallbackModel(item: Furniture, catalogItem?: CatalogItem) {
   const group = new THREE.Group()
-  const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
   const width = catalogItem?.width ?? 0.6
   const depth = catalogItem?.depth ?? 0.6
 
@@ -133,6 +136,13 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
     }
   }
 
+  return group
+}
+
+function makeFurnitureModel(item: Furniture, bounds: Bounds) {
+  const group = new THREE.Group()
+  const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
+  group.add(makeFallbackModel(item, catalogItem))
   group.userData.furnitureId = item.id
   group.position.set(
     (item.x / 100 - 0.5) * bounds.width,
@@ -140,11 +150,12 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
     (item.z / 100 - 0.5) * bounds.depth
   )
   group.rotation.y = THREE.MathUtils.degToRad(item.rotation)
-  return group
+  return { group, catalogItem }
 }
 
 function disposeGroup(group: THREE.Group) {
   group.traverse((object) => {
+    if (object.userData.sharedAsset) return
     if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
       object.geometry.dispose()
       const materials = Array.isArray(object.material)
@@ -423,12 +434,27 @@ export function RoomScene({
       disposeGroup(runtime.furnitureGroup)
       runtime.furnitureGroup.clear()
       furniture.forEach((item) => {
-        const model = makeFurnitureModel(item, runtime.bounds)
+        const { group, catalogItem } = makeFurnitureModel(item, runtime.bounds)
+        let outline: THREE.BoxHelper | null = null
         if (item.id === selectedId) {
-          const outline = new THREE.BoxHelper(model, "#3D7351")
+          outline = new THREE.BoxHelper(group, "#3D7351")
           runtime.furnitureGroup.add(outline)
         }
-        runtime.furnitureGroup.add(model)
+        runtime.furnitureGroup.add(group)
+
+        if (!catalogItem?.modelUrl) return
+        loadFurnitureModel(catalogItem.modelUrl)
+          .then((template) => {
+            if (group.parent !== runtime.furnitureGroup) return
+            const fallback = group.children[0] as THREE.Group | undefined
+            if (fallback) {
+              disposeGroup(fallback)
+              group.remove(fallback)
+            }
+            group.add(instantiateFurnitureModel(template, catalogItem))
+            outline?.update()
+          })
+          .catch(() => {})
       })
     },
     [furniture, selectedId, mode, room]

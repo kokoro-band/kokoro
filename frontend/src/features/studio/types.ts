@@ -21,6 +21,7 @@ export type CatalogItem = {
   width: number
   depth: number
   color: string
+  modelUrl?: string
 }
 
 export type Point2 = [x: number, z: number]

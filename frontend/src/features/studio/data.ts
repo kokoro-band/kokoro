@@ -11,6 +11,7 @@ export const catalog: CatalogItem[] = [
     width: 2.2,
     depth: 0.92,
     color: "#D8C8B8",
+    modelUrl: "/models/sofa-cloud.glb",
   },
   {
     id: "sofa-moss",
@@ -21,6 +22,7 @@ export const catalog: CatalogItem[] = [
     width: 2.1,
     depth: 0.95,
     color: "#697866",
+    modelUrl: "/models/sofa-moss.glb",
   },
   {
     id: "table-oak",
@@ -31,6 +33,7 @@ export const catalog: CatalogItem[] = [
     width: 1.25,
     depth: 0.7,
     color: "#B98958",
+    modelUrl: "/models/table-oak.glb",
   },
   {
     id: "table-white",
@@ -41,6 +44,7 @@ export const catalog: CatalogItem[] = [
     width: 1.0,
     depth: 1.0,
     color: "#E6E1D8",
+    modelUrl: "/models/table-white.glb",
   },
   {
     id: "chair-shell",
@@ -51,6 +55,7 @@ export const catalog: CatalogItem[] = [
     width: 0.65,
     depth: 0.65,
     color: "#4A665A",
+    modelUrl: "/models/chair-shell.glb",
   },
   {
     id: "chair-sand",
@@ -61,6 +66,7 @@ export const catalog: CatalogItem[] = [
     width: 0.65,
     depth: 0.65,
     color: "#D9B986",
+    modelUrl: "/models/chair-sand.glb",
   },
   {
     id: "plant-olive",
@@ -71,6 +77,7 @@ export const catalog: CatalogItem[] = [
     width: 0.55,
     depth: 0.55,
     color: "#69805E",
+    modelUrl: "/models/plant-olive.glb",
   },
   {
     id: "lamp-arc",
@@ -81,6 +88,7 @@ export const catalog: CatalogItem[] = [
     width: 0.5,
     depth: 0.5,
     color: "#B7A788",
+    modelUrl: "/models/lamp-arc.glb",
   },
 ]
 

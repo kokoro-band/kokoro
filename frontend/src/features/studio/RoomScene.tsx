@@ -4,18 +4,32 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
-import type { Furniture, ViewMode } from "./types"
+import {
+  animateDoors,
+  buildRoomGroup,
+  createWalkableTest,
+  roomSpawnPoint,
+  type DoorState,
+} from "./room-geometry"
+import type { Furniture, RoomModel, ViewMode } from "./types"
+import { createVrLocomotion } from "./vr-locomotion"
+
+type Bounds = { width: number; depth: number }
+
+const defaultBounds: Bounds = { width: 5.8, depth: 4.2 }
 
 type SceneRuntime = {
   renderer: THREE.WebGLRenderer
   scene: THREE.Scene
   furnitureGroup: THREE.Group
+  bounds: Bounds
 }
 
 type Props = {
   furniture: Furniture[]
   selectedId: string | null
   mode: ViewMode
+  room?: RoomModel
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => void
   onMoveEnd: () => void
@@ -38,7 +52,7 @@ function addBox(
   return mesh
 }
 
-function makeFurnitureModel(item: Furniture) {
+function makeFurnitureModel(item: Furniture, bounds: Bounds) {
   const group = new THREE.Group()
   const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
   const width = catalogItem?.width ?? 0.6
@@ -120,7 +134,11 @@ function makeFurnitureModel(item: Furniture) {
   }
 
   group.userData.furnitureId = item.id
-  group.position.set((item.x / 100 - 0.5) * 5.8, 0, (item.z / 100 - 0.5) * 4.2)
+  group.position.set(
+    (item.x / 100 - 0.5) * bounds.width,
+    0,
+    (item.z / 100 - 0.5) * bounds.depth
+  )
   group.rotation.y = THREE.MathUtils.degToRad(item.rotation)
   return group
 }
@@ -141,6 +159,7 @@ export function RoomScene({
   furniture,
   selectedId,
   mode,
+  room,
   onSelect,
   onMove,
   onMoveEnd,
@@ -171,19 +190,22 @@ export function RoomScene({
       renderer.setClearColor("#EDF0EB", 1)
       host.appendChild(renderer.domElement)
 
+      const bounds: Bounds = room?.bounds ?? defaultBounds
+      const scale = Math.max(bounds.width, bounds.depth) / defaultBounds.width
+
       const scene = new THREE.Scene()
-      const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+      const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
       camera.position.set(
-        mode === "2d" ? 0 : 7,
-        mode === "2d" ? 12 : 7.5,
-        mode === "2d" ? 0.01 : 8
+        mode === "2d" ? 0 : 7 * scale,
+        mode === "2d" ? 12 * scale : 7.5 * scale,
+        mode === "2d" ? 0.01 : 8 * scale
       )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(0, 0.25, 0)
       controls.enableDamping = true
       controls.maxPolarAngle = Math.PI / 2.15
-      controls.minDistance = 4
-      controls.maxDistance = 16
+      controls.minDistance = 4 * scale
+      controls.maxDistance = 16 * scale
       controls.enableRotate = mode !== "2d"
       controls.update()
 
@@ -193,32 +215,37 @@ export function RoomScene({
       sun.position.set(-3, 7, -4)
       sun.castShadow = true
       sun.shadow.mapSize.set(2048, 2048)
-      sun.shadow.camera.left = -7
-      sun.shadow.camera.right = 7
-      sun.shadow.camera.top = 7
-      sun.shadow.camera.bottom = -7
+      sun.shadow.camera.left = -7 * scale
+      sun.shadow.camera.right = 7 * scale
+      sun.shadow.camera.top = 7 * scale
+      sun.shadow.camera.bottom = -7 * scale
       scene.add(sun)
 
-      const room = new THREE.Group()
-      addBox(room, [5.8, 0.12, 4.2], [0, -0.06, 0], "#D8CAB5")
-      if (mode !== "2d") {
-        addBox(room, [5.8, 2.4, 0.1], [0, 1.2, -2.15], "#F8F7F2")
-        addBox(room, [0.1, 2.4, 4.2], [-2.95, 1.2, 0], "#EDECE5")
-        addBox(room, [2.4, 1.25, 0.025], [0.8, 1.5, -2.09], "#BED4D9")
-        addBox(room, [0.06, 1.3, 0.04], [0.8, 1.5, -2.06], "#FFFFFF")
-        addBox(room, [2.5, 0.06, 0.04], [0.8, 1.5, -2.05], "#FFFFFF")
+      let roomGroup: THREE.Group
+      if (room) {
+        roomGroup = buildRoomGroup(room, mode)
+      } else {
+        roomGroup = new THREE.Group()
+        addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], "#D8CAB5")
+        if (mode !== "2d") {
+          addBox(roomGroup, [5.8, 2.4, 0.1], [0, 1.2, -2.15], "#F8F7F2")
+          addBox(roomGroup, [0.1, 2.4, 4.2], [-2.95, 1.2, 0], "#EDECE5")
+          addBox(roomGroup, [2.4, 1.25, 0.025], [0.8, 1.5, -2.09], "#BED4D9")
+          addBox(roomGroup, [0.06, 1.3, 0.04], [0.8, 1.5, -2.06], "#FFFFFF")
+          addBox(roomGroup, [2.5, 0.06, 0.04], [0.8, 1.5, -2.05], "#FFFFFF")
+        }
+        const grid = new THREE.GridHelper(5.8, 29, "#B4A58F", "#C3B59F")
+        grid.position.y = 0.008
+        grid.scale.z = 4.2 / 5.8
+        grid.material.transparent = true
+        grid.material.opacity = 0.24
+        roomGroup.add(grid)
       }
-      const grid = new THREE.GridHelper(5.8, 29, "#B4A58F", "#C3B59F")
-      grid.position.y = 0.008
-      grid.scale.z = 4.2 / 5.8
-      grid.material.transparent = true
-      grid.material.opacity = 0.24
-      room.add(grid)
-      scene.add(room)
+      scene.add(roomGroup)
 
       const furnitureGroup = new THREE.Group()
       scene.add(furnitureGroup)
-      runtimeRef.current = { renderer, scene, furnitureGroup }
+      runtimeRef.current = { renderer, scene, furnitureGroup, bounds }
 
       const raycaster = new THREE.Raycaster()
       const pointer = new THREE.Vector2()
@@ -267,8 +294,16 @@ export function RoomScene({
           furnitureMoved = true
           onMove(
             draggingId,
-            THREE.MathUtils.clamp((hitPoint.x / 5.8 + 0.5) * 100, 7, 93),
-            THREE.MathUtils.clamp((hitPoint.z / 4.2 + 0.5) * 100, 8, 92)
+            THREE.MathUtils.clamp(
+              (hitPoint.x / bounds.width + 0.5) * 100,
+              7,
+              93
+            ),
+            THREE.MathUtils.clamp(
+              (hitPoint.z / bounds.depth + 0.5) * 100,
+              8,
+              92
+            )
           )
         }
       }
@@ -286,49 +321,53 @@ export function RoomScene({
       renderer.domElement.addEventListener("pointercancel", releaseFurniture)
 
       let vrButton: HTMLElement | null = null
-      const controller = renderer.xr.getController(0)
+      let locomotion: ReturnType<typeof createVrLocomotion> | null = null
       let xrSelectedId: string | null = null
-      function setControllerRay() {
-        const rotation = new THREE.Matrix4().extractRotation(
-          controller.matrixWorld
-        )
-        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
-        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(rotation)
-      }
-      function grabInVr() {
-        setControllerRay()
+      function grabInVr(ray: THREE.Ray) {
+        raycaster.ray.copy(ray)
         const hit = raycaster.intersectObjects(furnitureGroup.children, true)[0]
         xrSelectedId = hit ? identifyFurniture(hit.object) : null
         if (xrSelectedId) onSelect(xrSelectedId)
+        return xrSelectedId !== null
       }
-      function placeInVr() {
-        if (!xrSelectedId) return
-        setControllerRay()
-        if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+      function placeInVr(ray: THREE.Ray) {
+        if (!xrSelectedId) return false
+        if (ray.intersectPlane(floorPlane, hitPoint)) {
           onMove(
             xrSelectedId,
-            THREE.MathUtils.clamp((hitPoint.x / 5.8 + 0.5) * 100, 7, 93),
-            THREE.MathUtils.clamp((hitPoint.z / 4.2 + 0.5) * 100, 8, 92)
+            THREE.MathUtils.clamp(
+              (hitPoint.x / bounds.width + 0.5) * 100,
+              7,
+              93
+            ),
+            THREE.MathUtils.clamp(
+              (hitPoint.z / bounds.depth + 0.5) * 100,
+              8,
+              92
+            )
           )
           onMoveEnd()
         }
         xrSelectedId = null
+        return true
       }
       if (mode === "vr") {
         vrButton = VRButton.createButton(renderer)
         vrButton.classList.add("xr-entry")
         host.appendChild(vrButton)
-        controller.addEventListener("selectstart", grabInVr)
-        controller.addEventListener("selectend", placeInVr)
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(),
-            new THREE.Vector3(0, 0, -5),
-          ]),
-          new THREE.LineBasicMaterial({ color: "#476B51" })
-        )
-        controller.add(line)
-        scene.add(controller)
+        locomotion = createVrLocomotion({
+          renderer,
+          scene,
+          camera,
+          spawn: room ? roomSpawnPoint(room) : new THREE.Vector3(),
+          isWalkable: room
+            ? createWalkableTest(room)
+            : (x, z) =>
+                Math.abs(x) < bounds.width / 2 &&
+                Math.abs(z) < bounds.depth / 2,
+          onSelectStart: grabInVr,
+          onSelectEnd: placeInVr,
+        })
       }
 
       const observer = new ResizeObserver(function resizeRoomRenderer() {
@@ -339,8 +378,18 @@ export function RoomScene({
         camera.updateProjectionMatrix()
       })
       observer.observe(host)
+      const doorClock = new THREE.Clock()
+      const headPosition = new THREE.Vector3()
+      const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
       renderer.setAnimationLoop(function renderRoomFrame() {
-        controls.update()
+        const deltaSeconds = Math.min(doorClock.getDelta(), 0.1)
+        if (renderer.xr.isPresenting) {
+          locomotion?.update()
+          camera.getWorldPosition(headPosition)
+          animateDoors(doors, headPosition, deltaSeconds)
+        } else {
+          controls.update()
+        }
         renderer.render(scene, camera)
       })
 
@@ -354,10 +403,9 @@ export function RoomScene({
           "pointercancel",
           releaseFurniture
         )
-        controller.removeEventListener("selectstart", grabInVr)
-        controller.removeEventListener("selectend", placeInVr)
+        locomotion?.dispose()
         controls.dispose()
-        disposeGroup(room)
+        disposeGroup(roomGroup)
         disposeGroup(furnitureGroup)
         renderer.dispose()
         renderer.domElement.remove()
@@ -365,7 +413,7 @@ export function RoomScene({
         runtimeRef.current = null
       }
     },
-    [mode, onMove, onMoveEnd, onSelect]
+    [mode, room, onMove, onMoveEnd, onSelect]
   )
 
   useEffect(
@@ -375,7 +423,7 @@ export function RoomScene({
       disposeGroup(runtime.furnitureGroup)
       runtime.furnitureGroup.clear()
       furniture.forEach((item) => {
-        const model = makeFurnitureModel(item)
+        const model = makeFurnitureModel(item, runtime.bounds)
         if (item.id === selectedId) {
           const outline = new THREE.BoxHelper(model, "#3D7351")
           runtime.furnitureGroup.add(outline)
@@ -383,7 +431,7 @@ export function RoomScene({
         runtime.furnitureGroup.add(model)
       })
     },
-    [furniture, selectedId, mode]
+    [furniture, selectedId, mode, room]
   )
 
   return (

@@ -1,3 +1,4 @@
+import { sampleRoom } from "./sample-room"
 import type { CatalogItem, Project } from "./types"
 
 export const catalog: CatalogItem[] = [
@@ -85,9 +86,14 @@ export const catalog: CatalogItem[] = [
 
 export const sampleProject: Project = {
   id: "living-room-01",
-  name: "성수동 거실",
-  roomType: "거실",
-  dimensions: { width: 5.8, depth: 4.2, height: 2.4 },
+  name: "성수동 단독주택",
+  roomType: "주택",
+  dimensions: {
+    width: sampleRoom.bounds.width,
+    depth: sampleRoom.bounds.depth,
+    height: sampleRoom.wallHeight,
+  },
+  room: sampleRoom,
   floorPlan: {
     fileName: "sample-floor-plan.pdf",
     size: 842000,

@@ -1,4 +1,6 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
+
+import { Snackbar } from "@seed-design/react"
 
 import { AppHeader } from "@/features/studio/components/AppHeader"
 import { AssistantPanel } from "@/features/studio/components/AssistantPanel"
@@ -7,15 +9,14 @@ import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectBar } from "@/features/studio/components/ProjectBar"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
 import { SceneEditor } from "@/features/studio/components/SceneEditor"
-import { StudioFooter } from "@/features/studio/components/StudioFooter"
 import { useStudioController } from "@/features/studio/hooks/useStudioController"
 
 export default function App() {
   const studio = useStudioController()
   const uploadRef = useRef<HTMLInputElement>(null)
-  const newProjectDialogRef = useRef<HTMLDialogElement>(null)
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
   const isBusy = studio.busy !== null
-  const openNewProject = () => newProjectDialogRef.current?.showModal()
+  const openNewProject = () => setNewProjectOpen(true)
 
   return (
     <div className="studio-app">
@@ -86,13 +87,21 @@ export default function App() {
           </>
         )}
       </main>
-      <StudioFooter />
-      <div className={`notice ${studio.notice ? "visible" : ""}`} role="status">
-        {studio.notice}
-        <button aria-label="알림 닫기" onClick={studio.dismissNotice}>
-          ×
-        </button>
-      </div>
+      <Snackbar.RootProvider>
+        <Snackbar.Region>
+          {studio.notice && (
+            <Snackbar.Root>
+              <Snackbar.Content>
+                <Snackbar.Message>{studio.notice}</Snackbar.Message>
+                <Snackbar.ActionButton onClick={studio.dismissNotice}>
+                  닫기
+                </Snackbar.ActionButton>
+                <Snackbar.HiddenCloseButton onClick={studio.dismissNotice} />
+              </Snackbar.Content>
+            </Snackbar.Root>
+          )}
+        </Snackbar.Region>
+      </Snackbar.RootProvider>
       <input
         ref={uploadRef}
         className="sr-only"
@@ -104,7 +113,8 @@ export default function App() {
         }}
       />
       <NewProjectDialog
-        dialogRef={newProjectDialogRef}
+        open={newProjectOpen}
+        onOpenChange={setNewProjectOpen}
         busy={isBusy}
         onSubmit={studio.createProject}
       />

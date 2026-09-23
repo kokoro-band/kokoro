@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url"
 
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
+import { seedDesignPlugin } from "@seed-design/vite-plugin"
 import { defineConfig, lazyPlugins } from "vite-plus"
 
 // https://vite.dev/config/
@@ -162,7 +163,11 @@ export default defineConfig({
       "public/models/",
     ],
   },
-  plugins: lazyPlugins(() => [react(), tailwindcss()]),
+  plugins: lazyPlugins(() => [
+    react(),
+    tailwindcss(),
+    seedDesignPlugin({ colorMode: "light-only" }),
+  ]),
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

@@ -1,10 +1,10 @@
 .project-bar {
-  min-height: 58px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 5px 15px;
+  padding: 0 0 12px;
 }
 .project-heading,
 .project-actions,
@@ -19,29 +19,11 @@
 .back-button {
   margin-right: 2px;
 }
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1;
-}
 .project-heading h1 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0 0;
-  font-size: 19px;
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-.project-badge {
-  margin-left: 4px;
-  color: var(--primary-dark);
-  background: var(--accent);
-  border-color: #c7d8ca;
-  border-radius: 99px;
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
 }
 .project-actions {
   gap: 8px;
@@ -54,11 +36,10 @@
 .export-button,
 .save-button {
   height: 36px;
-  border-radius: 7px;
   font-size: 13px;
 }
 .export-button {
-  background: #fff;
+  background: var(--card);
 }
 .save-button {
   background: var(--primary);

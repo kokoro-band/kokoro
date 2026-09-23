@@ -1,5 +1,4 @@
-import type { CSSProperties } from "react"
-import { Box, Plus } from "lucide-react"
+import { Chip } from "@seed-design/react"
 
 import { catalog } from "@/features/studio/data"
 import type { Category } from "@/features/studio/types"
@@ -21,19 +20,19 @@ export function FurnitureLibrary({
   return (
     <>
       <div className="library-heading">
-        <h2>공간에 더할 것들</h2>
-        <p>가구를 선택해 방에 배치해 보세요.</p>
+        <h2>가구</h2>
       </div>
       <div className="category-list" aria-label="가구 종류">
         {categories.map((entry) => (
-          <button
+          <Chip.Root
             key={entry}
-            className={category === entry ? "active" : ""}
             aria-pressed={category === entry}
+            variant={category === entry ? "solid" : "outlineWeak"}
+            size="small"
             onClick={() => onCategoryChange(entry)}
           >
-            {entry}
-          </button>
+            <Chip.Label>{entry}</Chip.Label>
+          </Chip.Root>
         ))}
       </div>
       <div className="catalog-grid">
@@ -45,35 +44,13 @@ export function FurnitureLibrary({
               key={item.id}
               onClick={() => onAddFurniture(item.id)}
             >
-              <div
-                className="catalog-visual"
-                style={{ "--item-color": item.color } as CSSProperties}
-              >
+              <div className="catalog-visual">
                 <FurnitureIcon category={item.category} size={46} />
-                <span className="add-icon">
-                  <Plus size={14} />
-                </span>
               </div>
               <strong>{item.name}</strong>
-              <span>{item.description}</span>
-              <div className="catalog-meta">
-                <span>
-                  {Math.round(item.width * 100)} ×{" "}
-                  {Math.round(item.depth * 100)}
-                  cm
-                </span>
-                <b>₩{money.format(item.price)}</b>
-              </div>
+              <span>₩{money.format(item.price)}</span>
             </button>
           ))}
-      </div>
-      <div className="library-footnote">
-        <Box size={14} />
-        <span>
-          규격 기반 기본 모델입니다.
-          <br />
-          실제 제품 모델은 추후 연결됩니다.
-        </span>
       </div>
     </>
   )

@@ -35,8 +35,8 @@
   border-radius: 13px;
 }
 .startup-error-icon {
-  color: #983a32;
-  background: #f9e9e7;
+  color: var(--seed-color-fg-critical);
+  background: var(--seed-color-bg-critical-weak);
 }
 .startup-skeleton {
   width: min(420px, 100%);
@@ -47,8 +47,8 @@
 }
 .startup-skeleton span {
   height: 72px;
-  background: #e8eae5;
-  border-radius: 8px;
+  background: var(--muted-surface);
+  border-radius: var(--seed-radius-r2);
   animation: startup-pulse 1.4s ease-in-out infinite;
 }
 .startup-skeleton span:nth-child(2) {

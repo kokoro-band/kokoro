@@ -1,6 +1,6 @@
-import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react"
+import { AlertCircle, RefreshCw } from "lucide-react"
+import { ActionButton, ProgressCircle } from "@seed-design/react"
 
-import { Button } from "@/components/ui/button"
 import type { ProjectLoadState } from "@/features/studio/types"
 
 export function ProjectStartup({
@@ -16,7 +16,10 @@ export function ProjectStartup({
     return (
       <section className="project-startup" aria-live="polite" aria-busy="true">
         <div className="startup-loading-icon">
-          <LoaderCircle className="spin" size={22} />
+          <ProgressCircle.Root>
+            <ProgressCircle.Track />
+            <ProgressCircle.Range />
+          </ProgressCircle.Root>
         </div>
         <h1>마지막 프로젝트를 불러오고 있어요</h1>
         <p>서버에 저장된 도면과 가구 배치를 확인하고 있습니다.</p>
@@ -37,13 +40,13 @@ export function ProjectStartup({
       <h1>프로젝트를 불러오지 못했어요</h1>
       <p>{state.message}</p>
       <div className="startup-actions">
-        <Button onClick={onRetry}>
+        <ActionButton onClick={onRetry} variant="brandSolid" size="medium">
           <RefreshCw size={16} />
           다시 시도
-        </Button>
-        <Button variant="outline" onClick={onCreate}>
+        </ActionButton>
+        <ActionButton variant="neutralOutline" size="medium" onClick={onCreate}>
           새 프로젝트 시작
-        </Button>
+        </ActionButton>
       </div>
     </section>
   )

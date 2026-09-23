@@ -22,6 +22,21 @@ type Bounds = { width: number; depth: number }
 
 const defaultBounds: Bounds = { width: 5.8, depth: 4.2 }
 
+const sceneColors = {
+  background: "#F2F3F6",
+  ambientSky: "#FFFFFF",
+  ambientGround: "#D9DCE3",
+  sunlight: "#FFF8F0",
+  floor: "#E4E6EB",
+  wall: "#FFFFFF",
+  sideWall: "#F7F8FA",
+  glass: "#B8DAED",
+  frame: "#FFFFFF",
+  gridPrimary: "#BFC4CC",
+  gridSecondary: "#D6DAE0",
+  selection: "#FF6F0F",
+} as const
+
 type SceneRuntime = {
   renderer: THREE.WebGLRenderer
   scene: THREE.Scene
@@ -196,20 +211,22 @@ export function RoomScene({
       }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       renderer.shadowMap.enabled = true
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      renderer.shadowMap.type = THREE.PCFShadowMap
       renderer.xr.enabled = mode === "vr"
-      renderer.setClearColor("#EDF0EB", 1)
+      renderer.setClearColor(sceneColors.background, 1)
       host.appendChild(renderer.domElement)
 
       const bounds: Bounds = room?.bounds ?? defaultBounds
       const scale = Math.max(bounds.width, bounds.depth) / defaultBounds.width
+      const viewportFit =
+        host.clientWidth <= 480 ? 1.18 : host.clientWidth <= 820 ? 1.08 : 1
 
       const scene = new THREE.Scene()
       const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
       camera.position.set(
-        mode === "2d" ? 0 : 7 * scale,
-        mode === "2d" ? 12 * scale : 7.5 * scale,
-        mode === "2d" ? 0.01 : 8 * scale
+        mode === "2d" ? 0 : 7 * scale * viewportFit,
+        mode === "2d" ? 12 * scale * viewportFit : 7.5 * scale * viewportFit,
+        mode === "2d" ? 0.01 : 8 * scale * viewportFit
       )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(0, 0.25, 0)
@@ -220,9 +237,13 @@ export function RoomScene({
       controls.enableRotate = mode !== "2d"
       controls.update()
 
-      const ambient = new THREE.HemisphereLight("#FFFFFF", "#BBB9AD", 2.4)
+      const ambient = new THREE.HemisphereLight(
+        sceneColors.ambientSky,
+        sceneColors.ambientGround,
+        2.4
+      )
       scene.add(ambient)
-      const sun = new THREE.DirectionalLight("#FFF3DC", 3)
+      const sun = new THREE.DirectionalLight(sceneColors.sunlight, 3)
       sun.position.set(-3, 7, -4)
       sun.castShadow = true
       sun.shadow.mapSize.set(2048, 2048)
@@ -237,15 +258,40 @@ export function RoomScene({
         roomGroup = buildRoomGroup(room, mode)
       } else {
         roomGroup = new THREE.Group()
-        addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], "#D8CAB5")
+        addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], sceneColors.floor)
         if (mode !== "2d") {
-          addBox(roomGroup, [5.8, 2.4, 0.1], [0, 1.2, -2.15], "#F8F7F2")
-          addBox(roomGroup, [0.1, 2.4, 4.2], [-2.95, 1.2, 0], "#EDECE5")
-          addBox(roomGroup, [2.4, 1.25, 0.025], [0.8, 1.5, -2.09], "#BED4D9")
-          addBox(roomGroup, [0.06, 1.3, 0.04], [0.8, 1.5, -2.06], "#FFFFFF")
-          addBox(roomGroup, [2.5, 0.06, 0.04], [0.8, 1.5, -2.05], "#FFFFFF")
+          addBox(roomGroup, [5.8, 2.4, 0.1], [0, 1.2, -2.15], sceneColors.wall)
+          addBox(
+            roomGroup,
+            [0.1, 2.4, 4.2],
+            [-2.95, 1.2, 0],
+            sceneColors.sideWall
+          )
+          addBox(
+            roomGroup,
+            [2.4, 1.25, 0.025],
+            [0.8, 1.5, -2.09],
+            sceneColors.glass
+          )
+          addBox(
+            roomGroup,
+            [0.06, 1.3, 0.04],
+            [0.8, 1.5, -2.06],
+            sceneColors.frame
+          )
+          addBox(
+            roomGroup,
+            [2.5, 0.06, 0.04],
+            [0.8, 1.5, -2.05],
+            sceneColors.frame
+          )
         }
-        const grid = new THREE.GridHelper(5.8, 29, "#B4A58F", "#C3B59F")
+        const grid = new THREE.GridHelper(
+          5.8,
+          29,
+          sceneColors.gridPrimary,
+          sceneColors.gridSecondary
+        )
         grid.position.y = 0.008
         grid.scale.z = 4.2 / 5.8
         grid.material.transparent = true
@@ -437,7 +483,7 @@ export function RoomScene({
         const { group, catalogItem } = makeFurnitureModel(item, runtime.bounds)
         let outline: THREE.BoxHelper | null = null
         if (item.id === selectedId) {
-          outline = new THREE.BoxHelper(group, "#3D7351")
+          outline = new THREE.BoxHelper(group, sceneColors.selection)
           runtime.furnitureGroup.add(outline)
         }
         runtime.furnitureGroup.add(group)

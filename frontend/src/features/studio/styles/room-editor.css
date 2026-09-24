@@ -236,3 +236,109 @@
   background: var(--primary-dark, #3d7351);
   border-color: var(--primary-dark, #3d7351);
 }
+
+.room-wall.erasing {
+  cursor: pointer;
+  stroke: #8e332c;
+}
+
+.room-editor-header b {
+  font-weight: 600;
+}
+.room-editor-header .room-editor-off {
+  color: #8a6212;
+}
+.room-editor-tools button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.room-editor-start {
+  position: relative;
+}
+.room-editor-start > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  color: var(--foreground);
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  cursor: pointer;
+}
+.room-editor-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 4;
+  min-width: 220px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgb(30 36 32 / 0.12);
+}
+.room-editor-menu button {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--foreground);
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.room-editor-menu button:hover {
+  background: var(--muted-surface, #eef0eb);
+}
+.room-editor-menu svg {
+  margin-top: 2px;
+  flex: none;
+}
+.room-editor-menu strong {
+  display: block;
+  font-size: 12px;
+}
+.room-editor-menu small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.room-editor-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.room-editor-area label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.room-editor-area input {
+  width: 56px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+}
+.room-editor-area button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  color: var(--foreground);
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  cursor: pointer;
+}
+.room-editor-area button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.room-editor-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

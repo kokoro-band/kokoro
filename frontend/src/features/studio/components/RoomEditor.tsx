@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  ChevronDown,
   Columns2,
   DoorOpen,
+  FileImage,
   Plus,
   RectangleHorizontal,
   Redo2,
   RotateCcw,
+  Eraser,
   Rows2,
+  Scaling,
   Scissors,
   Trash2,
   Undo2,
@@ -22,15 +26,18 @@ import {
   createDraft,
   draftAreaPyeong,
   draftFromModel,
+  fitToArea,
   hasOverlap,
   isConnected,
   labelPoint,
+  mergeRooms,
   minRoomSize,
   moveRoom,
   nextRoomName,
   removeOpening,
   removeRoom,
   renameRoom,
+  roomsAcrossWall,
   resizeRoom,
   roomPolygon,
   setNotch,
@@ -42,7 +49,9 @@ import {
 } from "@/features/studio/room-builder"
 import type { Opening, RoomModel, Wall } from "@/features/studio/types"
 
-type Tool = "select" | "split" | "door" | "window"
+import { PlanImport } from "./PlanImport"
+
+type Tool = "select" | "split" | "erase" | "door" | "window"
 
 type Axis = "vertical" | "horizontal"
 
@@ -136,6 +145,9 @@ export function RoomEditor({
     x: number
     z: number
   } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [startMenu, setStartMenu] = useState(false)
+  const startRef = useRef<HTMLDivElement>(null)
   const [areaInput, setAreaInput] = useState(
     room?.source?.areaPyeong ?? defaultAreaPyeong
   )
@@ -154,11 +166,30 @@ export function RoomEditor({
   const selected = draft.rooms.find((item) => item.id === selectedId)
   const connected = isConnected(draft)
   const overlapping = hasOverlap(draft)
+  const currentArea = draftAreaPyeong(draft)
+  const targetArea = clampArea(areaInput)
+  const offTarget = Math.abs(currentArea - targetArea) >= 0.3
   const view = {
     width: Math.max(frameFor(areaInput).width, model.bounds.width, minFrame),
     depth: Math.max(frameFor(areaInput).depth, model.bounds.depth, minFrame),
   }
   const viewBox = `${-padding} ${-padding} ${view.width + padding * 2} ${view.depth + padding * 2}`
+
+  useEffect(() => {
+    if (!startMenu) return
+    function onPointerDown(event: PointerEvent) {
+      if (!startRef.current?.contains(event.target as Node)) setStartMenu(false)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setStartMenu(false)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [startMenu])
 
   const { undo, redo } = history
   useEffect(() => {
@@ -280,6 +311,27 @@ export function RoomEditor({
     event.stopPropagation()
   }
 
+  function importPlan(next: RoomDraft, areaPyeong: number) {
+    history.reset({ draft: next, openings: [] })
+    setAreaInput(areaPyeong)
+    setSelectedId(next.rooms[0]?.id ?? null)
+    setTool("select")
+    setImporting(false)
+  }
+
+  function fitArea() {
+    history.set((current) => {
+      const walls = buildRoomModel(current.draft, current.openings).walls
+      const result = fitToArea(
+        current.draft,
+        targetArea,
+        current.openings,
+        walls
+      )
+      return { draft: result.draft, openings: result.openings }
+    })
+  }
+
   function restart() {
     const next = createDraft(clampArea(areaInput))
     history.reset({ draft: next, openings: [] })
@@ -307,6 +359,14 @@ export function RoomEditor({
     )
   }
 
+  function eraseWall(wall: Wall) {
+    editDraft((current) => {
+      const pair = roomsAcrossWall(current, wall)
+      if (!pair) return current
+      return mergeRooms(current, pair[0], pair[1])
+    })
+  }
+
   function placeOpening(wall: Wall, event: React.PointerEvent) {
     if (tool !== "door" && tool !== "window") return
     const plan = pointerToPlan(event)
@@ -330,7 +390,11 @@ export function RoomEditor({
           <strong>공간 만들기</strong>
           <span>
             {model.bounds.width.toFixed(1)} × {model.bounds.depth.toFixed(1)} m
-            · 방 {draft.rooms.length}개 · {draftAreaPyeong(draft)}평
+            · 방 {draft.rooms.length}개 ·{" "}
+            <b className={offTarget ? "room-editor-off" : ""}>
+              {currentArea}평
+            </b>
+            {offTarget && ` (전용면적 ${targetArea}평)`}
           </span>
         </div>
         <div className="room-editor-history">
@@ -365,21 +429,49 @@ export function RoomEditor({
       </header>
 
       <div className="room-editor-tools">
-        <label>
-          평수
-          <input
-            type="number"
-            min={5}
-            max={100}
-            step={1}
-            value={areaInput}
-            onChange={(event) => setAreaInput(Number(event.target.value))}
-          />
-        </label>
-        <button type="button" onClick={restart}>
-          <RotateCcw size={14} />
-          평수로 새로 시작
-        </button>
+        <div className="room-editor-start" ref={startRef}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={startMenu}
+            onClick={() => setStartMenu((open) => !open)}
+          >
+            새로 시작
+            <ChevronDown size={14} />
+          </button>
+          {startMenu && (
+            <div className="room-editor-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setStartMenu(false)
+                  restart()
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>
+                  <strong>평수로 시작</strong>
+                  <small>전용면적 {targetArea}평짜리 빈 집</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setStartMenu(false)
+                  setImporting(true)
+                }}
+              >
+                <FileImage size={14} />
+                <span>
+                  <strong>도면으로 시작</strong>
+                  <small>도면 이미지에서 방 배치 초안</small>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() =>
@@ -418,6 +510,7 @@ export function RoomEditor({
             [
               { id: "select", label: "이동", icon: RectangleHorizontal },
               { id: "split", label: "쪼개기", icon: Scissors },
+              { id: "erase", label: "벽 지우기", icon: Eraser },
               { id: "door", label: "문", icon: DoorOpen },
               { id: "window", label: "창", icon: RectangleHorizontal },
             ] as const
@@ -528,13 +621,16 @@ export function RoomEditor({
         {model.walls.map((wall) => (
           <line
             key={wall.id}
-            className={`room-wall${tool === "door" || tool === "window" ? " placing" : ""}`}
+            className={`room-wall${tool === "door" || tool === "window" ? " placing" : ""}${tool === "erase" ? " erasing" : ""}`}
             x1={wall.a[0]}
             y1={wall.a[1]}
             x2={wall.b[0]}
             y2={wall.b[1]}
             strokeWidth={wall.thickness}
-            onPointerDown={(event) => placeOpening(wall, event)}
+            onPointerDown={(event) => {
+              if (tool === "erase") eraseWall(wall)
+              else placeOpening(wall, event)
+            }}
           />
         ))}
 
@@ -577,7 +673,7 @@ export function RoomEditor({
       </svg>
 
       <footer className="room-editor-footer">
-        {selected && tool !== "split" ? (
+        {selected && tool === "select" ? (
           <div className="room-editor-fields">
             <label>
               이름
@@ -689,7 +785,9 @@ export function RoomEditor({
           <p className="room-editor-hint">
             {tool === "split"
               ? "방 안을 누르면 그 자리에 벽이 생기면서 두 방으로 나뉩니다."
-              : "방을 선택하면 이름과 크기를 바꿀 수 있습니다."}
+              : tool === "erase"
+                ? "방 사이의 벽을 누르면 두 방이 하나로 합쳐집니다."
+                : "방을 선택하면 이름과 크기를 바꿀 수 있습니다."}
           </p>
         )}
         <div className="room-editor-actions">
@@ -703,6 +801,29 @@ export function RoomEditor({
               겹쳐 있는 방이 있습니다. 서로 붙여서 떨어뜨려 주세요.
             </p>
           )}
+          <div className="room-editor-area">
+            <label title="34평형 아파트의 전용면적은 약 25평입니다">
+              전용면적
+              <input
+                type="number"
+                min={5}
+                max={100}
+                step={1}
+                value={areaInput}
+                onChange={(event) => setAreaInput(Number(event.target.value))}
+              />
+              평
+            </label>
+            <button
+              type="button"
+              disabled={!offTarget}
+              title="모든 방을 같은 비율로 키우거나 줄여 전용면적에 맞춥니다"
+              onClick={fitArea}
+            >
+              <Scaling size={14} />
+              맞추기
+            </button>
+          </div>
           <button
             type="button"
             className="room-editor-apply"
@@ -713,6 +834,14 @@ export function RoomEditor({
           </button>
         </div>
       </footer>
+
+      {importing && (
+        <PlanImport
+          initialArea={clampArea(areaInput)}
+          onImport={importPlan}
+          onClose={() => setImporting(false)}
+        />
+      )}
     </div>
   )
 }

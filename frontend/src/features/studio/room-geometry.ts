@@ -300,7 +300,9 @@ function makeLabelSprite(text: string) {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: texture, depthTest: false })
   )
-  const worldHeight = 0.32
+  const worldHeight = window.matchMedia("(max-width: 820px)").matches
+    ? 0.9
+    : 0.32
   sprite.scale.set((canvas.width / canvas.height) * worldHeight, worldHeight, 1)
   sprite.renderOrder = 10
   return sprite

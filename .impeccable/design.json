@@ -1,28 +1,82 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-16T00:00:00Z",
-  "title": "Design System: Kokoro Studio",
+  "generatedAt": "2026-09-24T00:00:00+09:00",
+  "title": "Kokoro SEED Design System",
   "extensions": {
     "colorMeta": {
-      "studio-green": {
+      "primary": {
         "role": "primary",
-        "displayName": "스튜디오 그린",
-        "canonical": "#3d7351",
-        "tonalRamp": ["#17261c", "#29563b", "#3d7351", "#6c9878", "#b9d3bf", "#e5eee7"]
+        "displayName": "SEED Primary",
+        "canonical": "#ff6f0f",
+        "tonalRamp": [
+          "#3d1600",
+          "#713000",
+          "#a84600",
+          "#dd5b00",
+          "#ff6f0f",
+          "#ff9e66",
+          "#ffd1b3",
+          "#fff5f0"
+        ]
       },
-      "room-sand": {
-        "role": "secondary",
-        "displayName": "룸 샌드",
-        "canonical": "#d8cab5",
-        "tonalRamp": ["#4a4034", "#897861", "#bba98f", "#d8cab5", "#eee7dc", "#f8f5ef"]
-      },
-      "studio-ink": {
+      "foreground": {
         "role": "neutral",
-        "displayName": "스튜디오 잉크",
-        "canonical": "#1e2420",
-        "tonalRamp": ["#111512", "#1e2420", "#475048", "#737a73", "#a5aaa3", "#eef0eb"]
+        "displayName": "Foreground",
+        "canonical": "#212124",
+        "tonalRamp": [
+          "#141416",
+          "#212124",
+          "#45464b",
+          "#696b72",
+          "#868b94",
+          "#b7bac0",
+          "#eaebee",
+          "#f7f8fa"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Background",
+        "canonical": "#f2f3f6",
+        "tonalRamp": [
+          "#1a1c20",
+          "#34363c",
+          "#5b5d65",
+          "#868b94",
+          "#b7bac0",
+          "#d5d7dc",
+          "#eaebee",
+          "#f7f8fa"
+        ]
       }
     },
+    "typographyMeta": {
+      "screen-title": {
+        "displayName": "Screen Title",
+        "purpose": "프로젝트와 전체 화면의 주요 제목"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "안내와 가구 정보와 오류 설명"
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "버튼과 필드와 짧은 상태"
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "호버와 포커스와 버튼 피드백"
+      },
+      {
+        "name": "standard",
+        "value": "250ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "탭과 패널 전환"
+      }
+    ],
     "breakpoints": [
       { "name": "mobile", "value": "480px" },
       { "name": "stack", "value": "820px" },
@@ -33,27 +87,60 @@
     {
       "name": "Primary Action",
       "kind": "button",
-      "description": "프로젝트 저장과 같이 결과를 확정하는 행동입니다.",
-      "html": "<button class=\"studio-primary\">저장</button>",
-      "css": ".studio-primary{height:36px;padding:0 16px;border:0;border-radius:7px;background:#3d7351;color:#fff;font-weight:650}"
+      "description": "저장과 확정처럼 한 화면의 핵심 행동에 사용하는 SEED ActionButton입니다.",
+      "html": "<ActionButton variant=\"brandSolid\">저장</ActionButton>",
+      "css": "@import \"@seed-design/css/recipes/action-button.css\";"
     },
     {
-      "name": "Studio Surface",
-      "kind": "card",
-      "description": "라이브러리와 3D 편집기와 어시스턴트를 묶는 작업 화면입니다.",
-      "html": "<section class=\"studio-surface\"></section>",
-      "css": ".studio-surface{background:#fff;border:1px solid #daddd6;border-radius:10px;box-shadow:0 12px 35px rgb(35 45 38 / .08)}"
+      "name": "View Switch",
+      "kind": "segmented-control",
+      "description": "같은 배치 데이터를 2D와 3D와 WebXR에서 전환하는 SEED SegmentedControl입니다.",
+      "html": "<SegmentedControl.Root value={mode}>...</SegmentedControl.Root>",
+      "css": "@import \"@seed-design/css/recipes/segmented-control.css\";"
+    },
+    {
+      "name": "Project Dialog",
+      "kind": "dialog",
+      "description": "새 프로젝트 이름을 입력하고 생성하는 SEED ContentDialog입니다.",
+      "html": "<ContentDialog.Root open={open}>...</ContentDialog.Root>",
+      "css": "@import \"@seed-design/css/recipes/content-dialog.css\";"
     }
   ],
   "narrative": {
-    "northStar": "대화와 손이 만나는 리모델링 작업실",
-    "overview": "사용자가 기술을 배우기 전에 자신의 방을 보고 가구를 움직일 수 있어야 합니다.",
-    "keyCharacteristics": ["방이 중심인 3열 작업 화면", "자동 배치와 직접 편집의 연결", "짙은 녹색과 모래색의 차분한 대비", "웹 2D와 3D와 WebXR이 공유하는 하나의 배치"],
-    "rules": [
-      { "name": "Room First", "body": "첫 화면의 가장 넓은 영역은 사용자가 편집하는 방에 사용합니다.", "section": "layout" },
-      { "name": "Honest Automation", "body": "예제 처리와 실제 AI 처리를 같은 것으로 표현하지 않습니다.", "section": "content" }
+    "northStar": "따뜻한 공간 도구",
+    "overview": "코코로는 SEED v2를 UI의 기본 언어로 사용하고 중립 표면에서 사용자의 방과 가구를 먼저 보여 줍니다. 오렌지는 핵심 행동에만 사용하고 장식은 정보 이해와 작업을 돕는 경우에만 남깁니다.",
+    "keyCharacteristics": [
+      "SEED v2 컴포넌트와 토큰 우선",
+      "주요 행동에만 사용하는 따뜻한 오렌지",
+      "방과 가구를 먼저 보여 주는 작업 도구 구조",
+      "Pretendard Variable과 역할 기반 타이포그래피"
     ],
-    "dos": ["가구 선택을 외곽선과 속성 패널로 함께 표시합니다.", "모바일에서도 3D 편집기를 가장 먼저 보여줍니다."],
-    "donts": ["소개 문구가 작업 화면을 밀어내지 않습니다.", "VR을 핵심 편집 흐름의 필수 조건으로 만들지 않습니다."]
+    "rules": [
+      {
+        "name": "The One Orange Rule",
+        "body": "한 화면에서 경쟁하는 오렌지 행동을 두 개 이상 두지 않습니다.",
+        "section": "colors"
+      },
+      {
+        "name": "The SEED First Rule",
+        "body": "새 UI는 SEED를 먼저 검토하고 필요할 때만 얇은 wrapper를 사용합니다.",
+        "section": "components"
+      },
+      {
+        "name": "The Flat By Default Rule",
+        "body": "일반 표면에 그라데이션과 유리 효과와 대형 그림자를 사용하지 않습니다.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "새 UI를 만들기 전에 SEED 컴포넌트를 먼저 확인합니다.",
+      "색 값 대신 semantic token을 사용합니다.",
+      "AI slop 스캔 결과를 수정 명령이 아닌 검토 단서로 사용합니다."
+    ],
+    "donts": [
+      "당근의 로고와 마스코트와 서비스 문구를 사용하지 않습니다.",
+      "모든 정보를 카드와 배지와 pill로 감싸지 않습니다.",
+      "스캐너 탐지만으로 의도된 자산을 자동 삭제하지 않습니다."
+    ]
   }
 }

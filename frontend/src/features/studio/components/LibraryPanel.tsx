@@ -1,5 +1,6 @@
 import type { RefObject } from "react"
 import { Armchair, Layers3 } from "lucide-react"
+import { Tabs } from "@seed-design/react"
 
 import type { Category, Project, UploadAttempt } from "@/features/studio/types"
 
@@ -31,26 +32,24 @@ export function LibraryPanel({
 }) {
   return (
     <aside className="library-panel">
-      <div className="panel-tabs" role="tablist" aria-label="소스 선택">
-        <button
-          role="tab"
-          aria-selected={tab === "furniture"}
-          className={tab === "furniture" ? "active" : ""}
-          onClick={() => onTabChange("furniture")}
-        >
-          <Armchair size={16} />
-          가구 라이브러리
-        </button>
-        <button
-          role="tab"
-          aria-selected={tab === "plan"}
-          className={tab === "plan" ? "active" : ""}
-          onClick={() => onTabChange("plan")}
-        >
-          <Layers3 size={16} />
-          도면
-        </button>
-      </div>
+      <Tabs.Root
+        className="panel-tabs"
+        value={tab}
+        onValueChange={(value) => onTabChange(value as typeof tab)}
+        triggerLayout="fill"
+      >
+        <Tabs.List aria-label="소스 선택">
+          <Tabs.Trigger value="furniture">
+            <Armchair size={16} />
+            가구 라이브러리
+          </Tabs.Trigger>
+          <Tabs.Trigger value="plan">
+            <Layers3 size={16} />
+            도면
+          </Tabs.Trigger>
+          <Tabs.Indicator />
+        </Tabs.List>
+      </Tabs.Root>
       {tab === "furniture" ? (
         <FurnitureLibrary
           category={category}

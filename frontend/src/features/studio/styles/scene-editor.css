@@ -1,8 +1,11 @@
 .scene-panel {
+  position: relative;
   grid-area: scene;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
   background: var(--muted-surface);
 }
 .scene-toolbar {
@@ -24,32 +27,45 @@
   margin: 0 5px;
   background: var(--line);
 }
-.icon-button {
-  width: 32px;
-  height: 32px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  color: var(--muted);
-  background: transparent;
-  border: 0;
-  border-radius: var(--seed-radius-r2);
-}
-.icon-button:hover:not(:disabled) {
-  color: var(--foreground);
-  background: var(--muted-surface);
-}
-.icon-button.danger:hover {
-  color: var(--seed-color-fg-critical);
-  background: var(--seed-color-bg-critical-weak);
-}
 .view-switch {
   flex: none;
+}
+.view-switch.seed-segmented-control__root {
+  padding: 3px;
+}
+.view-switch .seed-segmented-control__item {
+  min-width: 62px;
+  min-height: 30px;
+  gap: 5px;
+  padding: 4px 12px;
+  font-size: var(--seed-font-size-t4);
+}
+.view-switch .seed-segmented-control__indicator {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+}
+.control-icon-swap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: control-icon-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes control-icon-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.78) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
 }
 .scene-area {
   position: relative;
   flex: 1;
-  min-height: 520px;
+  min-height: 0;
   overflow: hidden;
 }
 .room-renderer {
@@ -70,7 +86,7 @@
   justify-content: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
 }
 .scene-scale {
   position: absolute;
@@ -101,7 +117,7 @@
   color: var(--seed-color-fg-neutral-muted);
   background: var(--seed-color-bg-layer-default);
   border-radius: var(--seed-radius-r1);
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
 }
 .vr-information {
   position: absolute;
@@ -131,7 +147,7 @@
   background: var(--seed-color-bg-brand-solid) !important;
   border: 0 !important;
   border-radius: var(--seed-radius-r2) !important;
-  font: 650 11px var(--font-sans) !important;
+  font: 650 12px var(--font-sans) !important;
   opacity: 1 !important;
 }
 .renderer-error {
@@ -153,7 +169,7 @@
   color: var(--muted);
   background: var(--card);
   border-block: 1px solid var(--line);
-  font-size: 10px;
+  font-size: var(--seed-font-size-t3);
 }
 .scene-bottom strong {
   color: var(--foreground);

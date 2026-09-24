@@ -1,6 +1,11 @@
 import type { FormEvent } from "react"
 import { ArrowRight } from "lucide-react"
-import { ActionButton, ContentDialog, TextField } from "@seed-design/react"
+import {
+  ActionButton,
+  ContentDialog,
+  Field,
+  TextField,
+} from "@seed-design/react"
 
 export function NewProjectDialog({
   open,
@@ -37,17 +42,17 @@ export function NewProjectDialog({
               </ContentDialog.Description>
             </ContentDialog.Header>
             <ContentDialog.Body>
-              <label htmlFor="project-name">프로젝트 이름</label>
-              <TextField.Root size="responsive">
-                <TextField.Input
-                  id="project-name"
-                  aria-label="프로젝트 이름"
-                  name="project-name"
-                  placeholder="예: 우리 집 거실"
-                  required
-                  maxLength={60}
-                />
-              </TextField.Root>
+              <Field.Root>
+                <Field.Label>프로젝트 이름</Field.Label>
+                <TextField.Root size="responsive">
+                  <TextField.Input
+                    name="project-name"
+                    placeholder="예: 우리 집 거실"
+                    required
+                    maxLength={60}
+                  />
+                </TextField.Root>
+              </Field.Root>
             </ContentDialog.Body>
             <ContentDialog.Footer>
               <ContentDialog.Action asChild>
@@ -64,6 +69,7 @@ export function NewProjectDialog({
                 variant="brandSolid"
                 size="medium"
                 disabled={busy}
+                loading={busy}
               >
                 프로젝트 만들기 <ArrowRight size={16} />
               </ActionButton>

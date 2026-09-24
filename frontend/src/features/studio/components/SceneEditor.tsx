@@ -1,17 +1,23 @@
-import { lazy, Suspense, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import {
   Box,
   Grid2X2,
-  LoaderCircle,
   Maximize2,
+  Minimize2,
   Move,
   PencilRuler,
   PanelLeftClose,
+  PanelLeftOpen,
   Redo2,
   Undo2,
   View,
 } from "lucide-react"
-import { ActionButton, Icon, SegmentedControl } from "@seed-design/react"
+import {
+  ActionButton,
+  Icon,
+  ProgressCircle,
+  SegmentedControl,
+} from "@seed-design/react"
 
 import { catalog } from "@/features/studio/data"
 import type { Project, RoomModel, ViewMode } from "@/features/studio/types"
@@ -59,6 +65,8 @@ export function SceneEditor({
   onApplyRoom: (room: RoomModel) => void
 }) {
   const [editingRoom, setEditingRoom] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const budget = project.furniture.reduce(
     (total, item) =>
       total +
@@ -66,8 +74,26 @@ export function SceneEditor({
     0
   )
 
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(document.fullscreenElement === panelRef.current)
+    }
+    document.addEventListener("fullscreenchange", syncFullscreen)
+    return () =>
+      document.removeEventListener("fullscreenchange", syncFullscreen)
+  }, [])
+
+  const toggleFullscreen = () => {
+    const panel = panelRef.current
+    if (!panel) return
+    const action = isFullscreen
+      ? document.exitFullscreen()
+      : panel.requestFullscreen()
+    action.catch(onFullscreenError)
+  }
+
   return (
-    <section className="scene-panel" aria-label="공간 편집">
+    <section ref={panelRef} className="scene-panel" aria-label="공간 편집">
       <div className="scene-toolbar">
         <div className="toolbar-left">
           <ActionButton
@@ -78,7 +104,15 @@ export function SceneEditor({
             aria-label={showLibrary ? "라이브러리 접기" : "라이브러리 열기"}
             onClick={onToggleLibrary}
           >
-            <Icon svg={<PanelLeftClose />} size="x4" />
+            <span
+              className="control-icon-swap"
+              key={showLibrary ? "close" : "open"}
+            >
+              <Icon
+                svg={showLibrary ? <PanelLeftClose /> : <PanelLeftOpen />}
+                size="x4"
+              />
+            </span>
           </ActionButton>
           <span className="toolbar-divider" />
           <SegmentedControl.Root
@@ -143,15 +177,21 @@ export function SceneEditor({
             variant="ghost"
             size="small"
             layout="iconOnly"
-            aria-label="편집 영역 전체 화면"
-            onClick={() =>
-              document
-                .querySelector(".scene-panel")
-                ?.requestFullscreen()
-                .catch(onFullscreenError)
+            aria-label={
+              isFullscreen ? "편집 영역 전체 화면 종료" : "편집 영역 전체 화면"
             }
+            aria-pressed={isFullscreen}
+            onClick={toggleFullscreen}
           >
-            <Icon svg={<Maximize2 />} size="x4" />
+            <span
+              className="control-icon-swap"
+              key={isFullscreen ? "minimize" : "maximize"}
+            >
+              <Icon
+                svg={isFullscreen ? <Minimize2 /> : <Maximize2 />}
+                size="x4"
+              />
+            </span>
           </ActionButton>
         </div>
       </div>
@@ -169,7 +209,10 @@ export function SceneEditor({
         <Suspense
           fallback={
             <div className="scene-loading">
-              <LoaderCircle className="spin" size={20} />
+              <ProgressCircle.Root size="24">
+                <ProgressCircle.Track />
+                <ProgressCircle.Range />
+              </ProgressCircle.Root>
               3D 공간을 준비하고 있어요
             </div>
           }

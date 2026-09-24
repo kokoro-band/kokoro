@@ -1,4 +1,5 @@
-import { Minus, Move, Plus, RotateCw, Settings2, Trash2 } from "lucide-react"
+import { Minus, Plus, RotateCw, Settings2, Trash2 } from "lucide-react"
+import { ActionButton, Icon, TextField } from "@seed-design/react"
 
 import type { Furniture } from "@/features/studio/types"
 
@@ -28,13 +29,16 @@ export function PropertiesPanel({
           선택한 가구
         </h3>
         {selected && (
-          <button
+          <ActionButton
             className="icon-button danger"
+            variant="criticalSolid"
+            size="small"
+            layout="iconOnly"
             aria-label="선택한 가구 삭제"
             onClick={onDelete}
           >
-            <Trash2 size={16} />
-          </button>
+            <Icon svg={<Trash2 />} size="x4" />
+          </ActionButton>
         )}
       </div>
       {selected ? (
@@ -49,79 +53,93 @@ export function PropertiesPanel({
             </div>
           </div>
           <div className="position-fields">
-            <label>
-              가로 위치
-              <input
-                type="number"
-                min={0}
-                max={bounds.width}
-                step={0.1}
-                value={selected.x.toFixed(1)}
-                onChange={(event) =>
-                  onUpdate({
-                    x: clamp(Number(event.target.value), bounds.width),
-                  })
-                }
-              />
-              <span>m</span>
-            </label>
-            <label>
-              세로 위치
-              <input
-                type="number"
-                min={0}
-                max={bounds.depth}
-                step={0.1}
-                value={selected.z.toFixed(1)}
-                onChange={(event) =>
-                  onUpdate({
-                    z: clamp(Number(event.target.value), bounds.depth),
-                  })
-                }
-              />
-              <span>m</span>
-            </label>
+            <MeterField
+              label="가로 위치"
+              max={bounds.width}
+              value={selected.x}
+              onChange={(x) => onUpdate({ x })}
+            />
+            <MeterField
+              label="세로 위치"
+              max={bounds.depth}
+              value={selected.z}
+              onChange={(z) => onUpdate({ z })}
+            />
           </div>
           <div className="rotation-control">
             <span>회전</span>
-            <button
+            <ActionButton
               className="icon-button"
+              variant="neutralWeak"
+              size="small"
+              layout="iconOnly"
               aria-label="15도 왼쪽 회전"
               onClick={() =>
                 onUpdate({ rotation: (selected.rotation - 15 + 360) % 360 })
               }
             >
-              <Minus size={14} />
-            </button>
+              <Icon svg={<Minus />} size="x4" />
+            </ActionButton>
             <strong>{selected.rotation}°</strong>
-            <button
+            <ActionButton
               className="icon-button"
+              variant="neutralWeak"
+              size="small"
+              layout="iconOnly"
               aria-label="15도 오른쪽 회전"
               onClick={() =>
                 onUpdate({ rotation: (selected.rotation + 15) % 360 })
               }
             >
-              <Plus size={14} />
-            </button>
-            <button
+              <Icon svg={<Plus />} size="x4" />
+            </ActionButton>
+            <ActionButton
               className="icon-button"
+              variant="neutralWeak"
+              size="small"
+              layout="iconOnly"
               aria-label="회전 초기화"
               onClick={() => onUpdate({ rotation: 0 })}
             >
-              <RotateCw size={14} />
-            </button>
+              <Icon svg={<RotateCw />} size="x4" />
+            </ActionButton>
           </div>
         </>
       ) : (
         <div className="selection-empty">
-          <Move size={24} />
-          <p>
-            공간에서 가구를 선택하면
-            <br />
-            위치와 회전을 조절할 수 있어요.
-          </p>
+          <p>가구를 선택하면 위치와 회전을 조절할 수 있어요.</p>
         </div>
       )}
     </div>
+  )
+}
+
+function MeterField({
+  label,
+  max,
+  value,
+  onChange,
+}: {
+  label: string
+  max: number
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="position-field">
+      <span>{label}</span>
+      <TextField.Root size="medium">
+        <TextField.Input
+          type="number"
+          aria-label={label}
+          min={0}
+          max={max}
+          step={0.1}
+          value={value.toFixed(1)}
+          onChange={(event) => onChange(clamp(Number(event.target.value), max))}
+        />
+        <TextField.SuffixText>m</TextField.SuffixText>
+      </TextField.Root>
+    </label>
   )
 }

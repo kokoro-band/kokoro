@@ -2,15 +2,13 @@ import type { RefObject } from "react"
 import {
   AlertCircle,
   Check,
-  CircleHelp,
   FileImage,
   FileUp,
   LoaderCircle,
   RefreshCw,
 } from "lucide-react"
+import { ActionButton } from "@seed-design/react"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import type { Project, UploadAttempt } from "@/features/studio/types"
 
 type FloorPlanStatus = Project["floorPlan"]["status"]
@@ -53,25 +51,22 @@ export function FloorPlanPanel({
           ? "도면을 안전하게 업로드하고 있습니다."
           : "방 치수를 적용하고 있습니다."
         : status === "READY"
-          ? "방을 만들었습니다. 자동 벽 인식은 AI 변환기 연결 후 사용할 수 있습니다."
+          ? "현재는 예제 치수로 공간을 표시합니다."
           : "PDF, PNG, JPG 형식의 15MB 이하 도면을 선택해 주세요."
 
   return (
     <div className="plan-panel">
       <div className="library-heading">
-        <h2>도면에서 시작하기</h2>
-        <p>평면도를 올리고 내 공간의 뼈대를 만드세요.</p>
+        <h2>도면</h2>
       </div>
       <button
         className="upload-zone"
         onClick={() => uploadRef.current?.click()}
         disabled={busy}
       >
-        <span className="upload-icon">
-          <FileUp size={26} />
-        </span>
+        <FileUp size={24} />
         <strong>
-          {status === "FAILED" ? "다른 도면 선택" : "도면 업로드"}
+          {status === "FAILED" ? "다른 도면 선택" : "도면을 올려 공간 시작하기"}
         </strong>
         <span>PDF, PNG, JPG 형식, 최대 15MB</span>
       </button>
@@ -91,13 +86,10 @@ export function FloorPlanPanel({
           )}
         </div>
       )}
-      <div
-        className={`conversion-card ${status.toLowerCase()}`}
-        aria-live="polite"
-      >
+      <div className={`plan-status ${status.toLowerCase()}`} aria-live="polite">
         <div>
-          <span className="small-label">3D 변환</span>
-          <Badge variant="outline">{statusLabel}</Badge>
+          <span className="small-label">도면 상태</span>
+          <strong className="status-label">{statusLabel}</strong>
         </div>
         <div
           className="progress-track"
@@ -107,42 +99,30 @@ export function FloorPlanPanel({
           aria-valuemax={100}
           aria-valuenow={progress}
         >
-          <span style={{ width: `${progress}%` }} />
+          <span style={{ transform: `scaleX(${progress / 100})` }} />
         </div>
         <p role={status === "FAILED" ? "alert" : undefined}>{message}</p>
         {status === "FAILED" && uploadAttempt?.retryable && (
-          <Button
+          <ActionButton
             type="button"
-            variant="outline"
+            variant="neutralOutline"
+            size="small"
             className="retry-upload"
             onClick={onRetry}
             disabled={busy}
           >
             <RefreshCw size={14} />
             같은 파일 다시 시도
-          </Button>
+          </ActionButton>
         )}
       </div>
-      <h3>공간 치수</h3>
       <div className="room-dimensions">
-        {Object.entries(project.dimensions).map(([key, value]) => (
-          <div key={key}>
-            <span>
-              {key === "width" ? "가로" : key === "depth" ? "세로" : "높이"}
-            </span>
-            <strong>
-              {value.toFixed(1)}
-              <small>m</small>
-            </strong>
-          </div>
-        ))}
-      </div>
-      <div className="tip-card">
-        <CircleHelp size={17} />
-        <p>
-          치수가 표기된 도면을 사용하면 실제 공간에 가까운 모델을 만들 수
-          있습니다.
-        </p>
+        <span>공간 치수</span>
+        <strong>
+          {project.dimensions.width.toFixed(1)} ×{" "}
+          {project.dimensions.depth.toFixed(1)} ×{" "}
+          {project.dimensions.height.toFixed(1)} m
+        </strong>
       </div>
     </div>
   )

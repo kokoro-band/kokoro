@@ -1,14 +1,15 @@
-import type { FormEvent, RefObject } from "react"
-import { ArrowRight, Box } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
+import type { FormEvent } from "react"
+import { ArrowRight } from "lucide-react"
+import { ActionButton, ContentDialog, TextField } from "@seed-design/react"
 
 export function NewProjectDialog({
-  dialogRef,
+  open,
+  onOpenChange,
   busy,
   onSubmit,
 }: {
-  dialogRef: RefObject<HTMLDialogElement | null>
+  open: boolean
+  onOpenChange: (open: boolean) => void
   busy: boolean
   onSubmit: (name: string) => Promise<boolean>
 }) {
@@ -19,39 +20,57 @@ export function NewProjectDialog({
     if (typeof name !== "string") return
     if (await onSubmit(name)) {
       form.reset()
-      dialogRef.current?.close()
+      onOpenChange(false)
     }
   }
 
   return (
-    <dialog ref={dialogRef} className="new-project-dialog">
-      <form onSubmit={(event) => void submit(event)}>
-        <span className="dialog-icon">
-          <Box size={26} />
-        </span>
-        <h2>새로운 공간을 시작해요</h2>
-        <p>프로젝트 이름을 정한 뒤 도면을 업로드하세요.</p>
-        <label htmlFor="project-name">프로젝트 이름</label>
-        <input
-          id="project-name"
-          name="project-name"
-          placeholder="예: 우리 집 거실"
-          required
-          maxLength={60}
-        />
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => dialogRef.current?.close()}
-          >
-            취소
-          </Button>
-          <Button type="submit" disabled={busy}>
-            프로젝트 만들기 <ArrowRight size={16} />
-          </Button>
-        </div>
-      </form>
-    </dialog>
+    <ContentDialog.Root open={open} onOpenChange={onOpenChange}>
+      <ContentDialog.Backdrop />
+      <ContentDialog.Positioner>
+        <ContentDialog.Content className="new-project-dialog">
+          <form onSubmit={(event) => void submit(event)}>
+            <ContentDialog.Header>
+              <ContentDialog.Title>새 프로젝트</ContentDialog.Title>
+              <ContentDialog.Description>
+                프로젝트 이름을 정한 뒤 도면을 업로드하세요.
+              </ContentDialog.Description>
+            </ContentDialog.Header>
+            <ContentDialog.Body>
+              <label htmlFor="project-name">프로젝트 이름</label>
+              <TextField.Root size="responsive">
+                <TextField.Input
+                  id="project-name"
+                  aria-label="프로젝트 이름"
+                  name="project-name"
+                  placeholder="예: 우리 집 거실"
+                  required
+                  maxLength={60}
+                />
+              </TextField.Root>
+            </ContentDialog.Body>
+            <ContentDialog.Footer>
+              <ContentDialog.Action asChild>
+                <ActionButton
+                  type="button"
+                  variant="neutralOutline"
+                  size="medium"
+                >
+                  취소
+                </ActionButton>
+              </ContentDialog.Action>
+              <ActionButton
+                type="submit"
+                variant="brandSolid"
+                size="medium"
+                disabled={busy}
+              >
+                프로젝트 만들기 <ArrowRight size={16} />
+              </ActionButton>
+            </ContentDialog.Footer>
+          </form>
+        </ContentDialog.Content>
+      </ContentDialog.Positioner>
+    </ContentDialog.Root>
   )
 }

@@ -1,12 +1,19 @@
+@import "pretendard/dist/web/variable/pretendardvariable.css";
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/noto-sans-kr";
+@import "@seed-design/css/base.css";
+@import "@seed-design/css/recipes/action-button.css";
+@import "@seed-design/css/recipes/chip.css";
+@import "@seed-design/css/recipes/content-dialog.css";
+@import "@seed-design/css/recipes/progress-circle.css";
+@import "@seed-design/css/recipes/segmented-control.css";
+@import "@seed-design/css/recipes/slider.css";
+@import "@seed-design/css/recipes/snackbar.css";
+@import "@seed-design/css/recipes/snackbar-region.css";
+@import "@seed-design/css/recipes/tabs.css";
+@import "@seed-design/css/recipes/text-input.css";
 
 @theme inline {
-  --font-sans:
-    "Geist Variable", "Noto Sans KR Variable", "Malgun Gothic", sans-serif;
+  --font-sans: var(--seed-font-family);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -14,34 +21,36 @@
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: #fff;
+  --color-primary-foreground: var(--seed-color-fg-neutral-inverted);
   --color-secondary: var(--muted-surface);
   --color-secondary-foreground: var(--foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--primary);
-  --color-destructive: #b4453c;
+  --color-destructive: var(--seed-color-fg-critical);
   --color-border: var(--line);
   --color-input: var(--line);
   --color-ring: var(--primary);
-  --radius-sm: 0.35rem;
-  --radius-md: 0.55rem;
-  --radius-lg: 0.75rem;
+  --radius-sm: var(--seed-radius-r1);
+  --radius-md: var(--seed-radius-r2);
+  --radius-lg: var(--seed-radius-r3);
 }
 
 :root {
   color-scheme: light;
-  --background: #f4f5f1;
-  --foreground: #1e2420;
-  --card: #ffffff;
-  --primary: #3d7351;
-  --primary-dark: #29563b;
-  --accent: #e5eee7;
-  --muted-surface: #eef0eb;
-  --line: #daddd6;
-  --muted: #737a73;
-  --soft: #a5aaa3;
-  --sand: #d8cab5;
-  --shadow-soft: 0 12px 35px rgb(35 45 38 / 0.08);
+  --seed-font-family:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  --background: var(--seed-color-bg-layer-basement);
+  --foreground: var(--seed-color-fg-neutral);
+  --card: var(--seed-color-bg-layer-default);
+  --primary: var(--seed-color-bg-brand-solid);
+  --primary-dark: var(--seed-color-fg-brand-contrast);
+  --accent: var(--seed-color-bg-brand-weak);
+  --muted-surface: var(--seed-color-bg-layer-fill);
+  --line: var(--seed-color-stroke-neutral-muted);
+  --muted: var(--seed-color-fg-neutral-muted);
+  --soft: var(--seed-color-fg-neutral-subtle);
+  --shadow-soft: none;
 }
 
 * {
@@ -50,6 +59,7 @@
 }
 html {
   font-family: var(--font-sans);
+  font-synthesis: none;
   background: var(--background);
   color: var(--foreground);
 }
@@ -72,12 +82,12 @@ button:disabled {
   opacity: 0.45;
 }
 :focus-visible {
-  outline: 3px solid rgb(61 115 81 / 0.35);
+  outline: 2px solid var(--seed-color-stroke-brand-solid);
   outline-offset: 2px;
 }
 ::selection {
-  color: #fff;
-  background: var(--primary);
+  color: var(--seed-color-fg-neutral-inverted);
+  background: var(--seed-color-bg-brand-solid);
 }
 .sr-only {
   position: absolute;
@@ -89,4 +99,9 @@ button:disabled {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }

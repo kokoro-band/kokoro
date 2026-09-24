@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useState } from "react"
 import {
   Box,
   Grid2X2,
@@ -14,7 +14,9 @@ import {
 } from "lucide-react"
 
 import { catalog } from "@/features/studio/data"
-import type { Project, ViewMode } from "@/features/studio/types"
+import type { Project, RoomModel, ViewMode } from "@/features/studio/types"
+
+import { RoomEditor } from "./RoomEditor"
 
 const RoomScene = lazy(async () => {
   const module = await import("@/features/studio/RoomScene")
@@ -38,6 +40,7 @@ export function SceneEditor({
   onSelect,
   onMove,
   onMoveEnd,
+  onApplyRoom,
 }: {
   project: Project
   selectedId: string | null
@@ -53,7 +56,9 @@ export function SceneEditor({
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => void
   onMoveEnd: () => void
+  onApplyRoom: (room: RoomModel) => void
 }) {
+  const [editingRoom, setEditingRoom] = useState(false)
   const budget = project.furniture.reduce(
     (total, item) =>
       total +
@@ -95,6 +100,14 @@ export function SceneEditor({
         </div>
         <div className="toolbar-right">
           <button
+            type="button"
+            className="room-editor-open"
+            onClick={() => setEditingRoom(true)}
+          >
+            공간 만들기
+          </button>
+          <span className="toolbar-divider" />
+          <button
             className="icon-button"
             aria-label="실행 취소"
             disabled={!canUndo}
@@ -126,6 +139,16 @@ export function SceneEditor({
         </div>
       </div>
       <div className="scene-area">
+        {editingRoom && (
+          <RoomEditor
+            room={project.room}
+            onApply={(room) => {
+              onApplyRoom(room)
+              setEditingRoom(false)
+            }}
+            onClose={() => setEditingRoom(false)}
+          />
+        )}
         <div className="scene-caption">
           <span className="scene-dot" />
           <span>

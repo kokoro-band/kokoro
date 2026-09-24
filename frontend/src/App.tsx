@@ -70,6 +70,7 @@ export default function App() {
                 onSelect={studio.selectFurniture}
                 onMove={studio.moveFurniture}
                 onMoveEnd={studio.saveMovedFurniture}
+                onApplyRoom={studio.applyRoom}
               />
               <AssistantPanel
                 messages={studio.messages}

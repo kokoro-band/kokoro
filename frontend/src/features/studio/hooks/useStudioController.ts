@@ -436,8 +436,17 @@ export function useStudioController() {
   async function applyRoom(room: RoomModel) {
     setNotice("")
     try {
-      const updated = await saveRoomMutation.mutateAsync({ project, room })
-      setProject(updated)
+      const updated = await saveRoomMutation.mutateAsync({
+        project: projectRef.current,
+        room,
+      })
+      const next = {
+        ...projectRef.current,
+        room: updated.room,
+        updatedAt: updated.updatedAt,
+      }
+      projectRef.current = next
+      setProject(next)
       setNotice("공간 정보를 저장했습니다.")
     } catch (error) {
       setNotice(

@@ -4,12 +4,19 @@ import type { Furniture } from "@/features/studio/types"
 
 import { FurnitureIcon } from "./FurnitureIcon"
 
+function clamp(value: number, max: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(max, Math.max(0, Math.round(value * 10) / 10))
+}
+
 export function PropertiesPanel({
   selected,
+  bounds,
   onUpdate,
   onDelete,
 }: {
   selected?: Furniture
+  bounds: { width: number; depth: number }
   onUpdate: (update: Partial<Furniture>) => void
   onDelete: () => void
 }) {
@@ -46,31 +53,33 @@ export function PropertiesPanel({
               가로 위치
               <input
                 type="number"
-                min={7}
-                max={93}
-                value={Math.round(selected.x)}
+                min={0}
+                max={bounds.width}
+                step={0.1}
+                value={selected.x.toFixed(1)}
                 onChange={(event) =>
                   onUpdate({
-                    x: Math.min(93, Math.max(7, Number(event.target.value))),
+                    x: clamp(Number(event.target.value), bounds.width),
                   })
                 }
               />
-              <span>%</span>
+              <span>m</span>
             </label>
             <label>
               세로 위치
               <input
                 type="number"
-                min={8}
-                max={92}
-                value={Math.round(selected.z)}
+                min={0}
+                max={bounds.depth}
+                step={0.1}
+                value={selected.z.toFixed(1)}
                 onChange={(event) =>
                   onUpdate({
-                    z: Math.min(92, Math.max(8, Number(event.target.value))),
+                    z: clamp(Number(event.target.value), bounds.depth),
                   })
                 }
               />
-              <span>%</span>
+              <span>m</span>
             </label>
           </div>
           <div className="rotation-control">

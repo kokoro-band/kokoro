@@ -4,7 +4,7 @@ const exterior = 0.2
 const interior = 0.12
 
 export const sampleRoom: RoomModel = {
-  version: 1,
+  version: 2,
   unit: "m",
   wallHeight: 2.4,
   bounds: { width: 10.4, depth: 6.4 },

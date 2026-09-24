@@ -6,6 +6,7 @@ import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
 import com.kokoro.room.project.ProjectModels.SaveLayoutRequest;
+import com.kokoro.room.project.ProjectModels.SaveRoomRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,6 +66,14 @@ public class ProjectController {
     @GetMapping("/{projectId}/floor-plan/jobs/{jobId}")
     public FloorPlanJob floorPlanJob(@PathVariable String projectId, @PathVariable String jobId) {
         return projectService.findFloorPlanJob(projectId, jobId);
+    }
+
+    @PutMapping("/{projectId}/room")
+    public RenovationProject saveRoom(
+            @PathVariable String projectId,
+            @Valid @RequestBody SaveRoomRequest request
+    ) {
+        return projectService.saveRoom(projectId, request.room());
     }
 
     @PutMapping("/{projectId}/layout")

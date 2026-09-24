@@ -2,6 +2,7 @@ package com.kokoro.room.project;
 
 import com.kokoro.room.project.ProjectModels.LayoutActionType;
 import com.kokoro.room.project.ProjectModels.LayoutCommand;
+import com.kokoro.room.project.ProjectModels.RoomBounds;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.regex.Pattern;
 @Component
 public class RuleBasedLayoutCommandInterpreter implements LayoutCommandInterpreter {
     @Override
-    public Interpretation interpret(String message) {
+    public Interpretation interpret(String message, RoomBounds bounds) {
         String normalized = message.replace(" ", "").toLowerCase();
         if (normalized.contains("비워") || normalized.contains("전부삭제") || normalized.contains("모두삭제")) {
             return new Interpretation("가구를 모두 삭제할까요? 확인 후 적용할게요.",
@@ -28,14 +29,14 @@ public class RuleBasedLayoutCommandInterpreter implements LayoutCommandInterpret
             int rotation = matcher.find() ? Integer.parseInt(matcher.group(1)) : 90;
             commands.add(new LayoutCommand(LayoutActionType.ROTATE, catalogId, null, null, null, rotation));
         } else if (catalogId != null && (normalized.contains("이동") || normalized.contains("옮"))) {
-            commands.add(new LayoutCommand(LayoutActionType.MOVE, catalogId,
-                    null, normalized.contains("창가") ? 72.0 : 50.0,
-                    normalized.contains("창가") ? 24.0 : 50.0, null));
+            commands.add(new LayoutCommand(LayoutActionType.MOVE, catalogId, null,
+                    at(bounds.width(), normalized.contains("창가") ? 0.72 : 0.5),
+                    at(bounds.depth(), normalized.contains("창가") ? 0.24 : 0.5), null));
         } else {
-            if (normalized.contains("소파")) commands.add(add("sofa-cloud", 24, 67));
-            if (normalized.contains("테이블") || normalized.contains("책상")) commands.add(add("table-oak", 54, 48));
-            if (normalized.contains("의자")) commands.add(add("chair-shell", 68, 34));
-            if (normalized.contains("식물") || normalized.contains("화분")) commands.add(add("plant-olive", 84, 74));
+            if (normalized.contains("소파")) commands.add(add("sofa-cloud", bounds, 0.24, 0.67));
+            if (normalized.contains("테이블") || normalized.contains("책상")) commands.add(add("table-oak", bounds, 0.54, 0.48));
+            if (normalized.contains("의자")) commands.add(add("chair-shell", bounds, 0.68, 0.34));
+            if (normalized.contains("식물") || normalized.contains("화분")) commands.add(add("plant-olive", bounds, 0.84, 0.74));
         }
 
         if (commands.isEmpty()) {
@@ -44,8 +45,13 @@ public class RuleBasedLayoutCommandInterpreter implements LayoutCommandInterpret
         return new Interpretation("요청한 가구를 배치할게요.", commands, false);
     }
 
-    private static LayoutCommand add(String catalogId, double x, double z) {
-        return new LayoutCommand(LayoutActionType.ADD, catalogId, null, x, z, 0);
+    private static LayoutCommand add(String catalogId, RoomBounds bounds, double widthRatio, double depthRatio) {
+        return new LayoutCommand(LayoutActionType.ADD, catalogId, null,
+                at(bounds.width(), widthRatio), at(bounds.depth(), depthRatio), 0);
+    }
+
+    private static double at(double length, double ratio) {
+        return Math.round(length * ratio * 100) / 100.0;
     }
 
     private static String target(String normalized) {

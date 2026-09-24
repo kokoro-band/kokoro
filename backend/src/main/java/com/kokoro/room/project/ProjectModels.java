@@ -44,35 +44,45 @@ public final class ProjectModels {
             Instant completedAt
     ) {}
 
-    /** Versioned shape contract for a future floor-plan converter and the 3D client. */
-    public record FloorPlanConversionResult(
-            String schemaVersion,
-            String jobId,
-            String unit,
-            RoomBounds room,
-            List<Wall> walls,
-            List<Opening> openings
+    /**
+     * Room structure built by the user. Lengths are meters and floor coordinates start
+     * at the top-left corner of {@link RoomBounds}. See docs/contracts/room-model.md.
+     */
+    public record RoomModel(
+            @NotNull Integer version,
+            @NotBlank String unit,
+            @NotNull Double wallHeight,
+            @NotNull RoomBounds bounds,
+            @NotNull List<Point> outline,
+            @NotNull List<@Valid Wall> walls,
+            @NotNull List<@Valid Opening> openings,
+            List<RoomLabel> rooms,
+            Point spawn,
+            RoomSource source
     ) {}
 
-    public record RoomBounds(double width, double depth, double height) {}
+    public record RoomBounds(double width, double depth) {}
 
     public record Wall(
-            String id,
-            Point start,
-            Point end,
-            double height,
-            double thickness
+            @NotBlank String id,
+            @NotNull Point a,
+            @NotNull Point b,
+            @NotNull Double thickness
     ) {}
 
     public record Opening(
-            String id,
-            String wallId,
-            String type,
-            double offset,
-            double width,
-            double height,
-            double sillHeight
+            @NotBlank String id,
+            @NotBlank String wallId,
+            @NotBlank String type,
+            @NotNull Double from,
+            @NotNull Double to,
+            @NotNull Double bottom,
+            @NotNull Double top
     ) {}
+
+    public record RoomLabel(String name, List<Point> polygon) {}
+
+    public record RoomSource(double areaPyeong, int roomCount, String preset) {}
 
     public record Point(double x, double z) {}
 
@@ -93,10 +103,13 @@ public final class ProjectModels {
             String name,
             String roomType,
             Dimensions dimensions,
+            RoomModel room,
             FloorPlan floorPlan,
             List<FurnitureItem> furniture,
             Instant updatedAt
     ) {}
+
+    public record SaveRoomRequest(@NotNull @Valid RoomModel room) {}
 
     public record CreateProjectRequest(
             @NotBlank String name,

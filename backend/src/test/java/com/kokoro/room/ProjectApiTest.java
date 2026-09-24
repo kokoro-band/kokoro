@@ -110,8 +110,8 @@ class ProjectApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
-                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":25.0,"z":30.0,"rotation":15,"color":"#D8C8B8"},
-                                  {"id":"second","catalogId":"plant-olive","name":"화분","category":"장식","x":80.0,"z":70.0,"rotation":0,"color":"#69805E"}
+                                  {"id":"first","catalogId":"sofa-cloud","name":"소파","category":"소파","x":1.6,"z":1.2,"rotation":15,"color":"#D8C8B8"},
+                                  {"id":"second","catalogId":"plant-olive","name":"화분","category":"장식","x":3.9,"z":2.8,"rotation":0,"color":"#69805E"}
                                 ]}
                                 """))
                 .andExpect(status().isOk());
@@ -120,8 +120,43 @@ class ProjectApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.furniture", hasSize(2)))
                 .andExpect(jsonPath("$.furniture[0].id").value("first"))
-                .andExpect(jsonPath("$.furniture[0].x").value(25.0))
+                .andExpect(jsonPath("$.furniture[0].x").value(1.6))
                 .andExpect(jsonPath("$.furniture[1].id").value("second"));
+    }
+
+    @Test
+    void savesAndReloadsRoomModel() throws Exception {
+        String response = mockMvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"공간 저장","roomType":"거실","dimensions":{"width":6.0,"depth":4.0,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = response.split("\"id\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(put("/api/projects/{id}/room", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"room":{
+                                  "version":2,"unit":"m","wallHeight":2.4,
+                                  "bounds":{"width":6.0,"depth":4.0},
+                                  "outline":[{"x":0,"z":0},{"x":6,"z":0},{"x":6,"z":2},{"x":3,"z":2},{"x":3,"z":4},{"x":0,"z":4}],
+                                  "walls":[{"id":"w01","a":{"x":0,"z":0},"b":{"x":6,"z":0},"thickness":0.2}],
+                                  "openings":[{"id":"o01","wallId":"w01","type":"door","from":0.4,"to":1.3,"bottom":0,"top":2.1}],
+                                  "rooms":[{"name":"거실","polygon":[{"x":0,"z":0},{"x":3,"z":0},{"x":3,"z":4},{"x":0,"z":4}]}],
+                                  "spawn":{"x":1.5,"z":2.0},
+                                  "source":{"areaPyeong":18,"roomCount":2,"preset":"grid-v1"}
+                                }}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.room.version").value(2))
+                .andExpect(jsonPath("$.room.outline", hasSize(6)))
+                .andExpect(jsonPath("$.room.openings[0].type").value("door"))
+                .andExpect(jsonPath("$.room.source.roomCount").value(2));
     }
 
     @Test
@@ -130,7 +165,7 @@ class ProjectApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
-                                  {"id":"outside","catalogId":"sofa-cloud","name":"소파","category":"소파","x":1,"z":50,"rotation":0,"color":"#D8C8B8"}
+                                  {"id":"outside","catalogId":"sofa-cloud","name":"소파","category":"소파","x":0.5,"z":2.1,"rotation":0,"color":"#D8C8B8"}
                                 ]}
                                 """))
                 .andExpect(status().isBadRequest())
@@ -140,8 +175,8 @@ class ProjectApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
-                                  {"id":"chair-1","catalogId":"chair-shell","name":"의자","category":"의자","x":50,"z":50,"rotation":45,"color":"#4A665A"},
-                                  {"id":"chair-2","catalogId":"chair-shell","name":"의자","category":"의자","x":54,"z":50,"rotation":0,"color":"#4A665A"}
+                                  {"id":"chair-1","catalogId":"chair-shell","name":"의자","category":"의자","x":2.9,"z":2.1,"rotation":45,"color":"#4A665A"},
+                                  {"id":"chair-2","catalogId":"chair-shell","name":"의자","category":"의자","x":3.2,"z":2.1,"rotation":0,"color":"#4A665A"}
                                 ]}
                                 """))
                 .andExpect(status().isBadRequest())

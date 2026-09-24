@@ -10,10 +10,11 @@ import {
   createProject,
   getProject,
   saveProject,
+  saveRoom,
   sendCommand,
   uploadPlan,
 } from "./project-api"
-import type { Project } from "./types"
+import type { Project, RoomModel } from "./types"
 
 export const projectKeys = {
   all: ["projects"] as const,
@@ -22,6 +23,8 @@ export const projectKeys = {
   create: () => [...projectKeys.all, "create"] as const,
   layout: (projectId: string) =>
     [...projectKeys.detail(projectId), "layout"] as const,
+  room: (projectId: string) =>
+    [...projectKeys.detail(projectId), "room"] as const,
   floorPlan: (projectId: string) =>
     [...projectKeys.detail(projectId), "floor-plan"] as const,
   command: (projectId: string) =>
@@ -62,6 +65,19 @@ export function saveProjectMutationOptions(
   return mutationOptions({
     mutationKey: projectKeys.layout(projectId),
     mutationFn: saveProject,
+    retry: shouldRetryProjectRequest,
+    onSuccess: (project) => cacheProject(queryClient, project),
+  })
+}
+
+export function saveRoomMutationOptions(
+  queryClient: QueryClient,
+  projectId: string
+) {
+  return mutationOptions({
+    mutationKey: projectKeys.room(projectId),
+    mutationFn: ({ project, room }: { project: Project; room: RoomModel }) =>
+      saveRoom(project, room),
     retry: shouldRetryProjectRequest,
     onSuccess: (project) => cacheProject(queryClient, project),
   })

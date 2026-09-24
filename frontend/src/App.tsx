@@ -78,6 +78,7 @@ export default function App() {
                 chatBusy={studio.busy === "chat"}
                 busy={isBusy}
                 selected={studio.selected}
+                bounds={studio.roomBounds}
                 onInputChange={studio.setInput}
                 onSend={studio.sendMessage}
                 onUpdateSelected={studio.updateSelected}

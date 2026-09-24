@@ -13,10 +13,12 @@ import {
   createProjectMutationOptions,
   projectQueryOptions,
   saveProjectMutationOptions,
+  saveRoomMutationOptions,
   sendCommandMutationOptions,
   uploadPlanMutationOptions,
 } from "@/features/studio/project-queries"
 import type {
+  RoomModel,
   Category,
   ChatMessage,
   Furniture,
@@ -35,6 +37,10 @@ function validateFloorPlan(file: File) {
   if (file.size > maxFloorPlanBytes) return "도면 파일은 15MB 이하여야 합니다."
   if (file.size === 0) return "비어 있는 파일은 업로드할 수 없습니다."
   return null
+}
+
+function round(value: number) {
+  return Math.round(value * 10) / 10
 }
 
 export function useStudioController() {
@@ -68,6 +74,9 @@ export function useStudioController() {
   const saveProjectMutation = useMutation(
     saveProjectMutationOptions(queryClient, project.id)
   )
+  const saveRoomMutation = useMutation(
+    saveRoomMutationOptions(queryClient, project.id)
+  )
   const uploadPlanMutation = useMutation(
     uploadPlanMutationOptions(queryClient, project.id)
   )
@@ -83,6 +92,10 @@ export function useStudioController() {
   const saveProjectAsyncRef = useRef(saveProjectMutation.mutateAsync)
 
   const selected = project.furniture.find((item) => item.id === selectedId)
+  const roomBounds = project.room?.bounds ?? {
+    width: project.dimensions.width,
+    depth: project.dimensions.depth,
+  }
 
   const queueServerSave = useCallback(function queueServerSave(
     snapshot: Project
@@ -216,11 +229,11 @@ export function useStudioController() {
   }
 
   function addFurniture(catalogId: string) {
-    const placementOffset = (project.furniture.length * 7) % 15
+    const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
-      45 + placementOffset,
-      40 + ((placementOffset * 2) % 15)
+      round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8)),
+      round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
     commitFurniture([...project.furniture, item])
     setSelectedId(item.id)
@@ -420,6 +433,21 @@ export function useStudioController() {
     setNotice("예제 프로젝트를 열었습니다.")
   }
 
+  async function applyRoom(room: RoomModel) {
+    setNotice("")
+    try {
+      const updated = await saveRoomMutation.mutateAsync({ project, room })
+      setProject(updated)
+      setNotice("공간 정보를 저장했습니다.")
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "공간 정보를 저장하지 못했습니다."
+      )
+    }
+  }
+
   function exportProject() {
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(project, null, 2)], { type: "application/json" })
@@ -434,6 +462,8 @@ export function useStudioController() {
 
   return {
     project,
+    roomBounds,
+    applyRoom,
     projectLoad,
     selected,
     selectedId,

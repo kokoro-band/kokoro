@@ -1,7 +1,7 @@
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { catalog, sampleProject } from "./data"
-import type { Furniture, Project } from "./types"
+import type { Furniture, Project, RoomModel } from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
@@ -62,6 +62,22 @@ export async function saveProject(project: Project): Promise<Project> {
   return updated
 }
 
+export async function saveRoom(
+  project: Project,
+  room: RoomModel
+): Promise<Project> {
+  const updated = { ...project, room, updatedAt: new Date().toISOString() }
+  if (isServerMode) {
+    return request<Project>({
+      url: `${projectPath(project.id)}/room`,
+      method: "PUT",
+      data: { room },
+    })
+  }
+  localStorage.setItem(storageKey, JSON.stringify(updated))
+  return updated
+}
+
 export async function uploadPlan(
   project: Project,
   file: File
@@ -110,7 +126,7 @@ export async function createProject(name: string): Promise<Project> {
   })
 }
 
-export function makeFurniture(catalogId: string, x = 50, z = 50): Furniture {
+export function makeFurniture(catalogId: string, x = 0, z = 0): Furniture {
   const item = catalog.find((entry) => entry.id === catalogId) ?? catalog[0]
   return {
     id: crypto.randomUUID(),
@@ -137,14 +153,22 @@ export async function sendCommand(
   }
 
   const normalized = message.replaceAll(" ", "")
+  const bounds = project.room?.bounds ?? {
+    width: project.dimensions.width,
+    depth: project.dimensions.depth,
+  }
+  const at = (widthRatio: number, depthRatio: number): [number, number] => [
+    Math.round(bounds.width * widthRatio * 10) / 10,
+    Math.round(bounds.depth * depthRatio * 10) / 10,
+  ]
   let furniture = [...project.furniture]
   const actions: string[] = []
   const targets = [
-    { word: "소파", id: "sofa-cloud", x: 27, z: 68 },
-    { word: "테이블", id: "table-oak", x: 55, z: 50 },
-    { word: "의자", id: "chair-shell", x: 72, z: 32 },
-    { word: "화분", id: "plant-olive", x: 84, z: 75 },
-    { word: "램프", id: "lamp-arc", x: 16, z: 35 },
+    { word: "소파", id: "sofa-cloud", spot: at(0.27, 0.68) },
+    { word: "테이블", id: "table-oak", spot: at(0.55, 0.5) },
+    { word: "의자", id: "chair-shell", spot: at(0.72, 0.32) },
+    { word: "화분", id: "plant-olive", spot: at(0.84, 0.75) },
+    { word: "램프", id: "lamp-arc", spot: at(0.16, 0.35) },
   ]
   if (normalized.includes("비워") || normalized.includes("전부삭제")) {
     furniture = []
@@ -156,8 +180,7 @@ export async function sendCommand(
         (target.word === "화분" && normalized.includes("식물")) ||
         (target.word === "테이블" && normalized.includes("책상"))
       if (!matches) continue
-      const x = normalized.includes("창가") ? 72 : target.x
-      const z = normalized.includes("창가") ? 24 : target.z
+      const [x, z] = normalized.includes("창가") ? at(0.72, 0.24) : target.spot
       const existing = furniture.find(
         (item) =>
           item.category ===
@@ -178,9 +201,9 @@ export async function sendCommand(
     }
     if (normalized.includes("미니멀") && actions.length === 0) {
       furniture = [
-        makeFurniture("sofa-cloud", 28, 68),
-        makeFurniture("table-oak", 55, 50),
-        makeFurniture("plant-olive", 84, 76),
+        makeFurniture("sofa-cloud", ...at(0.28, 0.68)),
+        makeFurniture("table-oak", ...at(0.55, 0.5)),
+        makeFurniture("plant-olive", ...at(0.84, 0.76)),
       ]
       actions.push("소파와 테이블과 식물로 간결한 배치를 만들었어요")
     }

@@ -1,16 +1,23 @@
 import { Minus, Plus, RotateCw, Settings2, Trash2 } from "lucide-react"
-import { ActionButton, Icon, Slider } from "@seed-design/react"
+import { ActionButton, Icon, TextField } from "@seed-design/react"
 
 import type { Furniture } from "@/features/studio/types"
 
 import { FurnitureIcon } from "./FurnitureIcon"
 
+function clamp(value: number, max: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(max, Math.max(0, Math.round(value * 10) / 10))
+}
+
 export function PropertiesPanel({
   selected,
+  bounds,
   onUpdate,
   onDelete,
 }: {
   selected?: Furniture
+  bounds: { width: number; depth: number }
   onUpdate: (update: Partial<Furniture>) => void
   onDelete: () => void
 }) {
@@ -46,18 +53,16 @@ export function PropertiesPanel({
             </div>
           </div>
           <div className="position-fields">
-            <PositionSlider
+            <MeterField
               label="가로 위치"
-              min={7}
-              max={93}
-              value={Math.round(selected.x)}
+              max={bounds.width}
+              value={selected.x}
               onChange={(x) => onUpdate({ x })}
             />
-            <PositionSlider
+            <MeterField
               label="세로 위치"
-              min={8}
-              max={92}
-              value={Math.round(selected.z)}
+              max={bounds.depth}
+              value={selected.z}
               onChange={(z) => onUpdate({ z })}
             />
           </div>
@@ -109,41 +114,32 @@ export function PropertiesPanel({
   )
 }
 
-function PositionSlider({
+function MeterField({
   label,
-  min,
   max,
   value,
   onChange,
 }: {
   label: string
-  min: number
   max: number
   value: number
   onChange: (value: number) => void
 }) {
   return (
-    <label className="position-slider">
+    <label className="position-field">
       <span>{label}</span>
-      <strong>{value}%</strong>
-      <Slider.Root
-        min={min}
-        max={max}
-        step={1}
-        values={[value]}
-        onValuesChange={([nextValue]) => onChange(nextValue)}
-        getAriaLabel={() => label}
-        getAriaValuetext={(currentValue) => `${label} ${currentValue}%`}
-      >
-        <Slider.Control>
-          <Slider.Track>
-            <Slider.Range />
-          </Slider.Track>
-          <Slider.Thumb thumbIndex={0}>
-            <Slider.HiddenInput thumbIndex={0} />
-          </Slider.Thumb>
-        </Slider.Control>
-      </Slider.Root>
+      <TextField.Root size="medium">
+        <TextField.Input
+          type="number"
+          aria-label={label}
+          min={0}
+          max={max}
+          step={0.1}
+          value={value.toFixed(1)}
+          onChange={(event) => onChange(clamp(Number(event.target.value), max))}
+        />
+        <TextField.SuffixText>m</TextField.SuffixText>
+      </TextField.Root>
     </label>
   )
 }

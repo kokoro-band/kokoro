@@ -49,7 +49,7 @@ export type RoomLabel = {
 }
 
 export type RoomModel = {
-  version: 1
+  version: 2
   unit: "m"
   wallHeight: number
   outline: Point2[]
@@ -58,6 +58,13 @@ export type RoomModel = {
   rooms: RoomLabel[]
   bounds: { width: number; depth: number }
   spawn?: Point2
+  source?: RoomSource
+}
+
+export type RoomSource = {
+  areaPyeong: number
+  roomCount: number
+  preset: string
 }
 
 export type Project = {

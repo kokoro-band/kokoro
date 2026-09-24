@@ -53,21 +53,15 @@
   gap: 14px;
   padding: 0 12px;
 }
-.position-slider {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 7px;
+.position-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: var(--muted);
   font-size: 11px;
 }
-.position-slider > strong {
-  color: var(--foreground);
-  font-size: 11px;
+.position-field input {
   font-variant-numeric: tabular-nums;
-}
-.position-slider > .seed-slider__root {
-  grid-column: 1 / -1;
 }
 .rotation-control {
   display: flex;

@@ -101,33 +101,11 @@
         "type": "github"
       }
     },
-    "nixpkgs-unfree": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1789320286,
-        "narHash": "sha256-KW83gnUwvpfsMROqTFlMJ2iLxdzCKyL5ZNTH9/ZcaB0=",
-        "owner": "numtide",
-        "repo": "nixpkgs-unfree",
-        "rev": "1ce68d1b3b2fbe18a0d9cd17bd58c401300dac0a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs-unfree",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
         "nix-vite-plus": "nix-vite-plus",
-        "nixpkgs": "nixpkgs",
-        "nixpkgs-unfree": "nixpkgs-unfree"
+        "nixpkgs": "nixpkgs"
       }
     },
     "systems": {

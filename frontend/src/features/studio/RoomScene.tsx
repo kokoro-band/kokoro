@@ -9,6 +9,7 @@ import {
   loadFurnitureModel,
 } from "./furniture-models"
 import {
+  isInsideRoom,
   animateDoors,
   buildRoomGroup,
   createWalkableTest,
@@ -159,13 +160,33 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
   const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
   group.add(makeFallbackModel(item, catalogItem))
   group.userData.furnitureId = item.id
-  group.position.set(
-    (item.x / 100 - 0.5) * bounds.width,
-    0,
-    (item.z / 100 - 0.5) * bounds.depth
-  )
+  group.position.set(item.x - bounds.width / 2, 0, item.z - bounds.depth / 2)
   group.rotation.y = THREE.MathUtils.degToRad(item.rotation)
   return { group, catalogItem }
+}
+
+function placementAt(
+  point: THREE.Vector3,
+  bounds: Bounds,
+  room?: RoomModel
+): [x: number, z: number] | null {
+  const margin = 0.2
+  const worldX = THREE.MathUtils.clamp(
+    point.x,
+    margin - bounds.width / 2,
+    bounds.width / 2 - margin
+  )
+  const worldZ = THREE.MathUtils.clamp(
+    point.z,
+    margin - bounds.depth / 2,
+    bounds.depth / 2 - margin
+  )
+  if (room && !isInsideRoom(room, worldX, worldZ)) return null
+  return [round(worldX + bounds.width / 2), round(worldZ + bounds.depth / 2)]
+}
+
+function round(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 function disposeGroup(group: THREE.Group) {
@@ -348,20 +369,10 @@ export function RoomScene({
         if (!draggingId) return
         setPointerRay(event)
         if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+          const placement = placementAt(hitPoint, bounds, room)
+          if (!placement) return
           furnitureMoved = true
-          onMove(
-            draggingId,
-            THREE.MathUtils.clamp(
-              (hitPoint.x / bounds.width + 0.5) * 100,
-              7,
-              93
-            ),
-            THREE.MathUtils.clamp(
-              (hitPoint.z / bounds.depth + 0.5) * 100,
-              8,
-              92
-            )
-          )
+          onMove(draggingId, ...placement)
         }
       }
 
@@ -389,20 +400,11 @@ export function RoomScene({
       }
       function placeInVr(ray: THREE.Ray) {
         if (!xrSelectedId) return false
-        if (ray.intersectPlane(floorPlane, hitPoint)) {
-          onMove(
-            xrSelectedId,
-            THREE.MathUtils.clamp(
-              (hitPoint.x / bounds.width + 0.5) * 100,
-              7,
-              93
-            ),
-            THREE.MathUtils.clamp(
-              (hitPoint.z / bounds.depth + 0.5) * 100,
-              8,
-              92
-            )
-          )
+        const placement = ray.intersectPlane(floorPlane, hitPoint)
+          ? placementAt(hitPoint, bounds, room)
+          : null
+        if (placement) {
+          onMove(xrSelectedId, ...placement)
           onMoveEnd()
         }
         xrSelectedId = null

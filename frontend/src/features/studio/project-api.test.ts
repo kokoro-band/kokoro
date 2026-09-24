@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { sampleProject } from "./data"
+import { sampleRoom } from "./sample-room"
 
 vi.mock("@/lib/http-client", () => ({
   request: vi.fn(),
@@ -27,13 +28,14 @@ describe("project API paths", () => {
   })
 
   it("uses validated project paths for every project request", async () => {
-    const { getProject, saveProject, sendCommand, uploadPlan } =
+    const { getProject, saveProject, saveRoom, sendCommand, uploadPlan } =
       await import("./project-api")
     const project = structuredClone(sampleProject)
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
 
     await getProject(project.id)
     await saveProject(project)
+    await saveRoom(project, sampleRoom)
     await uploadPlan(project, file)
     await sendCommand(project, "소파를 옮겨줘")
 
@@ -41,10 +43,14 @@ describe("project API paths", () => {
       [
         "/projects/living-room-01",
         "/projects/living-room-01/layout",
+        "/projects/living-room-01/room",
         "/projects/living-room-01/floor-plan",
         "/projects/living-room-01/layout/commands",
       ]
     )
-    expect(vi.mocked(request).mock.calls[2][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
+    expect(vi.mocked(request).mock.calls[3][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
+    expect(vi.mocked(request).mock.calls[2][0].data).toEqual({
+      room: sampleRoom,
+    })
   })
 })

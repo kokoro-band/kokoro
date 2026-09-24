@@ -13,10 +13,12 @@ import {
   createProjectMutationOptions,
   projectQueryOptions,
   saveProjectMutationOptions,
+  saveRoomMutationOptions,
   sendCommandMutationOptions,
   uploadPlanMutationOptions,
 } from "@/features/studio/project-queries"
 import type {
+  RoomModel,
   Category,
   ChatMessage,
   Furniture,
@@ -71,6 +73,9 @@ export function useStudioController() {
   )
   const saveProjectMutation = useMutation(
     saveProjectMutationOptions(queryClient, project.id)
+  )
+  const saveRoomMutation = useMutation(
+    saveRoomMutationOptions(queryClient, project.id)
   )
   const uploadPlanMutation = useMutation(
     uploadPlanMutationOptions(queryClient, project.id)
@@ -428,6 +433,21 @@ export function useStudioController() {
     setNotice("예제 프로젝트를 열었습니다.")
   }
 
+  async function applyRoom(room: RoomModel) {
+    setNotice("")
+    try {
+      const updated = await saveRoomMutation.mutateAsync({ project, room })
+      setProject(updated)
+      setNotice("공간 정보를 저장했습니다.")
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "공간 정보를 저장하지 못했습니다."
+      )
+    }
+  }
+
   function exportProject() {
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(project, null, 2)], { type: "application/json" })
@@ -443,6 +463,7 @@ export function useStudioController() {
   return {
     project,
     roomBounds,
+    applyRoom,
     projectLoad,
     selected,
     selectedId,

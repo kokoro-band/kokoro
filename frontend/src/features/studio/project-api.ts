@@ -1,7 +1,7 @@
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { catalog, sampleProject } from "./data"
-import type { Furniture, Project } from "./types"
+import type { Furniture, Project, RoomModel } from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
@@ -56,6 +56,22 @@ export async function saveProject(project: Project): Promise<Project> {
       url: `${projectPath(project.id)}/layout`,
       method: "PUT",
       data: { furniture: project.furniture },
+    })
+  }
+  localStorage.setItem(storageKey, JSON.stringify(updated))
+  return updated
+}
+
+export async function saveRoom(
+  project: Project,
+  room: RoomModel
+): Promise<Project> {
+  const updated = { ...project, room, updatedAt: new Date().toISOString() }
+  if (isServerMode) {
+    return request<Project>({
+      url: `${projectPath(project.id)}/room`,
+      method: "PUT",
+      data: { room },
     })
   }
   localStorage.setItem(storageKey, JSON.stringify(updated))

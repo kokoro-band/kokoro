@@ -260,6 +260,88 @@ function nextRoomId(draft: RoomDraft) {
   return `room-${Math.max(0, ...used) + 1}`
 }
 
+export function fitToArea(
+  draft: RoomDraft,
+  areaPyeong: number,
+  openings: Opening[] = [],
+  walls: Wall[] = []
+): { draft: RoomDraft; openings: Opening[] } {
+  const rooms = normalize(draft)
+  const current = rooms.reduce(
+    (total, room) =>
+      total +
+      room.width * room.depth -
+      (room.notch ? room.notch.width * room.notch.depth : 0),
+    0
+  )
+  if (!rooms.length || current <= 0) return { draft, openings }
+
+  const factor = Math.sqrt(
+    pyeongToSquareMeters(clampArea(areaPyeong)) / current
+  )
+  const scale = (value: number) => snapToGrid(value * factor)
+
+  const fitted = rooms.map((room): RoomRect => {
+    const x = scale(room.x)
+    const z = scale(room.z)
+    const width = Math.max(minRoomSize, round(scale(room.x + room.width) - x))
+    const depth = Math.max(minRoomSize, round(scale(room.z + room.depth) - z))
+    if (!room.notch) return { ...room, x, z, width, depth }
+    return {
+      ...room,
+      x,
+      z,
+      width,
+      depth,
+      notch: {
+        corner: room.notch.corner,
+        width: Math.min(
+          Math.max(scale(room.notch.width), 0.5),
+          round(width - 0.5)
+        ),
+        depth: Math.min(
+          Math.max(scale(room.notch.depth), 0.5),
+          round(depth - 0.5)
+        ),
+      },
+    }
+  })
+
+  const byId = new Map(walls.map((wall) => [wall.id, wall]))
+  const moved = openings.flatMap((opening) => {
+    const wall = byId.get(opening.wallId)
+    if (!wall) return []
+    const a: Point2 = [scale(wall.a[0]), scale(wall.a[1])]
+    const b: Point2 = [scale(wall.b[0]), scale(wall.b[1])]
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1])
+    const size = opening.to - opening.from
+    const center = ((opening.from + opening.to) / 2) * factor
+    const from = round(
+      Math.min(Math.max(center - size / 2, 0), Math.max(length - size, 0))
+    )
+    return [
+      {
+        ...opening,
+        wallId: wallId({ a, b, exterior: false }),
+        from,
+        to: round(Math.min(from + size, length)),
+      },
+    ]
+  })
+
+  return {
+    draft: normalizeDraft({
+      ...draft,
+      rooms: fitted,
+      source: draft.source && {
+        ...draft.source,
+        areaPyeong: clampArea(areaPyeong),
+      },
+    }),
+    openings: moved,
+  }
+}
+
 export function removeRoom(draft: RoomDraft, id: string): RoomDraft {
   const rooms = draft.rooms.filter((room) => room.id !== id)
   if (!rooms.length) return draft

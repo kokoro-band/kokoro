@@ -9,6 +9,7 @@ import {
   draftFromModel,
   hasOverlap,
   exteriorThickness,
+  fitToArea,
   isConnected,
   interiorThickness,
   labelPoint,
@@ -599,5 +600,69 @@ describe("guards", () => {
 
     expect(model.spawn).toEqual(labelPoint(model.rooms[0].polygon))
     expect(model.spawn![0]).toBeLessThan(2)
+  })
+})
+
+describe("fitToArea", () => {
+  const layout = draftOf([
+    { id: "a", name: "거실", x: 0, z: 0, width: 6, depth: 4 },
+    { id: "b", name: "방 1", x: 6, z: 0, width: 3, depth: 4 },
+    { id: "c", name: "방 2", x: 0, z: 4, width: 9, depth: 3 },
+  ])
+
+  it("scales the whole layout to the entered area", () => {
+    const { draft } = fitToArea(layout, 30)
+
+    expect(draftAreaPyeong(draft)).toBeGreaterThan(29.5)
+    expect(draftAreaPyeong(draft)).toBeLessThan(30.5)
+  })
+
+  it("keeps the rooms joined and apart", () => {
+    const { draft } = fitToArea(layout, 30)
+
+    expect(isConnected(draft)).toBe(true)
+    expect(hasOverlap(draft)).toBe(false)
+    expect(buildRoomModel(draft).outline).toHaveLength(4)
+  })
+
+  it("keeps the proportions between rooms", () => {
+    const { draft } = fitToArea(layout, 40)
+    const [living, room] = draft.rooms
+
+    expect(living.width / room.width).toBeCloseTo(2, 1)
+  })
+
+  it("shrinks as well as grows", () => {
+    const { draft } = fitToArea(layout, 10)
+
+    expect(draftAreaPyeong(draft)).toBeCloseTo(10, 0)
+  })
+
+  it("scales an L shaped corner with its room", () => {
+    const notched = setNotch(layout, "a", { corner: "ne", width: 2, depth: 2 })
+    const { draft } = fitToArea(notched, 40)
+
+    expect(draft.rooms[0].notch?.width).toBeGreaterThan(2)
+  })
+
+  it("keeps doors on their wall without stretching them", () => {
+    const model = buildRoomModel(layout)
+    const wall = model.walls.find(
+      (item) => item.thickness === interiorThickness
+    )!
+    const withDoor = addOpening(model, wall.id, "door", 2)
+    const result = fitToArea(layout, 40, withDoor.openings, model.walls)
+    const rebuilt = buildRoomModel(result.draft, result.openings)
+
+    expect(rebuilt.openings).toHaveLength(1)
+    expect(rebuilt.openings[0].to - rebuilt.openings[0].from).toBeCloseTo(
+      0.9,
+      2
+    )
+  })
+
+  it("updates the recorded area", () => {
+    const start = createDraft(20)
+    expect(fitToArea(start, 25).draft.source?.areaPyeong).toBe(25)
   })
 })

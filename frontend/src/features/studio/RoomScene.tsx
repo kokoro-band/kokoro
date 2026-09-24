@@ -505,7 +505,7 @@ export function RoomScene({
           .catch(() => {})
       })
     },
-    [furniture, selectedId, mode, room]
+    [furniture, selectedId, mode, room, onMove, onMoveEnd, onSelect]
   )
 
   return (

@@ -12,6 +12,8 @@ import com.kokoro.room.project.ProjectModels.LayoutCommand;
 import com.kokoro.room.floorplan.FloorPlanStorage;
 import com.kokoro.room.security.CurrentUser;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
+import com.kokoro.room.project.ProjectModels.RoomBounds;
+import com.kokoro.room.project.ProjectModels.RoomModel;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -57,12 +59,13 @@ public class ProjectService {
                     "성수동 거실",
                     "거실",
                     new Dimensions(5.8, 4.2, 2.4),
+                    null,
                     new FloorPlan("sample-floor-plan.pdf", 842_000, ConversionStatus.READY, 100, Instant.now(), null, null, null, null, false),
                     new ArrayList<>(List.of(
-                            furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 28, 68, 0, "#D8C8B8"),
-                            furniture("table-01", "table-oak", "오크 테이블", "테이블", 55, 52, 0, "#B98958"),
-                            furniture("chair-01", "chair-shell", "셸 체어", "의자", 73, 32, 25, "#4A665A"),
-                            furniture("plant-01", "plant-olive", "올리브 화분", "장식", 84, 76, 0, "#69805E")
+                            furniture("sofa-01", "sofa-cloud", "클라우드 소파", "소파", 1.6, 2.9, 0, "#D8C8B8"),
+                            furniture("table-01", "table-oak", "오크 테이블", "테이블", 3.2, 2.2, 0, "#B98958"),
+                            furniture("chair-01", "chair-shell", "셸 체어", "의자", 4.2, 1.3, 25, "#4A665A"),
+                            furniture("plant-01", "plant-olive", "올리브 화분", "장식", 4.9, 3.2, 0, "#69805E")
                     )),
                     Instant.now()
             );
@@ -88,6 +91,7 @@ public class ProjectService {
                 request.name(),
                 request.roomType(),
                 request.dimensions(),
+                null,
                 new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null, null, null, null, null, false),
                 new ArrayList<>(),
                 Instant.now()
@@ -141,8 +145,18 @@ public class ProjectService {
     @Transactional
     public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
         RenovationProject project = find(id);
-        furniturePlacementValidator.validate(project.dimensions(), furniture);
+        furniturePlacementValidator.validate(project.dimensions(), project.room(), furniture);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
+        projectRepository.replace(updated);
+        return updated;
+    }
+
+    @Transactional
+    public RenovationProject saveRoom(String id, RoomModel room) {
+        RenovationProject project = find(id);
+        RenovationProject updated = new RenovationProject(project.id(), project.ownerId(), project.name(),
+                project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now());
+        furniturePlacementValidator.validate(updated.dimensions(), room, updated.furniture());
         projectRepository.replace(updated);
         return updated;
     }
@@ -150,7 +164,7 @@ public class ProjectService {
     @Transactional
     public ChatCommandResponse applyCommand(String id, String message) {
         RenovationProject project = find(id);
-        LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message);
+        LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message, bounds(project));
         if (interpretation.requiresConfirmation()) {
             return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true, project);
         }
@@ -221,7 +235,13 @@ public class ProjectService {
 
     private RenovationProject copy(RenovationProject project, FloorPlan floorPlan, List<FurnitureItem> furniture) {
         return new RenovationProject(
-                project.id(), project.ownerId(), project.name(), project.roomType(), project.dimensions(), floorPlan, furniture, Instant.now());
+                project.id(), project.ownerId(), project.name(), project.roomType(), project.dimensions(),
+                project.room(), floorPlan, furniture, Instant.now());
+    }
+
+    private static RoomBounds bounds(RenovationProject project) {
+        if (project.room() != null && project.room().bounds() != null) return project.room().bounds();
+        return new RoomBounds(project.dimensions().width(), project.dimensions().depth());
     }
 
     private boolean owned(RenovationProject project) {

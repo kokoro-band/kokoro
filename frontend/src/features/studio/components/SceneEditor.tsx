@@ -1,10 +1,11 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useState } from "react"
 import {
   Box,
   Grid2X2,
   LoaderCircle,
   Maximize2,
   Move,
+  PencilRuler,
   PanelLeftClose,
   Redo2,
   Undo2,
@@ -13,7 +14,9 @@ import {
 import { ActionButton, Icon, SegmentedControl } from "@seed-design/react"
 
 import { catalog } from "@/features/studio/data"
-import type { Project, ViewMode } from "@/features/studio/types"
+import type { Project, RoomModel, ViewMode } from "@/features/studio/types"
+
+import { RoomEditor } from "./RoomEditor"
 
 const RoomScene = lazy(async () => {
   const module = await import("@/features/studio/RoomScene")
@@ -37,6 +40,7 @@ export function SceneEditor({
   onSelect,
   onMove,
   onMoveEnd,
+  onApplyRoom,
 }: {
   project: Project
   selectedId: string | null
@@ -52,7 +56,9 @@ export function SceneEditor({
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => void
   onMoveEnd: () => void
+  onApplyRoom: (room: RoomModel) => void
 }) {
+  const [editingRoom, setEditingRoom] = useState(false)
   const budget = project.furniture.reduce(
     (total, item) =>
       total +
@@ -99,6 +105,17 @@ export function SceneEditor({
         </div>
         <div className="toolbar-right">
           <ActionButton
+            type="button"
+            variant="neutralOutline"
+            size="small"
+            className="room-editor-open"
+            onClick={() => setEditingRoom(true)}
+          >
+            <PencilRuler size={14} />
+            공간 만들기
+          </ActionButton>
+          <span className="toolbar-divider" />
+          <ActionButton
             className="icon-button"
             variant="ghost"
             size="small"
@@ -139,6 +156,16 @@ export function SceneEditor({
         </div>
       </div>
       <div className="scene-area">
+        {editingRoom && (
+          <RoomEditor
+            room={project.room}
+            onApply={(room) => {
+              onApplyRoom(room)
+              setEditingRoom(false)
+            }}
+            onClose={() => setEditingRoom(false)}
+          />
+        )}
         <Suspense
           fallback={
             <div className="scene-loading">

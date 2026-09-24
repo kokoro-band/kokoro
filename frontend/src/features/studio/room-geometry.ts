@@ -1,5 +1,6 @@
 import * as THREE from "three"
 
+import { labelPoint } from "./room-builder"
 import type { Opening, Point2, RoomModel, ViewMode, Wall } from "./types"
 
 const colors = {
@@ -428,13 +429,6 @@ export function roomSpawnPoint(model: RoomModel) {
   )
 }
 
-function polygonCenter(polygon: Point2[]): Point2 {
-  const sum = polygon.reduce(([x, z], [px, pz]) => [x + px, z + pz] as Point2, [
-    0, 0,
-  ] as Point2)
-  return [sum[0] / polygon.length, sum[1] / polygon.length]
-}
-
 export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
   const group = new THREE.Group()
   const offsetX = -model.bounds.width / 2
@@ -475,7 +469,7 @@ export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
   for (const room of model.rooms) {
     const sprite = makeLabelSprite(room.name)
     if (!sprite) continue
-    const [x, z] = polygonCenter(room.polygon)
+    const [x, z] = labelPoint(room.polygon)
     sprite.position.set(x + offsetX, labelHeight, z + offsetZ)
     group.add(sprite)
   }

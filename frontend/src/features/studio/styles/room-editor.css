@@ -1,0 +1,238 @@
+.room-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.room-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--line);
+}
+.room-editor-header strong {
+  display: block;
+  font-size: 13px;
+}
+.room-editor-header span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.room-editor-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.room-editor-tools label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.room-editor-tools input {
+  width: 64px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+}
+.room-editor-tools button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  cursor: pointer;
+}
+.room-editor-modes {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.room-editor-modes button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--primary-dark, #3d7351);
+  border-color: var(--primary-dark, #3d7351);
+}
+.room-editor-surface {
+  flex: 1;
+  min-height: 0;
+  background: #eef0eb;
+  touch-action: none;
+}
+.room-block {
+  fill: #f3ede1;
+  stroke: #c9c3b4;
+  stroke-width: 0.02;
+  cursor: grab;
+}
+.room-block.selected {
+  fill: #e6efe6;
+  stroke: var(--primary-dark, #3d7351);
+  stroke-width: 0.05;
+}
+.room-block-label {
+  font-size: 0.3px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  fill: #4a4e57;
+  pointer-events: none;
+}
+.room-wall {
+  stroke: #57534d;
+  stroke-linecap: square;
+}
+.room-wall.placing {
+  cursor: crosshair;
+  stroke: #8a8375;
+}
+.room-opening {
+  cursor: pointer;
+}
+.room-opening-gap {
+  stroke: #fff;
+  stroke-linecap: butt;
+}
+.room-door-swing {
+  fill: none;
+  stroke: #b98958;
+  stroke-width: 0.04;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.room-window-glass {
+  stroke: #7fa6c0;
+  stroke-linecap: butt;
+}
+.room-editor-history {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.room-editor-history button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.room-editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 15px;
+  border-top: 1px solid var(--line);
+}
+.room-editor-fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.room-editor-fields label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.room-editor-fields input {
+  width: 72px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+}
+.room-editor-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.room-editor-apply {
+  padding: 9px 16px;
+  color: #fff;
+  background: var(--primary-dark, #3d7351);
+  border: 0;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.room-editor-open {
+  flex: none;
+}
+.room-notch-handle {
+  fill: #fff;
+  stroke: var(--primary-dark, #3d7351);
+  stroke-width: 0.05;
+  cursor: nwse-resize;
+}
+.room-shape-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.room-shape-picker button,
+.room-shape-picker select {
+  padding: 5px 9px;
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  cursor: pointer;
+}
+.room-shape-picker button.active {
+  color: #fff;
+  background: var(--primary-dark, #3d7351);
+  border-color: var(--primary-dark, #3d7351);
+}
+.room-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.room-editor-warning {
+  margin: 0;
+  color: #8e332c;
+  font-size: 11px;
+}
+.room-editor-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.room-split-preview {
+  stroke: #57534d;
+  stroke-width: 0.1;
+  stroke-dasharray: 0.24 0.12;
+  stroke-linecap: butt;
+  pointer-events: none;
+}
+
+.room-grid {
+  pointer-events: none;
+}
+.room-grid-line {
+  fill: none;
+  stroke: #e2e5de;
+  stroke-width: 0.015;
+}
+
+.room-editor-axis {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.room-editor-axis + .room-editor-modes {
+  margin-left: 0;
+}
+.room-editor-axis button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--primary-dark, #3d7351);
+  border-color: var(--primary-dark, #3d7351);
+}

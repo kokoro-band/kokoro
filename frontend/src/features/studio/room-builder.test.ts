@@ -13,9 +13,11 @@ import {
   isConnected,
   interiorThickness,
   labelPoint,
+  mergeRooms,
   moveRoom,
   nextRoomName,
   removeOpening,
+  roomsAcrossWall,
   removeRoom,
   resizeRoom,
   roomPolygon,
@@ -600,6 +602,99 @@ describe("guards", () => {
 
     expect(model.spawn).toEqual(labelPoint(model.rooms[0].polygon))
     expect(model.spawn![0]).toBeLessThan(2)
+  })
+})
+
+describe("mergeRooms", () => {
+  const side = draftOf([
+    { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 3 },
+    { id: "b", name: "방 1", x: 4, z: 0, width: 3, depth: 3 },
+  ])
+  const stacked = draftOf([
+    { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 3 },
+    { id: "b", name: "방 1", x: 0, z: 3, width: 4, depth: 2 },
+  ])
+
+  it("joins two rooms that sit side by side", () => {
+    const draft = mergeRooms(side, "a", "b")
+
+    expect(draft.rooms).toHaveLength(1)
+    expect(draft.rooms[0]).toMatchObject({
+      id: "a",
+      name: "거실",
+      x: 0,
+      z: 0,
+      width: 7,
+      depth: 3,
+    })
+    expect(draftAreaPyeong(draft)).toBe(draftAreaPyeong(side))
+  })
+
+  it("joins two rooms that sit one above the other", () => {
+    const draft = mergeRooms(stacked, "a", "b")
+
+    expect(draft.rooms[0]).toMatchObject({ width: 4, depth: 5 })
+  })
+
+  it("undoes a split", () => {
+    const start = draftOf([
+      { id: "room-1", name: "거실", x: 0, z: 0, width: 6, depth: 4 },
+    ])
+    const split = splitRoom(start, "room-1", "vertical", 4)
+    const merged = mergeRooms(split, split.rooms[0].id, split.rooms[1].id)
+
+    expect(merged.rooms).toHaveLength(1)
+    expect(merged.rooms[0]).toMatchObject({ x: 0, z: 0, width: 6, depth: 4 })
+    expect(buildRoomModel(merged).walls).toHaveLength(4)
+  })
+
+  it("leaves rooms that would not form a rectangle", () => {
+    const uneven = draftOf([
+      { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 4 },
+      { id: "b", name: "방 1", x: 4, z: 0, width: 3, depth: 2 },
+    ])
+
+    expect(mergeRooms(uneven, "a", "b")).toBe(uneven)
+  })
+
+  it("leaves rooms that do not touch", () => {
+    const apart = draftOf([
+      { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 3 },
+      { id: "b", name: "방 1", x: 6, z: 0, width: 3, depth: 3 },
+    ])
+
+    expect(mergeRooms(apart, "a", "b")).toBe(apart)
+  })
+
+  it("tracks the room count in source", () => {
+    const draft = splitRoom(createDraft(20), "room-1", "vertical", 3)
+    const merged = mergeRooms(draft, draft.rooms[0].id, draft.rooms[1].id)
+
+    expect(merged.source?.roomCount).toBe(1)
+  })
+})
+
+describe("roomsAcrossWall", () => {
+  const draft = draftOf([
+    { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 3 },
+    { id: "b", name: "방 1", x: 4, z: 0, width: 3, depth: 3 },
+  ])
+  const model = buildRoomModel(draft)
+
+  it("finds the rooms on both sides of a shared wall", () => {
+    const wall = model.walls.find(
+      (item) => item.thickness === interiorThickness
+    )!
+
+    expect(roomsAcrossWall(draft, wall)?.sort()).toEqual(["a", "b"])
+  })
+
+  it("returns nothing for an outside wall", () => {
+    const wall = model.walls.find(
+      (item) => item.thickness === exteriorThickness
+    )!
+
+    expect(roomsAcrossWall(draft, wall)).toBeNull()
   })
 })
 

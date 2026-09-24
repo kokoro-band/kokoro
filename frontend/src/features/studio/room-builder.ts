@@ -260,6 +260,83 @@ function nextRoomId(draft: RoomDraft) {
   return `room-${Math.max(0, ...used) + 1}`
 }
 
+export function mergeRooms(
+  draft: RoomDraft,
+  first: string,
+  second: string
+): RoomDraft {
+  if (first === second) return draft
+  const left = draft.rooms.find((room) => room.id === first)
+  const right = draft.rooms.find((room) => room.id === second)
+  if (!left || !right || left.notch || right.notch) return draft
+
+  const epsilon = 1e-6
+  const sameRow =
+    Math.abs(left.z - right.z) < epsilon &&
+    Math.abs(left.depth - right.depth) < epsilon &&
+    (Math.abs(left.x + left.width - right.x) < epsilon ||
+      Math.abs(right.x + right.width - left.x) < epsilon)
+  const sameColumn =
+    Math.abs(left.x - right.x) < epsilon &&
+    Math.abs(left.width - right.width) < epsilon &&
+    (Math.abs(left.z + left.depth - right.z) < epsilon ||
+      Math.abs(right.z + right.depth - left.z) < epsilon)
+  if (!sameRow && !sameColumn) return draft
+
+  const merged: RoomRect = {
+    ...left,
+    x: round(Math.min(left.x, right.x)),
+    z: round(Math.min(left.z, right.z)),
+    width: sameRow ? round(left.width + right.width) : left.width,
+    depth: sameColumn ? round(left.depth + right.depth) : left.depth,
+  }
+
+  const rooms = draft.rooms
+    .filter((room) => room.id !== second)
+    .map((room) => (room.id === first ? merged : room))
+
+  return normalizeDraft({
+    ...draft,
+    rooms,
+    source: draft.source && { ...draft.source, roomCount: rooms.length },
+  })
+}
+
+export function roomsAcrossWall(
+  draft: RoomDraft,
+  wall: Wall
+): [string, string] | null {
+  const epsilon = 1e-6
+  const vertical = Math.abs(wall.a[0] - wall.b[0]) < epsilon
+  const line = vertical ? wall.a[0] : wall.a[1]
+  const from = vertical
+    ? Math.min(wall.a[1], wall.b[1])
+    : Math.min(wall.a[0], wall.b[0])
+  const to = vertical
+    ? Math.max(wall.a[1], wall.b[1])
+    : Math.max(wall.a[0], wall.b[0])
+
+  const rooms = normalize(draft)
+  const touching = (room: RoomRect, side: "before" | "after") => {
+    const edge = vertical
+      ? side === "before"
+        ? room.x + room.width
+        : room.x
+      : side === "before"
+        ? room.z + room.depth
+        : room.z
+    if (Math.abs(edge - line) > epsilon) return false
+    const start = vertical ? room.z : room.x
+    const end = vertical ? room.z + room.depth : room.x + room.width
+    return Math.min(end, to) - Math.max(start, from) > epsilon
+  }
+
+  const before = rooms.find((room) => touching(room, "before"))
+  const after = rooms.find((room) => touching(room, "after"))
+  if (!before || !after || before.id === after.id) return null
+  return [before.id, after.id]
+}
+
 export function fitToArea(
   draft: RoomDraft,
   areaPyeong: number,

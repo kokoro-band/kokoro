@@ -1,6 +1,10 @@
 .studio-app {
+  height: 100svh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--background);
+}
+.mobile-dock {
+  display: none;
 }

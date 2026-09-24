@@ -3,6 +3,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: var(--card);
   border-left: 1px solid var(--line);
 }
@@ -17,15 +19,16 @@
 }
 .assistant-heading h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
 .assistant-heading span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
 }
 .chat-messages {
-  min-height: 210px;
-  max-height: 300px;
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
   padding: 16px 13px 7px;
 }
@@ -45,7 +48,7 @@
   color: var(--foreground);
   background: var(--muted-surface);
   border-radius: var(--seed-radius-r2);
-  font-size: 12px;
+  font-size: var(--seed-font-size-t4);
   line-height: 1.55;
 }
 .chat-message.user p {
@@ -58,7 +61,7 @@
   gap: 7px;
   padding: 7px 0 12px 30px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--seed-font-size-t3);
 }
 .prompt-suggestions {
   display: flex;
@@ -71,15 +74,16 @@
 }
 .chat-form {
   margin: 0 13px 14px;
-  display: grid;
-  gap: 8px;
+}
+.chat-input {
+  align-items: flex-end;
 }
 .chat-input textarea {
-  min-height: 72px;
-  resize: vertical;
+  min-height: 84px;
+  min-width: 0;
+  resize: none;
 }
-.chat-form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+.chat-send {
+  flex: none;
+  margin: 0 8px 8px 0;
 }

@@ -53,7 +53,7 @@ export function useStudioController() {
   const [selectedId, setSelectedId] = useState<string | null>("sofa-01")
   const [mode, setMode] = useState<ViewMode>("3d")
   const [category, setCategory] = useState<Category>("전체")
-  const [leftTab, setLeftTab] = useState<"furniture" | "plan">("furniture")
+  const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
   const [notice, setNotice] = useState("")
@@ -329,7 +329,6 @@ export function useStudioController() {
     if (!file) return
     setNotice("")
     const validationError = validateFloorPlan(file)
-    setLeftTab("plan")
     if (validationError) {
       setUploadAttempt({
         file,
@@ -406,7 +405,7 @@ export function useStudioController() {
       setFuture([])
       setMessages(initialMessages)
       setUploadAttempt(null)
-      setLeftTab("plan")
+      setLeftTab("furniture")
       setDirty(!isServerMode)
       setNotice("새 프로젝트를 만들었습니다. 도면을 업로드해 주세요.")
       return true

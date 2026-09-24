@@ -1,4 +1,4 @@
-import { Chip } from "@seed-design/react"
+import { Chip, List } from "@seed-design/react"
 
 import { catalog } from "@/features/studio/data"
 import type { Category } from "@/features/studio/types"
@@ -19,9 +19,6 @@ export function FurnitureLibrary({
 }) {
   return (
     <>
-      <div className="library-heading">
-        <h2>가구</h2>
-      </div>
       <div className="category-list" aria-label="가구 종류">
         {categories.map((entry) => (
           <Chip.Root
@@ -35,23 +32,25 @@ export function FurnitureLibrary({
           </Chip.Root>
         ))}
       </div>
-      <div className="catalog-grid">
+      <List.Root className="catalog-grid">
         {catalog
           .filter((item) => category === "전체" || item.category === category)
           .map((item) => (
-            <button
-              className="catalog-card"
-              key={item.id}
-              onClick={() => onAddFurniture(item.id)}
-            >
-              <div className="catalog-visual">
-                <FurnitureIcon category={item.category} size={46} />
-              </div>
-              <strong>{item.name}</strong>
-              <span>₩{money.format(item.price)}</span>
-            </button>
+            <List.Item className="catalog-item" key={item.id}>
+              <List.Prefix>
+                <span className="catalog-visual" style={{ color: item.color }}>
+                  <FurnitureIcon category={item.category} size={24} />
+                </span>
+              </List.Prefix>
+              <List.Content asChild>
+                <button type="button" onClick={() => onAddFurniture(item.id)}>
+                  <List.Title>{item.name}</List.Title>
+                  <List.Detail>₩{money.format(item.price)}</List.Detail>
+                </button>
+              </List.Content>
+            </List.Item>
           ))}
-      </div>
+      </List.Root>
     </>
   )
 }

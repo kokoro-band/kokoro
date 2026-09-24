@@ -1,8 +1,8 @@
 .editor-grid {
   flex: 1;
-  min-height: 760px;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(230px, 252px) minmax(520px, 1fr) minmax(
+  grid-template-columns: minmax(230px, 252px) minmax(0, 1fr) minmax(
       290px,
       320px
     );
@@ -13,6 +13,6 @@
   border-radius: var(--seed-radius-r2);
 }
 .editor-grid.left-hidden {
-  grid-template-columns: minmax(620px, 1fr) minmax(290px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 320px);
   grid-template-areas: "scene assistant";
 }

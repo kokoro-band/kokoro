@@ -1,9 +1,12 @@
-import { Minus, Plus, RotateCw, Settings2, Trash2 } from "lucide-react"
-import { ActionButton, Icon, TextField } from "@seed-design/react"
+import { Minus, Plus, RotateCw } from "lucide-react"
+import { ActionButton, Field, Icon, TextField } from "@seed-design/react"
 
+import { catalog } from "@/features/studio/data"
 import type { Furniture } from "@/features/studio/types"
 
 import { FurnitureIcon } from "./FurnitureIcon"
+
+const money = new Intl.NumberFormat("ko-KR")
 
 function clamp(value: number, max: number) {
   if (!Number.isFinite(value)) return 0
@@ -14,42 +17,33 @@ export function PropertiesPanel({
   selected,
   bounds,
   onUpdate,
-  onDelete,
 }: {
   selected?: Furniture
   bounds: { width: number; depth: number }
   onUpdate: (update: Partial<Furniture>) => void
-  onDelete: () => void
 }) {
+  const catalogItem = selected
+    ? catalog.find((item) => item.id === selected.catalogId)
+    : undefined
+
   return (
     <div className="properties">
-      <div className="properties-heading">
-        <h3>
-          <Settings2 size={16} />
-          선택한 가구
-        </h3>
-        {selected && (
-          <ActionButton
-            className="icon-button danger"
-            variant="criticalSolid"
-            size="small"
-            layout="iconOnly"
-            aria-label="선택한 가구 삭제"
-            onClick={onDelete}
-          >
-            <Icon svg={<Trash2 />} size="x4" />
-          </ActionButton>
-        )}
-      </div>
       {selected ? (
         <>
           <div className="selected-item">
-            <span style={{ color: selected.color }}>
-              <FurnitureIcon category={selected.category} size={28} />
+            <span
+              className="selected-item-icon"
+              style={{ color: selected.color }}
+            >
+              <FurnitureIcon category={selected.category} size={24} />
             </span>
             <div>
               <strong>{selected.name}</strong>
-              <span>{selected.category}</span>
+              <span>
+                {catalogItem
+                  ? `₩${money.format(catalogItem.price)}`
+                  : selected.category}
+              </span>
             </div>
           </div>
           <div className="position-fields">
@@ -126,12 +120,11 @@ function MeterField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="position-field">
-      <span>{label}</span>
+    <Field.Root className="position-field">
+      <Field.Label>{label}</Field.Label>
       <TextField.Root size="medium">
         <TextField.Input
           type="number"
-          aria-label={label}
           min={0}
           max={max}
           step={0.1}
@@ -140,6 +133,6 @@ function MeterField({
         />
         <TextField.SuffixText>m</TextField.SuffixText>
       </TextField.Root>
-    </label>
+    </Field.Root>
   )
 }

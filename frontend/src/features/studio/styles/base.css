@@ -1,9 +1,12 @@
-@import "pretendard/dist/web/variable/pretendardvariable.css";
 @import "tailwindcss";
 @import "@seed-design/css/base.css";
 @import "@seed-design/css/recipes/action-button.css";
+@import "@seed-design/css/recipes/bottom-sheet.css";
 @import "@seed-design/css/recipes/chip.css";
 @import "@seed-design/css/recipes/content-dialog.css";
+@import "@seed-design/css/recipes/field.css";
+@import "@seed-design/css/recipes/field-label.css";
+@import "@seed-design/css/recipes/list-item.css";
 @import "@seed-design/css/recipes/progress-circle.css";
 @import "@seed-design/css/recipes/segmented-control.css";
 @import "@seed-design/css/recipes/slider.css";
@@ -38,8 +41,8 @@
 :root {
   color-scheme: light;
   --seed-font-family:
-    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
-    "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI",
+    sans-serif;
   --background: var(--seed-color-bg-layer-basement);
   --foreground: var(--seed-color-fg-neutral);
   --card: var(--seed-color-bg-layer-default);
@@ -48,7 +51,11 @@
   --accent: var(--seed-color-bg-brand-weak);
   --muted-surface: var(--seed-color-bg-layer-fill);
   --line: var(--seed-color-stroke-neutral-muted);
-  --muted: var(--seed-color-fg-neutral-muted);
+  --muted: color-mix(
+    in srgb,
+    var(--seed-color-fg-neutral) 78%,
+    var(--seed-color-bg-layer-default)
+  );
   --soft: var(--seed-color-fg-neutral-subtle);
   --shadow-soft: none;
 }

@@ -18,12 +18,14 @@ export function FloorPlanPanel({
   uploadAttempt,
   uploadRef,
   busy,
+  hideHeading = false,
   onRetry,
 }: {
   project: Project
   uploadAttempt: UploadAttempt | null
   uploadRef: RefObject<HTMLInputElement | null>
   busy: boolean
+  hideHeading?: boolean
   onRetry: () => void
 }) {
   const displayedFloorPlan = uploadAttempt
@@ -56,9 +58,11 @@ export function FloorPlanPanel({
 
   return (
     <div className="plan-panel">
-      <div className="library-heading">
-        <h2>도면</h2>
-      </div>
+      {!hideHeading && (
+        <div className="library-heading">
+          <h2>도면</h2>
+        </div>
+      )}
       <button
         className="upload-zone"
         onClick={() => uploadRef.current?.click()}
@@ -66,7 +70,11 @@ export function FloorPlanPanel({
       >
         <FileUp size={24} />
         <strong>
-          {status === "FAILED" ? "다른 도면 선택" : "도면을 올려 공간 시작하기"}
+          {status === "READY"
+            ? "다른 도면 업로드"
+            : status === "FAILED"
+              ? "다른 도면 선택"
+              : "도면을 올려 공간 시작하기"}
         </strong>
         <span>PDF, PNG, JPG 형식, 최대 15MB</span>
       </button>

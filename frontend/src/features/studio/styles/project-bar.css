@@ -34,11 +34,13 @@
   font-size: 12px;
 }
 .export-button,
+.plan-button,
 .save-button {
   height: 36px;
-  font-size: 13px;
+  font-size: var(--seed-font-size-t4);
 }
-.export-button {
+.export-button,
+.plan-button {
   background: var(--card);
 }
 .save-button {

@@ -1,6 +1,16 @@
 .plan-panel {
   padding-bottom: 20px;
 }
+.floor-plan-dialog {
+  width: min(100% - 24px, 480px);
+  max-height: calc(100svh - 32px);
+  overflow: hidden;
+}
+.floor-plan-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline: 0 !important;
+}
 .upload-zone {
   width: calc(100% - 28px);
   min-height: 112px;
@@ -25,10 +35,10 @@
 }
 .upload-zone strong {
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--seed-font-size-t4);
 }
 .upload-zone > span:last-child {
-  font-size: 10px;
+  font-size: var(--seed-font-size-t3);
 }
 .uploaded-file {
   display: flex;
@@ -65,12 +75,12 @@
   white-space: nowrap;
 }
 .uploaded-file strong {
-  font-size: 11px;
+  font-size: var(--seed-font-size-t4);
 }
 .uploaded-file span {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--seed-font-size-t3);
 }
 .plan-status {
   margin: 0 14px 18px;
@@ -82,12 +92,12 @@
   justify-content: space-between;
 }
 .plan-status .small-label {
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
   font-weight: 700;
 }
 .plan-status .status-label {
   color: var(--primary-dark);
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
 }
 .progress-track {
   height: 4px;
@@ -107,7 +117,7 @@
 .plan-status p {
   margin: 9px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--seed-font-size-t3);
   line-height: 1.5;
 }
 .plan-status.processing .progress-track span {
@@ -127,17 +137,7 @@
 }
 .retry-upload {
   width: 100%;
-  height: 32px;
   margin-top: 11px;
-  color: var(--seed-color-fg-critical);
-  background: var(--card);
-  border-color: var(--seed-color-stroke-critical-solid);
-  font-size: 10px;
-}
-.retry-upload:hover {
-  color: var(--seed-color-fg-critical);
-  background: var(--seed-color-bg-critical-weak);
-  border-color: var(--seed-color-stroke-critical-solid);
 }
 .room-dimensions {
   display: flex;
@@ -150,9 +150,9 @@
 }
 .room-dimensions span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--seed-font-size-t3);
 }
 .room-dimensions strong {
-  font-size: 12px;
+  font-size: var(--seed-font-size-t4);
   font-variant-numeric: tabular-nums;
 }

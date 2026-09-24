@@ -1,34 +1,29 @@
-import type { RefObject } from "react"
-import { Armchair, Layers3 } from "lucide-react"
+import { Armchair, ListFilter } from "lucide-react"
 import { Tabs } from "@seed-design/react"
 
-import type { Category, Project, UploadAttempt } from "@/features/studio/types"
+import type { Category, Furniture } from "@/features/studio/types"
 
-import { FloorPlanPanel } from "./FloorPlanPanel"
 import { FurnitureLibrary } from "./FurnitureLibrary"
+import { PlacedFurnitureList } from "./PlacedFurnitureList"
 
 export function LibraryPanel({
   tab,
   category,
-  project,
-  uploadAttempt,
-  uploadRef,
-  busy,
+  furniture,
+  selectedId,
   onTabChange,
   onCategoryChange,
   onAddFurniture,
-  onRetryUpload,
+  onSelectFurniture,
 }: {
-  tab: "furniture" | "plan"
+  tab: "furniture" | "placed"
   category: Category
-  project: Project
-  uploadAttempt: UploadAttempt | null
-  uploadRef: RefObject<HTMLInputElement | null>
-  busy: boolean
-  onTabChange: (tab: "furniture" | "plan") => void
+  furniture: Furniture[]
+  selectedId: string | null
+  onTabChange: (tab: "furniture" | "placed") => void
   onCategoryChange: (category: Category) => void
   onAddFurniture: (catalogId: string) => void
-  onRetryUpload: () => void
+  onSelectFurniture: (id: string) => void
 }) {
   return (
     <aside className="library-panel">
@@ -38,14 +33,14 @@ export function LibraryPanel({
         onValueChange={(value) => onTabChange(value as typeof tab)}
         triggerLayout="fill"
       >
-        <Tabs.List aria-label="소스 선택">
+        <Tabs.List aria-label="가구 보기">
           <Tabs.Trigger value="furniture">
             <Armchair size={16} />
-            가구 라이브러리
+            가구 추가
           </Tabs.Trigger>
-          <Tabs.Trigger value="plan">
-            <Layers3 size={16} />
-            도면
+          <Tabs.Trigger value="placed">
+            <ListFilter size={16} />
+            배치한 가구
           </Tabs.Trigger>
           <Tabs.Indicator />
         </Tabs.List>
@@ -57,12 +52,11 @@ export function LibraryPanel({
           onAddFurniture={onAddFurniture}
         />
       ) : (
-        <FloorPlanPanel
-          project={project}
-          uploadAttempt={uploadAttempt}
-          uploadRef={uploadRef}
-          busy={busy}
-          onRetry={onRetryUpload}
+        <PlacedFurnitureList
+          furniture={furniture}
+          selectedId={selectedId}
+          onSelect={onSelectFurniture}
+          onOpenCatalog={() => onTabChange("furniture")}
         />
       )}
     </aside>

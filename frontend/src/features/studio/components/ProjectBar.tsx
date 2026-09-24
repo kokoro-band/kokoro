@@ -1,7 +1,7 @@
-import { ArrowDownToLine, ArrowLeft, LoaderCircle, Save } from "lucide-react"
+import { ArrowDownToLine, ArrowLeft, Layers3, Save } from "lucide-react"
 
 import type { Project } from "@/features/studio/types"
-import { ActionButton } from "@seed-design/react"
+import { ActionButton, Icon } from "@seed-design/react"
 
 export function ProjectBar({
   project,
@@ -9,6 +9,7 @@ export function ProjectBar({
   dirty,
   saveBusy,
   onOpenSample,
+  onOpenFloorPlan,
   onExport,
   onSave,
 }: {
@@ -17,19 +18,23 @@ export function ProjectBar({
   dirty: boolean
   saveBusy: boolean
   onOpenSample: () => void
+  onOpenFloorPlan: () => void
   onExport: () => void
   onSave: () => void
 }) {
   return (
     <div className="project-bar">
       <div className="project-heading">
-        <button
+        <ActionButton
           className="icon-button back-button"
+          variant="ghost"
+          size="small"
+          layout="iconOnly"
           aria-label="예제 프로젝트 열기"
           onClick={onOpenSample}
         >
-          <ArrowLeft size={18} />
-        </button>
+          <Icon svg={<ArrowLeft />} size="x4" />
+        </ActionButton>
         <h1>{project.name}</h1>
       </div>
       <div className="project-actions">
@@ -40,6 +45,16 @@ export function ProjectBar({
               ? "저장하지 않은 변경"
               : "모든 변경 저장됨"}
         </span>
+        <ActionButton
+          variant="neutralOutline"
+          size="small"
+          className="plan-button"
+          onClick={onOpenFloorPlan}
+          aria-label="도면 보기 및 변경"
+        >
+          <Layers3 size={16} />
+          도면
+        </ActionButton>
         <ActionButton
           variant="neutralOutline"
           size="small"
@@ -55,12 +70,9 @@ export function ProjectBar({
           className="save-button"
           onClick={onSave}
           disabled={saveBusy || saving}
+          loading={saveBusy || saving}
         >
-          {saveBusy || saving ? (
-            <LoaderCircle className="spin" size={16} />
-          ) : (
-            <Save size={16} />
-          )}
+          <Save size={16} />
           저장
         </ActionButton>
       </div>

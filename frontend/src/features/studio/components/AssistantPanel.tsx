@@ -3,9 +3,7 @@ import { LoaderCircle, Send } from "lucide-react"
 import { ActionButton, Icon, TextField } from "@seed-design/react"
 
 import { isServerMode } from "@/features/studio/project-api"
-import type { ChatMessage, Furniture } from "@/features/studio/types"
-
-import { PropertiesPanel } from "./PropertiesPanel"
+import type { ChatMessage } from "@/features/studio/types"
 
 const suggestions = ["미니멀한 거실로 꾸며줘", "창가에 의자를 옮겨줘"]
 
@@ -14,23 +12,15 @@ export function AssistantPanel({
   input,
   chatBusy,
   busy,
-  selected,
-  bounds,
   onInputChange,
   onSend,
-  onUpdateSelected,
-  onDeleteSelected,
 }: {
   messages: ChatMessage[]
   input: string
   chatBusy: boolean
   busy: boolean
-  selected?: Furniture
-  bounds: { width: number; depth: number }
   onInputChange: (input: string) => void
   onSend: (text: string) => void
-  onUpdateSelected: (update: Partial<Furniture>) => void
-  onDeleteSelected: () => void
 }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -47,7 +37,7 @@ export function AssistantPanel({
   return (
     <aside className="assistant-panel">
       <div className="assistant-heading">
-        <h2>공간 어시스턴트</h2>
+        <h2>배치 요청</h2>
         <span>{isServerMode ? "Spring 배치 처리기" : "규칙 기반 데모"}</span>
       </div>
       <div className="chat-messages" aria-live="polite">
@@ -89,9 +79,8 @@ export function AssistantPanel({
             placeholder="예: 소파 옆에 화분을 놓아줘"
             onKeyDown={handleKeyDown}
           />
-        </TextField.Root>
-        <div className="chat-form-footer">
           <ActionButton
+            className="chat-send"
             type="submit"
             variant="brandSolid"
             size="small"
@@ -101,14 +90,8 @@ export function AssistantPanel({
           >
             <Icon svg={<Send />} size="x4" />
           </ActionButton>
-        </div>
+        </TextField.Root>
       </form>
-      <PropertiesPanel
-        selected={selected}
-        bounds={bounds}
-        onUpdate={onUpdateSelected}
-        onDelete={onDeleteSelected}
-      />
     </aside>
   )
 }

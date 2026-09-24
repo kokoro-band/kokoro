@@ -20,6 +20,7 @@ export function AssistantPanel({
   chatBusy,
   busy,
   selected,
+  bounds,
   onInputChange,
   onSend,
   onUpdateSelected,
@@ -30,6 +31,7 @@ export function AssistantPanel({
   chatBusy: boolean
   busy: boolean
   selected?: Furniture
+  bounds: { width: number; depth: number }
   onInputChange: (input: string) => void
   onSend: (text: string) => void
   onUpdateSelected: (update: Partial<Furniture>) => void
@@ -119,6 +121,7 @@ export function AssistantPanel({
       </form>
       <PropertiesPanel
         selected={selected}
+        bounds={bounds}
         onUpdate={onUpdateSelected}
         onDelete={onDeleteSelected}
       />

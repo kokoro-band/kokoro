@@ -37,6 +37,10 @@ function validateFloorPlan(file: File) {
   return null
 }
 
+function round(value: number) {
+  return Math.round(value * 10) / 10
+}
+
 export function useStudioController() {
   const [project, setProject] = useState<Project>(readSavedProject)
   const [projectLoad, setProjectLoad] = useState<ProjectLoadState>(
@@ -83,6 +87,10 @@ export function useStudioController() {
   const saveProjectAsyncRef = useRef(saveProjectMutation.mutateAsync)
 
   const selected = project.furniture.find((item) => item.id === selectedId)
+  const roomBounds = project.room?.bounds ?? {
+    width: project.dimensions.width,
+    depth: project.dimensions.depth,
+  }
 
   const queueServerSave = useCallback(function queueServerSave(
     snapshot: Project
@@ -216,11 +224,11 @@ export function useStudioController() {
   }
 
   function addFurniture(catalogId: string) {
-    const placementOffset = (project.furniture.length * 7) % 15
+    const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
-      45 + placementOffset,
-      40 + ((placementOffset * 2) % 15)
+      round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8)),
+      round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
     commitFurniture([...project.furniture, item])
     setSelectedId(item.id)
@@ -434,6 +442,7 @@ export function useStudioController() {
 
   return {
     project,
+    roomBounds,
     projectLoad,
     selected,
     selectedId,

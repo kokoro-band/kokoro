@@ -15,26 +15,41 @@ colors:
   informative: "#009ceb"
   positive: "#1aa174"
 typography:
-  screen-title:
-    fontFamily: "Pretendard Variable, Pretendard, sans-serif"
+  display:
+    textStyle: "screenTitle"
     fontSize: "1.625rem"
     fontWeight: 700
     lineHeight: "2.1875rem"
   title:
-    fontFamily: "Pretendard Variable, Pretendard, sans-serif"
-    fontSize: "1.25rem"
+    textStyle: "t6Bold"
+    fontSize: "1.125rem"
     fontWeight: 700
-    lineHeight: "1.6875rem"
+    lineHeight: "1.5rem"
+  heading:
+    textStyle: "t5Bold"
+    fontSize: "1rem"
+    fontWeight: 700
+    lineHeight: "1.375rem"
   body:
-    fontFamily: "Pretendard Variable, Pretendard, sans-serif"
+    textStyle: "t5Regular"
     fontSize: "1rem"
     fontWeight: 400
-    lineHeight: "1.5rem"
+    lineHeight: "1.375rem"
+  description:
+    textStyle: "t4Regular"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: "1.1875rem"
   label:
-    fontFamily: "Pretendard Variable, Pretendard, sans-serif"
+    textStyle: "t4Medium"
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: "1.1875rem"
+  caption:
+    textStyle: "t3Regular"
+    fontSize: "0.8125rem"
+    fontWeight: 400
+    lineHeight: "1.125rem"
 rounded:
   r0_5: "2px"
   r1: "4px"
@@ -62,7 +77,7 @@ spacing:
 
 # Design System: Kokoro SEED
 
-> 이 문서는 2026년 9월 23일 구현을 기준으로 한 현재 규격입니다. 새 UI도 이 규칙을 따르며 세부 전환 기록과 검증 기준은 [`docs/design-system/seed-adoption.md`](docs/design-system/seed-adoption.md)를 따릅니다.
+> 이 문서는 2026년 9월 25일 구현을 기준으로 한 현재 규격입니다. 새 UI도 이 규칙을 따르며 세부 전환 기록과 검증 기준은 [`docs/design-system/seed-adoption.md`](docs/design-system/seed-adoption.md)를 따릅니다.
 
 ## Overview
 
@@ -77,7 +92,7 @@ spacing:
 - SEED v2 컴포넌트와 토큰 우선
 - 주요 행동에만 사용하는 따뜻한 오렌지
 - 방과 가구를 먼저 보여 주는 작업 도구 구조
-- Pretendard Variable과 역할 기반 타이포그래피
+- SEED 글꼴 스택과 의미 기반 타이포그래피 역할 7가지
 - 장식보다 정보 계층과 간격으로 만드는 강조
 - 실제 AI와 규칙 기반 데모를 구분하는 솔직한 표현
 
@@ -109,27 +124,61 @@ spacing:
 
 ## Typography
 
-**Display Font:** Pretendard Variable
-
-**Body Font:** Pretendard Variable. 폰트가 로드되지 않으면 SEED 기본 시스템 글꼴로 대체합니다.
+**Font:** SEED가 제공하는 `--seed-font-family`를 `body`에 적용합니다. macOS와 iOS와 Android는 시스템 글꼴을, Windows는 앱이 불러오는 Pretendard Variable 다이내믹 서브셋을 사용합니다. Three.js 방 이름표도 같은 글꼴을 읽어 그립니다.
 
 **Character:** 글꼴은 브랜드를 과시하기보다 사용자의 도면과 가구 정보를 맑게 전달해야 합니다.
 
-### Hierarchy
+### The One Type Rule
 
-- **Screen title:** 프로젝트 제목과 전체 화면 제목에 `screenTitle`을 사용합니다.
-- **Title:** 패널 제목과 선택한 가구 제목에 `t7Bold` 수준을 사용합니다.
-- **Body:** 읽어야 하는 설명은 `t5Regular` 또는 `articleBody`를 사용합니다.
-- **Label:** 버튼과 필드와 짧은 상태는 `t4Medium`을 기본으로 사용합니다.
-- **Minimum:** 핵심 정보는 `t4`보다 작게 표시하지 않습니다. `t1`부터 `t3`까지는 부가 메타데이터에만 사용합니다.
+글자 크기와 두께는 모양이 아니라 **의미**로 고릅니다. 화면 코드는 CSS에서 `font-size`나 `font-weight`를 정하지 않고 `src/components/kokoro/Type.tsx`의 `Type` 컴포넌트에 역할을 넘깁니다. 역할 표는 `type-roles.ts` 한 곳에만 있으며 SEED `Text`의 textStyle로 연결됩니다.
+
+| 역할 | SEED textStyle | 색 | 쓰는 곳 |
+|---|---|---|---|
+| `display` | `screenTitle` | `fg.neutral` | 화면 하나를 대표하는 제목. 한 화면에 하나만 둡니다 |
+| `title` | `t6Bold` | `fg.neutral` | 패널 제목과 지금 선택한 대상의 이름, 합계 금액 |
+| `heading` | `t5Bold` | `fg.neutral` | 패널 안에서 내용을 묶는 소제목 |
+| `body` | `t5Regular` | `fg.neutral` | 사용자가 읽어야 하는 문장과 AI 대화 |
+| `description` | `t4Regular` | `fg.neutralMuted` | 제목이나 조작을 돕는 짧은 설명 |
+| `label` | `t4Medium` | `fg.neutral` | 항목과 필드의 이름처럼 대상을 가리키는 글 |
+| `caption` | `t3Regular` | `fg.neutralMuted` | 개수와 단위와 저장 상태 같은 부가 정보 |
+
+- 금액과 치수처럼 자릿수를 맞춰 읽어야 하는 숫자는 `numeric`으로 표 숫자를 켭니다.
+- SEED 컴포넌트 안의 글자는 SEED 레시피를 그대로 따릅니다.
+- 평면도 SVG처럼 미터 단위로 그리는 글자도 역할의 두께를 따릅니다. 방 이름은 `label`과 같은 medium입니다.
+- 한글은 `word-break: keep-all`로 어절 단위로 줄을 바꿉니다.
 
 **The Scale Before Color Rule.** 제목과 본문의 차이는 먼저 크기와 두께와 간격으로 만듭니다. 단어에 별도 색이나 그라데이션을 입혀 강조하지 않습니다.
 
+### Voice
+
+SEED 글쓰기 원칙을 따라 해요체와 능동문을 사용합니다. 데이터의 변화보다 사용자의 행동을 말합니다. 예: `라운드 테이블을 놓았어요`, `구조를 저장했어요`. 조사 을/를은 `withObjectParticle`로 받침에 맞춰 붙입니다.
+
 ## Layout
 
-데스크톱은 가구 라이브러리와 3D 편집기와 어시스턴트를 한 화면에 보여 줍니다. 편집 영역이 가장 넓은 공간을 차지합니다. 작은 화면에서는 3D 공간을 먼저 보여 주고 선택 도구는 `Bottom Sheet`나 이어진 콘텐츠로 전환합니다.
+### 화면 흐름
 
-페이지 구성은 4px 리듬을 기본으로 합니다. SEED 컴포넌트 레시피가 2px과 6px과 10px 같은 반 단계 토큰을 사용하면 그 값을 그대로 유지합니다. 앱 레이아웃에서 임의의 픽셀 값을 추가하지 않습니다.
+앱 바 가운데의 글자 내비게이션 하나가 작업 화면을 바꿉니다. SEED 사이트 상단 내비게이션처럼 현재 화면은 굵은 글자로만 표시하고, 배경은 hover에만 씁니다. 뷰포트 도구는 고른 항목에 `bg.transparentSelected` 배경을 깔아 한 단계 아래의 선택임을 구분합니다. 화면을 바꾸는 버튼을 다른 곳에 두지 않습니다.
+
+| 화면 | 목적 | 구성 |
+|---|---|---|
+| 구조 | 도면 이미지나 평수에서 방을 나누고 문과 창을 놓습니다 | 가운데 평면도와 오른쪽 방과 집 정보 |
+| 배치 | 방을 골라 가구를 놓고 2D와 3D와 VR로 확인합니다 | 왼쪽 방과 가구, 가운데 화면, 오른쪽 선택한 가구와 AI 배치 |
+| 내역 | 방별 가구와 예상 비용을 확인합니다 | 가운데 정렬된 목록 |
+
+- 구조에서 저장하지 않은 초안은 다른 화면으로 가도 유지되며 구조 항목에 알림 점이 붙습니다.
+- 배치의 범위는 집 전체와 방 하나 사이를 오갑니다. 왼쪽 패널 맨 위의 뒤로 버튼과 화면 오른쪽 위 미니맵이 같은 범위를 바꿉니다.
+- 프로젝트 만들기와 예제 집 열기와 도면 파일과 JSON 내보내기는 앱 바 왼쪽 프로젝트 메뉴에 모읍니다.
+- 저장은 자동입니다. 저장 결과는 앱 바에 계속 띄우지 않고 Snackbar로 알립니다. 다른 알림이 45초 동안 없었을 때만 `자동으로 저장했어요`를 보여 주고, 실패하면 critical Snackbar의 `다시 저장`과 앱 바 오른쪽의 `다시 저장` 버튼으로 다시 시도합니다.
+
+### 골격
+
+구조와 배치는 같은 뷰포트 골격을 씁니다. 48px 툴바의 왼쪽에는 `ToolbarChoice`로 도구나 보기 방식을, 오른쪽에는 추가와 실행 취소와 다시 실행을 둡니다. 도구에 하위 선택이 있으면 구분선 뒤에 같은 모양으로 붙입니다. 화면 위 안내는 왼쪽 아래 캡션 하나로만 보여 주고 Snackbar가 그 위로 비켜 가도록 `SnackbarAvoidOverlap`으로 감쌉니다. VR 안내와 VR 진입 버튼은 화면 가운데 카드에 함께 둡니다.
+
+**The No Pill Toolbar Rule.** 툴바와 앱 내비게이션에는 알약 모양 Segmented Control을 쓰지 않습니다. 둥근 컨테이너가 겹쳐 보이고 공간을 크게 차지하기 때문입니다. Segmented Control은 SEED 권장처럼 2개에서 4개 사이의 폼 선택이 화면의 주인공일 때만 씁니다. 패널은 `panel-header`, `panel-body`, `panel-footer`와 `inspector-section`으로 같은 간격을 씁니다.
+
+820px 이하에서는 화면 전환이 앱 바 두 번째 줄로 내려가고 배치 도구는 아래 도크와 Bottom Sheet로 바뀝니다. 구조는 평면도 아래에 정보 패널이 이어지고 저장 버튼이 아래에 붙습니다.
+
+페이지 구성은 4px 리듬을 기본으로 합니다. 간격과 모서리와 그림자와 모션은 SEED 토큰만 사용합니다. 패널 폭처럼 화면 골격을 정하는 값만 `--layout-*` 변수로 둡니다.
 
 2D와 3D와 WebXR은 같은 배치 데이터를 사용합니다. DOM 오버레이에는 SEED를 적용하고 Three.js 캔버스 내부의 메시와 조명과 선택 외곽선은 렌더링 영역으로 분리합니다.
 
@@ -156,22 +205,33 @@ spacing:
 
 ### Required mapping
 
+SEED CLI로 가져온 스니펫은 `frontend/seed-design/ui`에 있고 `seed-design/ui/*`로 가져옵니다. 스니펫은 고치지 않습니다.
+
 | 코코로 UI | SEED 기본 | 적용 방식 |
 |---|---|---|
-| 저장과 내보내기와 WebXR 진입 | Action Button | 직접 사용 |
-| 2D와 3D와 WebXR 전환 | Segmented Control | 직접 사용 |
-| 가구와 도면 전환 | Tabs | 직접 사용 |
-| 가구 종류 필터 | Chip Toggle | 직접 사용 |
-| 가구 목록 | List와 Image Frame | 기존 카드 그리드를 제거하고 조합 |
-| 프로젝트 생성 | Dialog와 Text Field와 Action Button | 직접 사용 |
-| 도면 첨부 | Attachment Field | 필요한 파일 검증만 wrapper에 주입 |
-| 로딩과 변환 진행 | Progress Circle과 Skeleton | 상태에 따라 직접 사용 |
-| 저장 결과와 짧은 피드백 | Snackbar | 직접 사용 |
-| 오류와 안내 | Callout과 Page Banner와 Result Section | 오류 범위에 맞게 선택 |
-| 가구 속성 | Slider와 Switch와 Select와 Text Field | 직접 사용 |
-| 데스크톱 속성 패널 | Side Panel | 직접 사용 |
-| 모바일 속성 패널 | Bottom Sheet | 직접 사용 |
-| 편집 툴바와 치수 HUD | SEED primitive 조합 | `SpatialViewportToolbar`와 `DimensionRulerHUD` wrapper |
+| 구조와 배치와 내역 전환 | Action Button ghost와 Notification Badge | `app-nav`. 현재 화면은 굵게, 배경은 hover에만 |
+| 2D와 3D와 VR 전환, 구조 편집 도구, 방 모양 | Action Button ghost | `ToolbarChoice` wrapper. radio 그룹과 화살표 키 |
+| 프로젝트 메뉴와 새로 시작 | Menu | 스니펫. `size="small"` |
+| 대화상자 버튼 한 쌍 | Responsive Pair와 Action Button | 직접 사용. 버튼은 `medium` |
+| 방 목록과 가구 목록과 내역 | List | 스니펫 `ListButtonItem`과 `ListItem` |
+| 가구 추가와 배치한 가구, 선택한 가구와 AI 배치 | Tabs | 스니펫 |
+| 가구 종류 필터 | Chip Tabs와 Scroll Fog | 스니펫과 직접 사용 |
+| AI 요청 예시 | Chip과 Scroll Fog | 직접 사용. 한 줄 가로 스크롤 |
+| 치수와 이름과 요청 입력 | Text Field | 스니펫. 치수는 `MeterField` wrapper |
+| 가구 방향 | Slider | 스니펫 |
+| 깎을 모서리 | Select | 스니펫 |
+| 경고와 오류 | Callout | 스니펫 |
+| 빈 화면과 불러오기 오류 | Result Section | 스니펫. 기본 레이어 위에 둡니다 |
+| 로딩과 진행률 | Progress Circle | 스니펫. Loading Indicator는 버튼 안에서만 씁니다 |
+| 저장 결과와 짧은 피드백 | Snackbar | 스니펫 어댑터. 모바일 도크는 Avoid Overlap |
+| 새 프로젝트와 도면 파일과 도면 이미지로 시작 | Content Dialog | 직접 사용 |
+| 모바일 도구 | Bottom Sheet | 직접 사용 |
+| 상태 표시 | Badge | 직접 사용 |
+| 모든 글자 | Text | `Type` wrapper로 역할만 지정 |
+
+### Iconography
+
+UI 동작 아이콘은 SEED 아이콘 라이브러리 `@karrotmarket/react-monochrome-icon`의 Line 아이콘을 `Icon`과 `PrefixIcon`으로 씁니다. 가구 썸네일은 UI 아이콘이 아니라 상품을 대신 보여 주는 그림이므로 `FurnitureThumb`에서 제품 색을 입혀 그립니다. 당근 브랜드 아이콘은 쓰지 않습니다.
 
 ### Wrapper contract
 

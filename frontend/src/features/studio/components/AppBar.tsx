@@ -1,0 +1,162 @@
+import {
+  IconArrowClockwiseCircularLine,
+  IconArrowDownHorizlineLine,
+  IconChevronDownLine,
+  IconDocumentLine,
+  IconHouseLine,
+  IconPlusLine,
+} from "@karrotmarket/react-monochrome-icon"
+import {
+  ActionButton,
+  Icon,
+  NotificationBadge,
+  PrefixIcon,
+} from "@seed-design/react"
+import {
+  MenuContent,
+  MenuGroup,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+} from "seed-design/ui/menu"
+
+import { Type } from "@/components/kokoro/Type"
+
+export type StudioView = "structure" | "arrange" | "summary"
+
+const studioViews: { id: StudioView; label: string }[] = [
+  { id: "structure", label: "구조" },
+  { id: "arrange", label: "배치" },
+  { id: "summary", label: "내역" },
+]
+
+export function AppBar({
+  projectName,
+  view,
+  structureDirty,
+  showViews,
+  saving,
+  saveFailed,
+  saveBusy,
+  onViewChange,
+  onSave,
+  onCreateProject,
+  onOpenSample,
+  onOpenFloorPlan,
+  onExport,
+}: {
+  projectName: string
+  view: StudioView
+  structureDirty: boolean
+  /** 프로젝트를 불러온 뒤에만 프로젝트 메뉴와 화면 전환을 보여 줍니다. */
+  showViews: boolean
+  saving: boolean
+  saveFailed: boolean
+  saveBusy: boolean
+  onViewChange: (view: StudioView) => void
+  onSave: () => void
+  onCreateProject: () => void
+  onOpenSample: () => void
+  onOpenFloorPlan: () => void
+  onExport: () => void
+}) {
+  return (
+    <header className="app-bar">
+      <div className="app-bar-start">
+        <a className="app-bar-brand" href="#workspace" aria-label="코코로">
+          <img src="/assets/pixel/kokoro-mark.svg" alt="" />
+          <Type variant="title" className="app-bar-wordmark">
+            kokoro
+          </Type>
+        </a>
+        {showViews && (
+          <>
+            <span className="app-bar-divider" aria-hidden="true" />
+            <MenuRoot size="small" placement="bottom-start">
+              <MenuTrigger asChild>
+                <ActionButton
+                  variant="ghost"
+                  size="small"
+                  className="project-switcher"
+                  aria-label={`${projectName} 프로젝트 메뉴`}
+                >
+                  <span className="project-switcher-name">{projectName}</span>
+                  <Icon svg={<IconChevronDownLine />} size="x4" />
+                </ActionButton>
+              </MenuTrigger>
+              <MenuContent className="project-menu">
+                <MenuGroup>
+                  <MenuItem
+                    label="새 프로젝트"
+                    prefixIcon={<IconPlusLine />}
+                    onClick={onCreateProject}
+                  />
+                  <MenuItem
+                    label="예제 집 열기"
+                    prefixIcon={<IconHouseLine />}
+                    onClick={onOpenSample}
+                  />
+                </MenuGroup>
+                <MenuGroup>
+                  <MenuItem
+                    label="도면 파일"
+                    prefixIcon={<IconDocumentLine />}
+                    onClick={onOpenFloorPlan}
+                  />
+                  <MenuItem
+                    label="JSON으로 내보내기"
+                    prefixIcon={<IconArrowDownHorizlineLine />}
+                    onClick={onExport}
+                  />
+                </MenuGroup>
+              </MenuContent>
+            </MenuRoot>
+          </>
+        )}
+      </div>
+
+      {showViews && (
+        <nav className="app-nav" aria-label="작업 화면">
+          {studioViews.map((item) => {
+            const current = item.id === view
+            const flagged = item.id === "structure" && structureDirty
+            return (
+              <ActionButton
+                key={item.id}
+                variant="ghost"
+                size="medium"
+                color={current ? "fg.neutral" : "fg.neutralMuted"}
+                className="choice-button app-nav-item"
+                aria-current={current ? "page" : undefined}
+                aria-label={
+                  flagged ? `${item.label}, 저장하지 않은 변경 있음` : undefined
+                }
+                onClick={() => onViewChange(item.id)}
+              >
+                {item.label}
+                {flagged && (
+                  <NotificationBadge size="small" className="app-nav-badge" />
+                )}
+              </ActionButton>
+            )
+          })}
+        </nav>
+      )}
+
+      <div className="app-bar-end">
+        {saveFailed && (
+          <ActionButton
+            variant="neutralWeak"
+            size="small"
+            onClick={onSave}
+            disabled={saveBusy || saving}
+            loading={saveBusy}
+          >
+            <PrefixIcon svg={<IconArrowClockwiseCircularLine />} />
+            다시 저장
+          </ActionButton>
+        )}
+      </div>
+    </header>
+  )
+}

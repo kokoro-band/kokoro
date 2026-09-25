@@ -1,276 +1,175 @@
-import { useCallback, useRef, useState } from "react"
-import { Armchair, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  Snackbar,
+  SnackbarProvider,
+  useSnackbarAdapter,
+} from "seed-design/ui/snackbar"
 
-import { ActionButton, BottomSheet, Snackbar, Tabs } from "@seed-design/react"
-
-import { AppHeader } from "@/features/studio/components/AppHeader"
-import { AssistantPanel } from "@/features/studio/components/AssistantPanel"
+import { AppBar, type StudioView } from "@/features/studio/components/AppBar"
+import { ArrangeView } from "@/features/studio/components/ArrangeView"
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
-import { LibraryPanel } from "@/features/studio/components/LibraryPanel"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
-import { ProjectBar } from "@/features/studio/components/ProjectBar"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
-import { PropertiesPanel } from "@/features/studio/components/PropertiesPanel"
-import { SceneEditor } from "@/features/studio/components/SceneEditor"
-import { SelectionPanel } from "@/features/studio/components/SelectionPanel"
-import { useStudioController } from "@/features/studio/hooks/useStudioController"
+import { StructureView } from "@/features/studio/components/StructureView"
+import { SummaryView } from "@/features/studio/components/SummaryView"
+import {
+  useStudioController,
+  type Notice,
+} from "@/features/studio/hooks/useStudioController"
 import { useMediaQuery } from "@/lib/use-media-query"
 
 export default function App() {
+  return (
+    <SnackbarProvider>
+      <Studio />
+    </SnackbarProvider>
+  )
+}
+
+/** 컨트롤러의 알림을 SEED Snackbar 큐로 넘깁니다. */
+function NoticeSnackbar({
+  notice,
+  onShown,
+  onRetrySave,
+}: {
+  notice: Notice | null
+  onShown: () => void
+  onRetrySave: () => void
+}) {
+  const adapter = useSnackbarAdapter()
+  const retryRef = useRef(onRetrySave)
+  useEffect(() => {
+    retryRef.current = onRetrySave
+  }, [onRetrySave])
+  useEffect(() => {
+    if (!notice) return
+    adapter.create({
+      render: () => (
+        <Snackbar
+          variant={notice.tone}
+          message={notice.text}
+          {...(notice.action === "retrySave"
+            ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
+            : {})}
+        />
+      ),
+    })
+    onShown()
+  }, [adapter, notice, onShown])
+  return null
+}
+
+function Studio() {
   const studio = useStudioController()
   const uploadRef = useRef<HTMLInputElement>(null)
+  const isMobile = useMediaQuery("(max-width: 820px)")
+  const hasRooms = Boolean(studio.project.room?.rooms.length)
+  const [view, setView] = useState<StudioView>(() =>
+    hasRooms ? "arrange" : "structure"
+  )
+  const [roomIndex, setRoomIndex] = useState<number | null>(null)
+  const [structureDirty, setStructureDirty] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [floorPlanOpen, setFloorPlanOpen] = useState(false)
-  const [assistantOpen, setAssistantOpen] = useState(false)
-  const [mobilePanel, setMobilePanel] = useState<
-    "library" | "assistant" | "selection" | null
-  >(null)
-  const isMobile = useMediaQuery("(max-width: 820px)")
-  const isBusy = studio.busy !== null
-  const selectStudioFurniture = studio.selectFurniture
-  const openNewProject = () => setNewProjectOpen(true)
-  const rightPanel = assistantOpen
-    ? "assistant"
-    : studio.selected
-      ? "selection"
-      : null
-  const selectFurniture = useCallback(
-    (id: string | null) => {
-      if (id) setAssistantOpen(false)
-      if (isMobile) setMobilePanel(id ? "selection" : null)
-      selectStudioFurniture(id)
-    },
-    [isMobile, selectStudioFurniture]
+  const [applying, setApplying] = useState(false)
+  const ready = studio.projectLoad.status === "ready"
+
+  // 저장된 구조가 바뀌면 구조 편집기를 새 기준으로 다시 시작합니다.
+  const structureKey = useMemo(
+    () => `${studio.project.id}:${JSON.stringify(studio.project.room ?? null)}`,
+    [studio.project.id, studio.project.room]
   )
-  const addFurniture = (catalogId: string) => {
-    setAssistantOpen(false)
-    studio.addFurniture(catalogId)
+
+  const enterRoom = (index: number) => {
+    studio.selectFurniture(null)
+    setRoomIndex(index)
+    setView("arrange")
+  }
+
+  const resetNavigation = (next: StudioView) => {
+    setRoomIndex(null)
+    setView(next)
   }
 
   return (
     <div className="studio-app">
-      <AppHeader onCreate={openNewProject} />
+      <AppBar
+        projectName={studio.project.name}
+        view={view}
+        structureDirty={structureDirty && view !== "structure"}
+        showViews={ready}
+        saving={studio.saving}
+        saveFailed={studio.saveFailed}
+        saveBusy={studio.busy === "save"}
+        onViewChange={setView}
+        onSave={studio.saveProject}
+        onCreateProject={() => setNewProjectOpen(true)}
+        onOpenSample={() => {
+          studio.openSampleProject()
+          resetNavigation("arrange")
+        }}
+        onOpenFloorPlan={() => setFloorPlanOpen(true)}
+        onExport={studio.exportProject}
+      />
       <main id="workspace" className="workspace">
-        {studio.projectLoad.status !== "ready" ? (
+        {!ready ? (
           <ProjectStartup
             state={studio.projectLoad}
             onRetry={studio.retryProjectLoad}
-            onCreate={openNewProject}
+            onCreate={() => setNewProjectOpen(true)}
           />
         ) : (
           <>
-            <ProjectBar
-              project={studio.project}
-              saving={studio.saving}
-              dirty={studio.dirty}
-              saveBusy={studio.busy === "save"}
-              onOpenSample={studio.openSampleProject}
-              onOpenFloorPlan={() => setFloorPlanOpen(true)}
-              onExport={studio.exportProject}
-              onSave={studio.saveProject}
-            />
-            <div
-              className={`editor-grid ${!studio.showLibrary ? "left-hidden" : ""} ${rightPanel ? "right-open" : ""}`}
-            >
-              {!isMobile && studio.showLibrary && (
-                <LibraryPanel
-                  tab={studio.leftTab}
-                  category={studio.category}
-                  furniture={studio.project.furniture}
-                  selectedId={studio.selectedId}
-                  onTabChange={studio.setLeftTab}
-                  onCategoryChange={studio.setCategory}
-                  onAddFurniture={addFurniture}
-                  onSelectFurniture={selectFurniture}
-                />
-              )}
-              <SceneEditor
-                project={studio.project}
-                selectedId={studio.selectedId}
-                mode={studio.mode}
-                showLibrary={studio.showLibrary}
-                canUndo={studio.canUndo}
-                canRedo={studio.canRedo}
-                onToggleLibrary={studio.toggleLibrary}
-                onModeChange={studio.setMode}
-                onUndo={studio.undo}
-                onRedo={studio.redo}
-                onFullscreenError={studio.reportFullscreenError}
-                onSelect={selectFurniture}
-                onMove={studio.moveFurniture}
-                onMoveEnd={studio.saveMovedFurniture}
-                onApplyRoom={studio.applyRoom}
+            <div className="workspace-view" hidden={view !== "structure"}>
+              <StructureView
+                key={structureKey}
+                room={studio.project.room}
+                active={view === "structure"}
+                saving={applying}
+                onDirtyChange={setStructureDirty}
+                onApply={(nextRoom) => {
+                  setApplying(true)
+                  void studio.applyRoom(nextRoom).then((saved) => {
+                    setApplying(false)
+                    if (saved) resetNavigation("arrange")
+                  })
+                }}
               />
-              {!isMobile && (
-                <aside className="right-rail" aria-label="공간 도구">
-                  <Tabs.Root
-                    className="right-rail-tabs"
-                    value={assistantOpen ? "assistant" : "selection"}
-                    onValueChange={(value) =>
-                      setAssistantOpen(value === "assistant")
-                    }
-                    triggerLayout="fill"
-                    size="small"
-                  >
-                    <Tabs.List aria-label="오른쪽 도구">
-                      <Tabs.Trigger value="selection">
-                        <SlidersHorizontal size={15} /> 가구 편집
-                      </Tabs.Trigger>
-                      <Tabs.Trigger value="assistant">
-                        <Sparkles size={15} /> AI 도움
-                      </Tabs.Trigger>
-                      <Tabs.Indicator />
-                    </Tabs.List>
-                  </Tabs.Root>
-                  {assistantOpen ? (
-                    <AssistantPanel
-                      messages={studio.messages}
-                      input={studio.input}
-                      chatBusy={studio.busy === "chat"}
-                      busy={isBusy}
-                      onInputChange={studio.setInput}
-                      onSend={studio.sendMessage}
-                    />
-                  ) : studio.selected ? (
-                    <SelectionPanel
-                      selected={studio.selected}
-                      bounds={studio.roomBounds}
-                      onUpdate={studio.updateSelected}
-                      onDelete={studio.deleteSelected}
-                      onClose={() => selectFurniture(null)}
-                    />
-                  ) : (
-                    <div className="selection-placeholder">
-                      <p>
-                        가구를 선택하면 여기서 위치와 회전을 조절할 수 있어요.
-                      </p>
-                    </div>
-                  )}
-                </aside>
-              )}
             </div>
-            <nav className="mobile-dock" aria-label="편집 도구">
-              <ActionButton
-                variant="neutralWeak"
-                size="medium"
-                onClick={() => setMobilePanel("library")}
-              >
-                <Armchair size={18} /> 가구
-              </ActionButton>
-              <ActionButton
-                variant="neutralWeak"
-                size="medium"
-                onClick={() => setMobilePanel("assistant")}
-              >
-                <Sparkles size={18} /> AI 도움
-              </ActionButton>
-              {studio.selected && (
-                <ActionButton
-                  variant="neutralOutline"
-                  size="medium"
-                  onClick={() => setMobilePanel("selection")}
-                >
-                  <SlidersHorizontal size={18} /> 가구 편집
-                </ActionButton>
-              )}
-            </nav>
+            {view === "arrange" && (
+              <div className="workspace-view">
+                <ArrangeView
+                  studio={studio}
+                  roomIndex={roomIndex}
+                  isMobile={isMobile}
+                  onRoomChange={setRoomIndex}
+                  onOpenStructure={() => setView("structure")}
+                />
+              </div>
+            )}
+            {view === "summary" && (
+              <div className="workspace-view workspace-scroll">
+                <SummaryView
+                  project={studio.project}
+                  onEnterRoom={enterRoom}
+                  onStartArranging={() => setView("arrange")}
+                  onOpenStructure={() => setView("structure")}
+                />
+              </div>
+            )}
           </>
         )}
       </main>
-      <Snackbar.RootProvider>
-        <Snackbar.Region>
-          {studio.notice && (
-            <Snackbar.Root>
-              <Snackbar.Content>
-                <Snackbar.Message>{studio.notice}</Snackbar.Message>
-                <Snackbar.ActionButton onClick={studio.dismissNotice}>
-                  닫기
-                </Snackbar.ActionButton>
-                <Snackbar.HiddenCloseButton onClick={studio.dismissNotice} />
-              </Snackbar.Content>
-            </Snackbar.Root>
-          )}
-        </Snackbar.Region>
-      </Snackbar.RootProvider>
-      <BottomSheet.Root
-        open={isMobile && mobilePanel !== null}
-        onOpenChange={(open) => {
-          if (!open) setMobilePanel(null)
-        }}
-      >
-        <BottomSheet.Backdrop />
-        <BottomSheet.Positioner>
-          <BottomSheet.Content
-            className={`mobile-panel ${mobilePanel === "selection" ? "mobile-panel-selection" : ""}`}
-          >
-            <BottomSheet.Header>
-              <BottomSheet.Title>
-                {mobilePanel === "library"
-                  ? "가구"
-                  : mobilePanel === "assistant"
-                    ? "공간 어시스턴트"
-                    : "선택한 가구"}
-              </BottomSheet.Title>
-              <BottomSheet.CloseButton aria-label="닫기">
-                <X size={18} />
-              </BottomSheet.CloseButton>
-            </BottomSheet.Header>
-            <BottomSheet.Body className="mobile-panel-body">
-              {mobilePanel === "library" && (
-                <LibraryPanel
-                  tab={studio.leftTab}
-                  category={studio.category}
-                  furniture={studio.project.furniture}
-                  selectedId={studio.selectedId}
-                  onTabChange={studio.setLeftTab}
-                  onCategoryChange={studio.setCategory}
-                  onAddFurniture={(catalogId) => {
-                    addFurniture(catalogId)
-                    setMobilePanel("selection")
-                  }}
-                  onSelectFurniture={(id) => {
-                    selectFurniture(id)
-                  }}
-                />
-              )}
-              {mobilePanel === "assistant" && (
-                <AssistantPanel
-                  messages={studio.messages}
-                  input={studio.input}
-                  chatBusy={studio.busy === "chat"}
-                  busy={isBusy}
-                  onInputChange={studio.setInput}
-                  onSend={studio.sendMessage}
-                />
-              )}
-              {mobilePanel === "selection" && (
-                <PropertiesPanel
-                  selected={studio.selected}
-                  bounds={studio.roomBounds}
-                  onUpdate={studio.updateSelected}
-                />
-              )}
-              {mobilePanel === "selection" && studio.selected && (
-                <ActionButton
-                  className="mobile-delete-button"
-                  variant="ghost"
-                  size="medium"
-                  onClick={() => {
-                    studio.deleteSelected()
-                    setMobilePanel(null)
-                  }}
-                >
-                  <Trash2 size={16} /> 가구 삭제
-                </ActionButton>
-              )}
-            </BottomSheet.Body>
-          </BottomSheet.Content>
-        </BottomSheet.Positioner>
-      </BottomSheet.Root>
+      <NoticeSnackbar
+        notice={studio.notice}
+        onShown={studio.dismissNotice}
+        onRetrySave={studio.saveProject}
+      />
       <input
         ref={uploadRef}
         className="sr-only"
         type="file"
+        tabIndex={-1}
         accept="application/pdf,image/png,image/jpeg"
         onChange={(event) => {
           studio.uploadFloorPlan(event.target.files?.[0])
@@ -280,10 +179,10 @@ export default function App() {
       <NewProjectDialog
         open={newProjectOpen}
         onOpenChange={setNewProjectOpen}
-        busy={isBusy}
+        busy={studio.busy === "create"}
         onSubmit={async (name) => {
           const created = await studio.createProject(name)
-          if (created) setFloorPlanOpen(true)
+          if (created) resetNavigation("structure")
           return created
         }}
       />
@@ -292,7 +191,7 @@ export default function App() {
         project={studio.project}
         uploadAttempt={studio.uploadAttempt}
         uploadRef={uploadRef}
-        busy={isBusy}
+        busy={studio.busy !== null}
         onOpenChange={setFloorPlanOpen}
         onRetry={studio.retryUpload}
       />

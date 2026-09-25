@@ -152,7 +152,7 @@ public class JdbcProjectRepository implements ProjectRepository {
 
     private RoomModel readRoom(String json) {
         if (json == null || json.isBlank()) return null;
-        return objectMapper.readValue(json, RoomModel.class);
+        return StoredRoomJson.read(objectMapper, json);
     }
 
     private static Timestamp timestamp(Instant value) {

@@ -40,6 +40,8 @@ class ProjectApiTest {
     }
 
     @Autowired MockMvc mockMvc;
+    @Autowired tools.jackson.databind.ObjectMapper mapper;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
     void exposesHealthAndSampleProject() throws Exception {
@@ -135,28 +137,64 @@ class ProjectApiTest {
                 .andReturn().getResponse().getContentAsString();
         String id = response.split("\"id\":\"")[1].split("\"")[0];
 
-        mockMvc.perform(put("/api/projects/{id}/room", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"room":{
-                                  "version":2,"unit":"m","wallHeight":2.4,
-                                  "bounds":{"width":6.0,"depth":4.0},
-                                  "outline":[{"x":0,"z":0},{"x":6,"z":0},{"x":6,"z":2},{"x":3,"z":2},{"x":3,"z":4},{"x":0,"z":4}],
-                                  "walls":[{"id":"w01","a":{"x":0,"z":0},"b":{"x":6,"z":0},"thickness":0.2}],
-                                  "openings":[{"id":"o01","wallId":"w01","type":"door","from":0.4,"to":1.3,"bottom":0,"top":2.1}],
-                                  "rooms":[{"name":"거실","polygon":[{"x":0,"z":0},{"x":3,"z":0},{"x":3,"z":4},{"x":0,"z":4}]}],
-                                  "spawn":{"x":1.5,"z":2.0},
-                                  "source":{"areaPyeong":18,"roomCount":2,"preset":"grid-v1"}
-                                }}
-                                """))
-                .andExpect(status().isOk());
+        tools.jackson.databind.JsonNode expected;
+        try (var fixture = getClass().getResourceAsStream("/contracts/room-v2.json")) {
+            expected = mapper.readTree(fixture).path("room");
+        }
+        var roomRequest = mapper.createObjectNode().set("room", expected);
+        String saved = mockMvc.perform(put("/api/projects/{id}/room", id)
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(roomRequest)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        // JSON numeric nodes may distinguish 0 from 0.0; compare through the public DTO.
+        var expectedRoom = mapper.treeToValue(expected, com.kokoro.room.project.ProjectModels.RoomModel.class);
+        org.junit.jupiter.api.Assertions.assertEquals(expectedRoom,
+                mapper.treeToValue(mapper.readTree(saved).path("room"), com.kokoro.room.project.ProjectModels.RoomModel.class));
+        assertRoom(id, expectedRoom);
 
-        mockMvc.perform(get("/api/projects/{id}", id))
+        for (String invalid : java.util.List.of("[0]", "[0,0,0]", "[\"0\",0]", "{\"x\":0,\"z\":0}")) {
+            var changed = expected.deepCopy();
+            ((tools.jackson.databind.node.ArrayNode) changed.path("outline")).set(0, mapper.readTree(invalid));
+            mockMvc.perform(put("/api/projects/{id}/room", id).contentType(MediaType.APPLICATION_JSON)
+                            .content(mapper.writeValueAsString(mapper.createObjectNode().set("room", changed))))
+                    .andExpect(status().isBadRequest());
+            assertRoom(id, expectedRoom);
+        }
+
+        // Simulate pre-contract data still stored as object coordinates in PostgreSQL.
+        jdbc.update("UPDATE projects SET room = ?::jsonb WHERE id = ?", mapper.writeValueAsString(legacyCoordinates(expected)), id);
+        assertRoom(id, expectedRoom);
+        // A new repository instance has no in-memory state and must read the same persisted room.
+        var reloaded = new com.kokoro.room.project.JdbcProjectRepository(jdbc, mapper).findById(id).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(expectedRoom, reloaded.room());
+    }
+
+    private void assertRoom(String id, com.kokoro.room.project.ProjectModels.RoomModel expected) throws Exception {
+        String result = mockMvc.perform(get("/api/projects/{id}", id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.room.version").value(2))
-                .andExpect(jsonPath("$.room.outline", hasSize(6)))
-                .andExpect(jsonPath("$.room.openings[0].type").value("door"))
-                .andExpect(jsonPath("$.room.source.roomCount").value(2));
+                .andExpect(jsonPath("$.room.outline[0]").isArray())
+                .andExpect(jsonPath("$.room.walls[0].a").isArray())
+                .andExpect(jsonPath("$.room.rooms[0].polygon[0]").isArray())
+                .andExpect(jsonPath("$.room.spawn").isArray())
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals(expected,
+                mapper.treeToValue(mapper.readTree(result).path("room"), com.kokoro.room.project.ProjectModels.RoomModel.class));
+    }
+
+    private tools.jackson.databind.JsonNode legacyCoordinates(tools.jackson.databind.JsonNode node) {
+        if (node.isArray()) {
+            if (node.size() == 2 && node.get(0).isNumber() && node.get(1).isNumber()) {
+                return mapper.createObjectNode().set("x", node.get(0)).set("z", node.get(1));
+            }
+            var array = mapper.createArrayNode();
+            node.forEach(value -> array.add(legacyCoordinates(value)));
+            return array;
+        }
+        if (node.isObject()) {
+            var object = mapper.createObjectNode();
+            node.properties().forEach(entry -> object.set(entry.getKey(), legacyCoordinates(entry.getValue())));
+            return object;
+        }
+        return node;
     }
 
     @Test

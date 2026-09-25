@@ -141,6 +141,7 @@ public class ProjectService {
     }
 
     public FloorPlanJob findFloorPlanJob(String projectId, String jobId) {
+        find(projectId);
         return floorPlanJobRepository.findById(projectId, jobId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "도면 변환 작업을 찾을 수 없습니다."));
     }

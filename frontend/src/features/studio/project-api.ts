@@ -1,7 +1,11 @@
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { catalog, sampleProject } from "./data"
-import type { Furniture, Project, RoomModel } from "./types"
+import { withObjectParticle } from "./format"
+import { containsPoint } from "./house-navigation"
+import { labelPoint } from "./room-builder"
+import { sampleRoom } from "./sample-room"
+import type { Furniture, Point2, Project, RoomModel } from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
@@ -94,6 +98,7 @@ export async function uploadPlan(
   }
   return {
     ...project,
+    room: sampleRoom,
     floorPlan: {
       fileName: file.name,
       size: file.size,
@@ -109,6 +114,7 @@ export async function createProject(name: string): Promise<Project> {
     ...structuredClone(sampleProject),
     id: crypto.randomUUID(),
     name,
+    room: undefined,
     furniture: [],
     floorPlan: {
       fileName: "",
@@ -142,7 +148,8 @@ export function makeFurniture(catalogId: string, x = 0, z = 0): Furniture {
 
 export async function sendCommand(
   project: Project,
-  message: string
+  message: string,
+  focus?: Point2[]
 ): Promise<{ reply: string; project: Project }> {
   if (isServerMode) {
     return request<{ reply: string; project: Project }>({
@@ -157,10 +164,26 @@ export async function sendCommand(
     width: project.dimensions.width,
     depth: project.dimensions.depth,
   }
-  const at = (widthRatio: number, depthRatio: number): [number, number] => [
-    Math.round(bounds.width * widthRatio * 10) / 10,
-    Math.round(bounds.depth * depthRatio * 10) / 10,
-  ]
+  // 방을 보고 있을 때는 그 방 안에만 가구를 놓습니다.
+  const area = focus?.length
+    ? {
+        x: Math.min(...focus.map(([x]) => x)),
+        z: Math.min(...focus.map(([, z]) => z)),
+        width:
+          Math.max(...focus.map(([x]) => x)) -
+          Math.min(...focus.map(([x]) => x)),
+        depth:
+          Math.max(...focus.map(([, z]) => z)) -
+          Math.min(...focus.map(([, z]) => z)),
+      }
+    : { x: 0, z: 0, ...bounds }
+  const at = (widthRatio: number, depthRatio: number): [number, number] => {
+    const x = area.x + area.width * widthRatio
+    const z = area.z + area.depth * depthRatio
+    const [safeX, safeZ] =
+      focus?.length && !containsPoint(focus, x, z) ? labelPoint(focus) : [x, z]
+    return [Math.round(safeX * 10) / 10, Math.round(safeZ * 10) / 10]
+  }
   let furniture = [...project.furniture]
   const actions: string[] = []
   const targets = [
@@ -196,7 +219,7 @@ export async function sendCommand(
         actions.push(`${existing.name} 위치를 조정했어요`)
       } else {
         furniture.push(makeFurniture(target.id, x, z))
-        actions.push(`${target.word}를 배치했어요`)
+        actions.push(`${withObjectParticle(target.word)} 놓았어요`)
       }
     }
     if (normalized.includes("미니멀") && actions.length === 0) {
@@ -210,8 +233,8 @@ export async function sendCommand(
   }
   return {
     reply: actions.length
-      ? `${actions.join(". ")}. 가구를 드래그하거나 오른쪽 위치 값을 바꿔 보세요.`
-      : "소파와 테이블과 의자와 화분과 램프를 배치할 수 있어요. 예를 들어 ‘창가에 의자를 옮겨줘’라고 말해 보세요.",
+      ? `${actions.join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
+      : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
     project: { ...project, furniture },
   }
 }

@@ -158,6 +158,6 @@ export const initialMessages = [
   {
     id: "welcome",
     role: "assistant" as const,
-    text: "어떤 방을 만들고 싶으세요? 원하는 분위기와 필요한 가구를 알려주시면 함께 배치해 볼게요.",
+    text: "어떤 방을 만들고 싶나요? 원하는 분위기와 필요한 가구를 알려 주면 함께 배치해 볼게요.",
   },
 ]

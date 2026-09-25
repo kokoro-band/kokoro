@@ -14,7 +14,7 @@ import {
   sendCommand,
   uploadPlan,
 } from "./project-api"
-import type { Project, RoomModel } from "./types"
+import type { Point2, Project, RoomModel } from "./types"
 
 export const projectKeys = {
   all: ["projects"] as const,
@@ -102,8 +102,15 @@ export function sendCommandMutationOptions(
 ) {
   return mutationOptions({
     mutationKey: projectKeys.command(projectId),
-    mutationFn: ({ project, message }: { project: Project; message: string }) =>
-      sendCommand(project, message),
+    mutationFn: ({
+      project,
+      message,
+      focus,
+    }: {
+      project: Project
+      message: string
+      focus?: Point2[]
+    }) => sendCommand(project, message, focus),
     retry: false,
     onSuccess: (response) => cacheProject(queryClient, response.project),
   })

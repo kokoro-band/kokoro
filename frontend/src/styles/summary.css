@@ -1,0 +1,81 @@
+/* 내역: 방별 목록과 예상 비용 */
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x6);
+  width: min(var(--layout-content), 100%);
+  margin: 0 auto;
+  padding: var(--seed-dimension-x8) var(--seed-dimension-x6)
+    var(--seed-dimension-x16);
+}
+
+.summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x6);
+}
+
+.summary-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x2);
+}
+
+.summary-heading > * {
+  margin: 0;
+  text-wrap: balance;
+}
+
+.summary-total {
+  display: grid;
+  justify-items: end;
+  gap: var(--seed-dimension-x0_5);
+  margin: 0;
+}
+
+.summary-total dd {
+  margin: 0;
+}
+
+.summary-group {
+  overflow: hidden;
+  background: var(--seed-color-bg-layer-default);
+  border: 1px solid var(--line);
+  border-radius: var(--seed-radius-r4);
+}
+
+.summary-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x3);
+  padding: var(--seed-dimension-x4) var(--seed-dimension-x4)
+    var(--seed-dimension-x2);
+}
+
+.summary-group-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x0_5);
+}
+
+.summary-group .seed-list {
+  padding-bottom: var(--seed-dimension-x2);
+}
+
+.summary-note {
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .summary {
+    padding: var(--seed-dimension-x6) var(--seed-dimension-x4)
+      var(--seed-dimension-x12);
+  }
+
+  .summary-total {
+    justify-items: start;
+  }
+}

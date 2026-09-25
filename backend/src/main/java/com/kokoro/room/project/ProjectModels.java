@@ -1,6 +1,9 @@
 package com.kokoro.room.project;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -84,7 +87,26 @@ public final class ProjectModels {
 
     public record RoomSource(double areaPyeong, int roomCount, String preset) {}
 
-    public record Point(double x, double z) {}
+    public record Point(double x, double z) {
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static Point fromJson(JsonNode value) {
+            if (!value.isArray() || value.size() != 2
+                    || !value.get(0).isNumber() || !value.get(1).isNumber()) {
+                throw new IllegalArgumentException("좌표는 숫자 두 개의 [x, z] 배열이어야 합니다.");
+            }
+            double x = value.get(0).doubleValue();
+            double z = value.get(1).doubleValue();
+            if (!Double.isFinite(x) || !Double.isFinite(z)) {
+                throw new IllegalArgumentException("좌표는 유한한 숫자여야 합니다.");
+            }
+            return new Point(x, z);
+        }
+
+        @JsonValue
+        public double[] coordinates() {
+            return new double[] { x, z };
+        }
+    }
 
     public record FurnitureItem(
             @NotBlank String id,

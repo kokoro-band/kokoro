@@ -57,3 +57,29 @@ export function instantiateFurnitureModel(
   wrapper.scale.setScalar(scale)
   return wrapper
 }
+
+/** A failed or obsolete load must leave the editable fallback in place. */
+export async function upgradeFurnitureModel(
+  group: THREE.Group,
+  item: CatalogItem,
+  isCurrent: () => boolean,
+  dispose: (fallback: THREE.Group) => void,
+  onLoaded: () => void
+) {
+  if (!item.modelUrl) return false
+  try {
+    const template = await loadFurnitureModel(item.modelUrl)
+    if (!isCurrent()) return false
+    const model = instantiateFurnitureModel(template, item)
+    const fallback = group.children[0] as THREE.Group | undefined
+    if (fallback) {
+      dispose(fallback)
+      group.remove(fallback)
+    }
+    group.add(model)
+    onLoaded()
+    return true
+  } catch {
+    return false
+  }
+}

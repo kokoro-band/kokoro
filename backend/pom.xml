@@ -92,6 +92,18 @@
                 <targetPath>contracts</targetPath>
             </testResource>
         </testResources>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../docs/contracts</directory>
+                <targetPath>contracts</targetPath>
+                <includes>
+                    <include>furniture-catalog.json</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

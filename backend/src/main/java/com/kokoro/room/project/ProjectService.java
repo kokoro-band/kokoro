@@ -40,11 +40,13 @@ public class ProjectService {
     private final FurniturePlacementValidator furniturePlacementValidator;
     private final CurrentUser currentUser;
     private final LayoutCommandInterpreter layoutCommandInterpreter;
+    private final RoomModelValidator roomModelValidator;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
                           FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
                           FurniturePlacementValidator furniturePlacementValidator,
-                          CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter) {
+                          CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter,
+                          RoomModelValidator roomModelValidator) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
@@ -52,6 +54,7 @@ public class ProjectService {
         this.furniturePlacementValidator = furniturePlacementValidator;
         this.currentUser = currentUser;
         this.layoutCommandInterpreter = layoutCommandInterpreter;
+        this.roomModelValidator = roomModelValidator;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -154,6 +157,7 @@ public class ProjectService {
     @Transactional
     public RenovationProject saveRoom(String id, RoomModel room) {
         RenovationProject project = find(id);
+        roomModelValidator.validate(room);
         RenovationProject updated = new RenovationProject(project.id(), project.ownerId(), project.name(),
                 project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now());
         furniturePlacementValidator.validate(updated.dimensions(), room, updated.furniture());

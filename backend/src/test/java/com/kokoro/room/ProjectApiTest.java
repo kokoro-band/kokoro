@@ -151,6 +151,19 @@ class ProjectApiTest {
                 mapper.treeToValue(mapper.readTree(saved).path("room"), com.kokoro.room.project.ProjectModels.RoomModel.class));
         assertRoom(id, expectedRoom);
 
+        String beforeInvalid = mockMvc.perform(get("/api/projects/{id}", id))
+                .andReturn().getResponse().getContentAsString();
+        var invalidRoom = expected.deepCopy();
+        ((tools.jackson.databind.node.ObjectNode) invalidRoom.path("openings").get(0)).put("wallId", "missing-wall");
+        mockMvc.perform(put("/api/projects/{id}/room", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(mapper.createObjectNode().set("room", invalidRoom))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_ROOM"))
+                .andExpect(jsonPath("$.violations[0].path").value("openings[0].wallId"));
+        String afterInvalid = mockMvc.perform(get("/api/projects/{id}", id))
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals(mapper.readTree(beforeInvalid), mapper.readTree(afterInvalid));
+
         for (String invalid : java.util.List.of("[0]", "[0,0,0]", "[\"0\",0]", "{\"x\":0,\"z\":0}")) {
             var changed = expected.deepCopy();
             ((tools.jackson.databind.node.ArrayNode) changed.path("outline")).set(0, mapper.readTree(invalid));

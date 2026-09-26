@@ -285,7 +285,10 @@ export function RoomScene({
       )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(centerX, 0.25, centerZ)
-      controls.enableDamping = true
+      // 움직임을 줄이도록 설정했다면 손을 뗀 뒤 카메라가 미끄러지지 않게 합니다.
+      controls.enableDamping = !window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
       controls.maxPolarAngle = Math.PI / 2.15
       controls.minDistance = Math.max(2, 4 * focusScale)
       controls.maxDistance = 16 * scale

@@ -68,6 +68,8 @@
 
 ## 배치 저장
 
+공간 구조가 유효하지 않으면 `400`과 `code: INVALID_ROOM`을 반환합니다. `violations` 배열의 `path`는 수정할 필드이며 `reason`은 사용자용 이유입니다. 예를 들어 없는 벽을 참조한 문은 `openings[0].wallId`를 가리킵니다. JSON 자체가 잘못되었거나 필수 값이 없으면 표준 요청 검증의 `400`이 반환될 수 있습니다. 어느 경우에도 이전 공간과 배치를 변경하지 않습니다.
+
 `PUT /projects/{projectId}/layout`
 
 ```json

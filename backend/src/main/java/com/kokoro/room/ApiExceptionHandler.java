@@ -8,6 +8,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(com.kokoro.room.project.InvalidRoomException.class)
+    public ProblemDetail invalidRoom(com.kokoro.room.project.InvalidRoomException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), exception.getMessage());
+        problem.setProperty("code", "INVALID_ROOM");
+        problem.setProperty("violations", exception.violations());
+        return problem;
+    }
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handle(ResponseStatusException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

@@ -15,12 +15,7 @@ import {
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
-import type {
-  Furniture,
-  RoomLabel,
-  RoomModel,
-  ViewMode,
-} from "./types"
+import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
 import { createVrLocomotion } from "./vr-locomotion"
 

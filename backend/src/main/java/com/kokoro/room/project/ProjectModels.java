@@ -141,7 +141,9 @@ public final class ProjectModels {
 
     public record SaveLayoutRequest(@NotNull List<@Valid FurnitureItem> furniture) {}
 
-    public record ChatCommandRequest(@NotBlank String message) {}
+    public record ChatCommandRequest(@NotBlank String message, String furnitureId) {}
+
+    public record ConfirmCommandRequest(@NotBlank String proposalId) {}
 
     public enum LayoutActionType { ADD, MOVE, ROTATE, REMOVE, CLEAR }
 
@@ -154,11 +156,29 @@ public final class ProjectModels {
             Integer rotation
     ) {}
 
+    public record LayoutCandidate(String furnitureId, String name) {}
+
+    /** A destructive command (CLEAR) staged for a one-time confirm within {@code expiresAt}. */
+    public record LayoutProposal(
+            String proposalId,
+            String projectId,
+            String ownerId,
+            Instant baseUpdatedAt,
+            List<LayoutCommand> commands,
+            Instant createdAt,
+            Instant expiresAt,
+            Instant consumedAt
+    ) {}
+
     public record ChatCommandResponse(
             String reply,
             List<String> appliedActions,
             List<LayoutCommand> commands,
             boolean requiresConfirmation,
-            RenovationProject project
+            RenovationProject project,
+            String proposalId,
+            Instant expiresAt,
+            List<LayoutCommand> proposedCommands,
+            List<LayoutCandidate> candidates
     ) {}
 }

@@ -47,6 +47,17 @@ public class FurniturePlacementValidator {
         return new FurniturePlacementValidator(sizes.get());
     }
 
+    /** Existing placements are checked by the caller once, not for every search candidate. */
+    public void validateCandidate(Dimensions dimensions, RoomModel room, List<FurnitureItem> existing, FurnitureItem candidate) {
+        validate(dimensions, room, List.of(candidate));
+        var catalog = sizes.get();
+        var footprint = box(candidate, catalog);
+        for (var other : existing) {
+            if (overlaps(footprint, box(other, catalog))) throw new InvalidPlacementException("FURNITURE_OVERLAP",
+                    "가구가 겹칩니다.", List.of(candidate.id(), other.id()), null, null);
+        }
+    }
+
     /**
      * Coordinates are meters with the origin at the top-left of the room bounding box.
      * Without room data the room is treated as a rectangle of the project dimensions.

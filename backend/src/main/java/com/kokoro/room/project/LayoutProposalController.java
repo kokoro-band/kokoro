@@ -7,9 +7,17 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/projects/{projectId}/layout/proposals")
 public class LayoutProposalController {
     private final LayoutProposalService proposals;
+    private final LayoutIntentService intents;
 
-    public LayoutProposalController(LayoutProposalService proposals) {
+    public LayoutProposalController(LayoutProposalService proposals, LayoutIntentService intents) {
         this.proposals = proposals;
+        this.intents = intents;
+    }
+
+    @PostMapping("/intent")
+    public LayoutProposalService.View interpret(@PathVariable String projectId,
+                                                @Valid @RequestBody LayoutIntentService.Request request) {
+        return intents.preview(projectId, request);
     }
 
     @PostMapping

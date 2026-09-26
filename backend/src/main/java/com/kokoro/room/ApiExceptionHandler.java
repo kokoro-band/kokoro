@@ -8,6 +8,14 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(com.kokoro.room.project.LayoutChoiceException.class)
+    public ProblemDetail layoutChoice(com.kokoro.room.project.LayoutChoiceException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(exception.getStatusCode(), exception.getReason());
+        problem.setProperty("code", exception.code());
+        problem.setProperty("choiceKey", exception.choiceKey());
+        problem.setProperty("candidates", exception.candidates());
+        return problem;
+    }
     @ExceptionHandler(com.kokoro.room.project.InvalidPlacementException.class)
     public ProblemDetail invalidPlacement(com.kokoro.room.project.InvalidPlacementException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), exception.getReason());

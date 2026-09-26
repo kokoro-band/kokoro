@@ -59,7 +59,10 @@ export async function saveProject(project: Project): Promise<Project> {
     return request<Project>({
       url: `${projectPath(project.id)}/layout`,
       method: "PUT",
-      data: { furniture: project.furniture },
+      data: {
+        furniture: project.furniture,
+        expectedRevision: project.revision,
+      },
     })
   }
   localStorage.setItem(storageKey, JSON.stringify(updated))
@@ -75,7 +78,7 @@ export async function saveRoom(
     return request<Project>({
       url: `${projectPath(project.id)}/room`,
       method: "PUT",
-      data: { room },
+      data: { room, expectedRevision: project.revision },
     })
   }
   localStorage.setItem(storageKey, JSON.stringify(updated))
@@ -155,7 +158,7 @@ export async function sendCommand(
     return request<{ reply: string; project: Project }>({
       url: `${projectPath(project.id)}/layout/commands`,
       method: "POST",
-      data: { message },
+      data: { message, expectedRevision: project.revision },
     })
   }
 

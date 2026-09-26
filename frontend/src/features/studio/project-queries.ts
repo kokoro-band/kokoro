@@ -65,7 +65,7 @@ export function saveProjectMutationOptions(
   return mutationOptions({
     mutationKey: projectKeys.layout(projectId),
     mutationFn: saveProject,
-    retry: shouldRetryProjectRequest,
+    retry: false,
     onSuccess: (project) => cacheProject(queryClient, project),
   })
 }
@@ -78,7 +78,7 @@ export function saveRoomMutationOptions(
     mutationKey: projectKeys.room(projectId),
     mutationFn: ({ project, room }: { project: Project; room: RoomModel }) =>
       saveRoom(project, room),
-    retry: shouldRetryProjectRequest,
+    retry: false,
     onSuccess: (project) => cacheProject(queryClient, project),
   })
 }

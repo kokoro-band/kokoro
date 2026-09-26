@@ -30,12 +30,14 @@
   },
   "devDependencies": {
     "@seed-design/vite-plugin": "^2.1.0",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6",
     "globals": "^17",
+    "happy-dom": "^20.14.5",
     "typescript": "~6",
     "vite": "catalog:",
     "vite-plus": "catalog:"

@@ -33,4 +33,33 @@ describe.skipIf(env.KOKORO_LIVE_AI !== "1")("real user-local Ollama", () => {
     },
     120000
   )
+
+  it.each([
+    ["셸 체어 두 개 추가해줘", "ADD", "AUTO", null, 2, 0.3],
+    [
+      "라운드 테이블을 소파 앞쪽에 하나 배치해 줘",
+      "ADD",
+      "FRONT",
+      "소파",
+      1,
+      0.3,
+    ],
+    ["샌드 체어 3개를 창가에 놓고 싶어", "ADD", "NEAR_WINDOW", null, 3, 0.3],
+    ["선택한 가구를 뒤로 30cm만 옮겨", "MOVE", "OFFSET_BACK", null, 1, 0.3],
+  ])(
+    "checks additional wording: %s",
+    async (message, action, placement, anchor, count, distance) => {
+      const result = await interpretLocally(message, sampleProject, catalog)
+      expect(result.commands).toHaveLength(1)
+      expect(result.commands[0]).toMatchObject({
+        action,
+        placement,
+        count,
+        distanceM: distance,
+      })
+      if (anchor) expect(result.commands[0].anchorQuery).toContain(anchor)
+      else expect(result.commands[0].anchorQuery).toBeNull()
+    },
+    120000
+  )
 })

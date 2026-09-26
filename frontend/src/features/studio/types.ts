@@ -68,6 +68,7 @@ export type RoomSource = {
 }
 
 export type Project = {
+  revision?: number
   id: string
   name: string
   roomType: string

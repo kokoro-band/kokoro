@@ -19,6 +19,8 @@ import {
   uploadPlanMutationOptions,
 } from "@/features/studio/project-queries"
 import { withObjectParticle } from "@/features/studio/format"
+import { useLocalAssistant } from "./useLocalAssistant"
+import { projectKeys } from "@/features/studio/project-queries"
 import type {
   RoomModel,
   Category,
@@ -84,7 +86,7 @@ export function useStudioController() {
     )
   }, [])
   const [busy, setBusy] = useState<
-    "chat" | "save" | "upload" | "create" | null
+    "chat" | "save" | "upload" | "create" | "room" | null
   >(null)
   const [uploadAttempt, setUploadAttempt] = useState<UploadAttempt | null>(null)
   const [past, setPast] = useState<Furniture[][]>([])
@@ -117,6 +119,11 @@ export function useStudioController() {
   const saveLoopRef = useRef<Promise<void> | null>(null)
   const saveProjectAsyncRef = useRef(saveProjectMutation.mutateAsync)
   const transientBaseRef = useRef<Furniture[] | null>(null)
+  const operationRef = useRef(false)
+  const assistantLockedRef = useRef(false)
+  const saveErrorRef = useRef<unknown>(null)
+  const revisionsRef = useRef<Record<string, number>>({})
+  const loadGenerationRef = useRef(0)
 
   const selected = project.furniture.find((item) => item.id === selectedId)
   const roomBounds = project.room?.bounds ?? {
@@ -140,15 +147,30 @@ export function useStudioController() {
             const next = queuedSaveRef.current
             queuedSaveRef.current = null
             try {
-              const saved = await saveProjectAsyncRef.current(next)
+              const saved = await saveProjectAsyncRef.current({
+                ...next,
+                revision: revisionsRef.current[next.id] ?? next.revision,
+              })
+              if (saved.revision !== undefined)
+                revisionsRef.current[saved.id] = saved.revision
+              saveErrorRef.current = null
+              if (projectRef.current.id !== next.id) continue
               setSaveFailed(false)
-              if (projectRef.current === next) {
+              if (projectRef.current.furniture === next.furniture) {
                 projectRef.current = saved
                 setProject(saved)
                 setDirty(false)
+              } else {
+                const latest = {
+                  ...projectRef.current,
+                  revision: saved.revision,
+                }
+                projectRef.current = latest
+                setProject(latest)
               }
             } catch (error) {
               failed = true
+              saveErrorRef.current = error
               queuedSaveRef.current = null
               setDirty(true)
               setSaveFailed(true)
@@ -189,13 +211,23 @@ export function useStudioController() {
 
   const loadServerProject = useCallback(
     async function loadServerProject(projectId: string) {
+      const generation = ++loadGenerationRef.current
       activeProjectIdRef.current = projectId
       setProjectLoad({ status: "loading", message: "" })
       try {
-        const loaded = await queryClient.fetchQuery(
-          projectQueryOptions(projectId)
+        const loaded = await queryClient.fetchQuery({
+          ...projectQueryOptions(projectId),
+          staleTime: 0,
+        })
+        if (
+          activeProjectIdRef.current !== projectId ||
+          generation !== loadGenerationRef.current
         )
-        if (activeProjectIdRef.current !== projectId) return
+          return
+        if (loaded.revision !== undefined)
+          revisionsRef.current[loaded.id] = loaded.revision
+        saveErrorRef.current = null
+        setSaveFailed(false)
         rememberActiveProject(loaded.id)
         projectRef.current = loaded
         setProject(loaded)
@@ -206,7 +238,11 @@ export function useStudioController() {
         setDirty(false)
         setProjectLoad({ status: "ready", message: "" })
       } catch (error) {
-        if (activeProjectIdRef.current !== projectId) return
+        if (
+          activeProjectIdRef.current !== projectId ||
+          generation !== loadGenerationRef.current
+        )
+          return
         setProjectLoad({
           status: "error",
           message:
@@ -219,17 +255,24 @@ export function useStudioController() {
     [queryClient]
   )
 
-  useEffect(() => {
-    saveProjectAsyncRef.current = saveProjectMutation.mutateAsync
-  }, [saveProjectMutation.mutateAsync])
+  useEffect(
+    function synchronizeSaveMutation() {
+      saveProjectAsyncRef.current = saveProjectMutation.mutateAsync
+    },
+    [saveProjectMutation.mutateAsync]
+  )
 
-  useEffect(() => {
-    if (!isServerMode || startedInitialLoadRef.current) return
-    startedInitialLoadRef.current = true
-    void loadServerProject(activeProjectIdRef.current)
-  }, [loadServerProject])
+  useEffect(
+    function loadInitialServerProject() {
+      if (!isServerMode || startedInitialLoadRef.current) return
+      startedInitialLoadRef.current = true
+      void loadServerProject(activeProjectIdRef.current)
+    },
+    [loadServerProject]
+  )
 
   function commitFurniture(next: Furniture[]) {
+    if (operationRef.current || assistantLockedRef.current) return
     const updated = { ...projectRef.current, furniture: next }
     setPast((history) => [...history.slice(-29), project.furniture])
     setFuture([])
@@ -249,6 +292,7 @@ export function useStudioController() {
     id: string,
     update: Partial<Furniture>
   ) {
+    if (operationRef.current || assistantLockedRef.current) return
     transientBaseRef.current ??= projectRef.current.furniture
     const updated = {
       ...projectRef.current,
@@ -281,6 +325,7 @@ export function useStudioController() {
   )
 
   function updateSelected(update: Partial<Furniture>) {
+    if (operationRef.current || assistantLockedRef.current) return
     commitFurniture(
       project.furniture.map((item) =>
         item.id === selectedId ? { ...item, ...update } : item
@@ -289,11 +334,13 @@ export function useStudioController() {
   }
 
   function deleteSelected() {
+    if (operationRef.current || assistantLockedRef.current) return
     commitFurniture(project.furniture.filter((item) => item.id !== selectedId))
     setSelectedId(null)
   }
 
   function addFurniture(catalogId: string, position?: [number, number]) {
+    if (operationRef.current || assistantLockedRef.current) return
     const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
@@ -310,6 +357,7 @@ export function useStudioController() {
   }
 
   function undo() {
+    if (operationRef.current || assistantLockedRef.current) return
     const previous = past.at(-1)
     if (!previous) return
     setFuture((history) => [project.furniture, ...history])
@@ -322,6 +370,7 @@ export function useStudioController() {
   }
 
   function redo() {
+    if (operationRef.current || assistantLockedRef.current) return
     const next = future[0]
     if (!next) return
     setPast((history) => [...history, project.furniture])
@@ -334,16 +383,15 @@ export function useStudioController() {
   }
 
   async function handleSave() {
-    const snapshot = projectRef.current
+    if (operationRef.current || assistantLockedRef.current) return
+    commitPreview()
+    operationRef.current = true
     setBusy("save")
     try {
-      const saved = await saveProjectMutation.mutateAsync(snapshot)
-      setSaveFailed(false)
-      if (projectRef.current === snapshot) {
-        projectRef.current = saved
-        setProject(saved)
-        setDirty(false)
-      }
+      await saveLoopRef.current
+      queueSave(projectRef.current)
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
       setNotice(
         isServerMode ? "저장했어요." : "이 브라우저에 저장했어요.",
         "positive"
@@ -355,17 +403,28 @@ export function useStudioController() {
         "retrySave"
       )
     } finally {
+      operationRef.current = false
       setBusy(null)
     }
   }
 
-  async function handleChat(text: string, focus?: Point2[]) {
-    if (!text.trim() || busy) return
+  async function handleChat(
+    text: string,
+    focus?: Point2[],
+    focusRoomName?: string
+  ) {
+    if (!text.trim() || operationRef.current || assistantLockedRef.current)
+      return
     setMessages((current) => [
       ...current,
       { id: crypto.randomUUID(), role: "user", text },
     ])
     setInput("")
+    if (isServerMode) {
+      await assistant.send(text, selectedId, focusRoomName)
+      return
+    }
+    operationRef.current = true
     setBusy("chat")
     try {
       const response = await sendCommandMutation.mutateAsync({
@@ -395,12 +454,13 @@ export function useStudioController() {
         },
       ])
     } finally {
+      operationRef.current = false
       setBusy(null)
     }
   }
 
   async function handleUpload(file?: File) {
-    if (!file) return
+    if (!file || operationRef.current || assistantLockedRef.current) return
     setNotice("")
     const validationError = validateFloorPlan(file)
     if (validationError) {
@@ -415,6 +475,8 @@ export function useStudioController() {
       return
     }
 
+    commitPreview()
+    operationRef.current = true
     setBusy("upload")
     setUploadAttempt({
       file,
@@ -425,11 +487,16 @@ export function useStudioController() {
       retryable: true,
     })
     try {
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
       await new Promise((resolve) => window.setTimeout(resolve, 350))
       setUploadAttempt((current) =>
         current?.file === file ? { ...current, progress: 42 } : current
       )
-      const uploaded = await uploadPlanMutation.mutateAsync({ project, file })
+      const uploaded = await uploadPlanMutation.mutateAsync({
+        project: projectRef.current,
+        file,
+      })
       setUploadAttempt((current) =>
         current?.file === file
           ? { ...current, phase: "CONVERTING", progress: 74 }
@@ -449,6 +516,8 @@ export function useStudioController() {
         }
       }
       projectRef.current = resolved
+      if (resolved.revision !== undefined)
+        revisionsRef.current[resolved.id] = resolved.revision
       setProject(resolved)
       setUploadAttempt(null)
       persistLocalChange(resolved)
@@ -473,6 +542,7 @@ export function useStudioController() {
           : current
       )
     } finally {
+      operationRef.current = false
       setBusy(null)
     }
   }
@@ -483,11 +553,19 @@ export function useStudioController() {
   }
 
   async function handleCreate(name: string) {
+    if (operationRef.current || assistantLockedRef.current) return false
     const trimmedName = name.trim()
     if (!trimmedName) return false
+    commitPreview()
+    operationRef.current = true
     setBusy("create")
     try {
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
       const created = await createProjectMutation.mutateAsync(trimmedName)
+      loadGenerationRef.current++
+      if (created.revision !== undefined)
+        revisionsRef.current[created.id] = created.revision
       projectRef.current = created
       setProject(created)
       if (isServerMode) {
@@ -514,38 +592,59 @@ export function useStudioController() {
       )
       return false
     } finally {
+      operationRef.current = false
       setBusy(null)
     }
   }
 
-  function openSampleProject() {
-    if (isServerMode) {
-      void loadServerProject(sampleProject.id)
-      return
+  async function openSampleProject() {
+    if (operationRef.current || assistantLockedRef.current) return
+    commitPreview()
+    operationRef.current = true
+    try {
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
+      if (isServerMode) {
+        await loadServerProject(sampleProject.id)
+        return
+      }
+      const sample = structuredClone(sampleProject)
+      projectRef.current = sample
+      setProject(sample)
+      setUploadAttempt(null)
+      setPast([])
+      setFuture([])
+      setSelectedId(null)
+      persistLocalChange(sample)
+      setNotice("예제 집을 열었어요.")
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "현재 배치를 저장한 뒤 이동해 주세요.",
+        "critical"
+      )
+    } finally {
+      operationRef.current = false
     }
-    const sample = structuredClone(sampleProject)
-    projectRef.current = sample
-    setProject(sample)
-    setUploadAttempt(null)
-    setPast([])
-    setFuture([])
-    setSelectedId(null)
-    persistLocalChange(sample)
-    setNotice("예제 집을 열었어요.")
   }
 
   async function applyRoom(room: RoomModel) {
+    if (operationRef.current || assistantLockedRef.current) return false
+    commitPreview()
+    operationRef.current = true
+    setBusy("room")
     setNotice("")
     try {
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
       const updated = await saveRoomMutation.mutateAsync({
         project: projectRef.current,
         room,
       })
-      const next = {
-        ...projectRef.current,
-        room: updated.room,
-        updatedAt: updated.updatedAt,
-      }
+      const next = updated
+      if (updated.revision !== undefined)
+        revisionsRef.current[updated.id] = updated.revision
       projectRef.current = next
       setProject(next)
       setNotice("구조를 저장했어요.", "positive")
@@ -558,6 +657,79 @@ export function useStudioController() {
         "critical"
       )
       return false
+    } finally {
+      operationRef.current = false
+      setBusy(null)
+    }
+  }
+
+  const assistant = useLocalAssistant({
+    enabled: isServerMode,
+    prepare: async function prepareLocalRequest() {
+      if (operationRef.current || projectLoad.status !== "ready") return null
+      commitPreview()
+      operationRef.current = true
+      setBusy("chat")
+      await saveLoopRef.current
+      if (saveErrorRef.current) throw saveErrorRef.current
+      return projectRef.current
+    },
+    release: function releaseLocalRequest() {
+      operationRef.current = false
+      assistantLockedRef.current = false
+      setBusy(null)
+    },
+    applied: function applyConfirmedProject(saved) {
+      loadGenerationRef.current++
+      const previous = projectRef.current
+      setPast((history) =>
+        previous.id === saved.id
+          ? [...history.slice(-29), previous.furniture]
+          : []
+      )
+      setFuture([])
+      projectRef.current = saved
+      if (saved.revision !== undefined)
+        revisionsRef.current[saved.id] = saved.revision
+      activeProjectIdRef.current = saved.id
+      rememberActiveProject(saved.id)
+      queryClient.setQueryData(projectKeys.detail(saved.id), saved)
+      setProject(saved)
+      setProjectLoad({ status: "ready", message: "" })
+      setUploadAttempt(null)
+      setSelectedId(null)
+      setDirty(false)
+      setSaveFailed(false)
+      saveErrorRef.current = null
+    },
+    message: function appendAssistantMessage(text) {
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "assistant", text },
+      ])
+    },
+  })
+
+  useEffect(
+    function synchronizeAssistantLock() {
+      assistantLockedRef.current = assistant.locked
+    },
+    [assistant.locked]
+  )
+
+  async function reloadSavedProject() {
+    if (operationRef.current || assistantLockedRef.current || !isServerMode)
+      return
+    operationRef.current = true
+    setBusy("save")
+    try {
+      // A sent write cannot be cancelled safely. Read only after it settles.
+      await saveLoopRef.current
+      transientBaseRef.current = null
+      await loadServerProject(projectRef.current.id)
+    } finally {
+      operationRef.current = false
+      setBusy(null)
     }
   }
 
@@ -575,6 +747,8 @@ export function useStudioController() {
 
   return {
     project,
+    assistant,
+    reloadSavedProject,
     roomBounds,
     applyRoom,
     projectLoad,
@@ -586,13 +760,13 @@ export function useStudioController() {
     messages,
     input,
     notice,
-    busy,
+    busy: busy ?? (assistant.locked ? "chat" : null),
     uploadAttempt,
     dirty,
     saving,
     saveFailed,
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
+    canUndo: !busy && !assistant.locked && past.length > 0,
+    canRedo: !busy && !assistant.locked && future.length > 0,
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
     openSampleProject,
     exportProject,
@@ -613,8 +787,8 @@ export function useStudioController() {
     },
     commitPreview,
     setInput,
-    sendMessage: (text: string, focus?: Point2[]) =>
-      void handleChat(text, focus),
+    sendMessage: (text: string, focus?: Point2[], focusRoomName?: string) =>
+      void handleChat(text, focus, focusRoomName),
     updateSelected,
     deleteSelected,
     dismissNotice,

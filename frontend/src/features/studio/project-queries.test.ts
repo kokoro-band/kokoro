@@ -138,14 +138,12 @@ describe("project retry policy", () => {
     ).toBe(false)
   })
 
-  it("only retries the idempotent save mutation", () => {
+  it("does not replay writes after an ambiguous network response", () => {
     const client = queryClient()
 
     expect(createProjectMutationOptions(client).retry).toBe(false)
     expect(uploadPlanMutationOptions(client, project.id).retry).toBe(false)
     expect(sendCommandMutationOptions(client, project.id).retry).toBe(false)
-    expect(saveProjectMutationOptions(client, project.id).retry).toBe(
-      shouldRetryProjectRequest
-    )
+    expect(saveProjectMutationOptions(client, project.id).retry).toBe(false)
   })
 })

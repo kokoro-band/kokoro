@@ -224,7 +224,7 @@ export function localMessages(
     throw new Error("요청을 1자 이상 2000자 이하로 입력해 주세요.")
   if (project.furniture.length > 200 || catalog.length > 200)
     throw new Error("가구가 너무 많아 자연어 요청을 처리할 수 없어요.")
-  return [
+  const examples = [
     {
       role: "system",
       content:
@@ -305,6 +305,18 @@ export function localMessages(
           },
         ],
       }),
+    },
+  ]
+  // Examples are reference data, not conversation history. A new request must not
+  // inherit the last example's anchor or direction when it simply asks to add furniture.
+  return [
+    examples[0],
+    {
+      role: "system",
+      content:
+        "Independent translation examples, not prior user requests: " +
+        JSON.stringify(examples.slice(1)) +
+        " Translate only the final REQUEST. Do not carry over any example's anchor, direction, count or distance. anchorQuery must be null unless the final REQUEST explicitly names another furniture item as a placement reference. A simple addition without a location uses placement=AUTO and anchorQuery=null. NEAR_WINDOW and NEAR_DOOR always use anchorQuery=null: 창가, 창문, 문 are openings, never furniture anchors.",
     },
     {
       role: "user",

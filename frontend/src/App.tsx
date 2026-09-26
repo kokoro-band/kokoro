@@ -40,24 +40,30 @@ function NoticeSnackbar({
 }) {
   const adapter = useSnackbarAdapter()
   const retryRef = useRef(onRetrySave)
-  useEffect(() => {
-    retryRef.current = onRetrySave
-  }, [onRetrySave])
-  useEffect(() => {
-    if (!notice) return
-    adapter.create({
-      render: () => (
-        <Snackbar
-          variant={notice.tone}
-          message={notice.text}
-          {...(notice.action === "retrySave"
-            ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
-            : {})}
-        />
-      ),
-    })
-    onShown()
-  }, [adapter, notice, onShown])
+  useEffect(
+    function synchronizeRetrySaveHandler() {
+      retryRef.current = onRetrySave
+    },
+    [onRetrySave]
+  )
+  useEffect(
+    function announceStudioNotice() {
+      if (!notice) return
+      adapter.create({
+        render: () => (
+          <Snackbar
+            variant={notice.tone}
+            message={notice.text}
+            {...(notice.action === "retrySave"
+              ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
+              : {})}
+          />
+        ),
+      })
+      onShown()
+    },
+    [adapter, notice, onShown]
+  )
   return null
 }
 
@@ -117,7 +123,7 @@ function Studio() {
         onSave={studio.saveProject}
         onCreateProject={() => setNewProjectOpen(true)}
         onOpenSample={() => {
-          studio.openSampleProject()
+          void studio.openSampleProject()
           resetNavigation("arrange")
         }}
         onOpenFloorPlan={() => setFloorPlanOpen(true)}

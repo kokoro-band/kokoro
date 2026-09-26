@@ -60,8 +60,12 @@ export function ArrangeView({
   onRoomChange: (index: number | null) => void
   onOpenStructure: () => void
 }) {
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("selection")
-  const [sheet, setSheet] = useState<MobileSheet>(null)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>(() =>
+    studio.assistant.locked ? "assistant" : "selection"
+  )
+  const [sheet, setSheet] = useState<MobileSheet>(() =>
+    studio.assistant.locked ? "assistant" : null
+  )
   const houseRoom = studio.project.room
   const rooms = houseRoom?.rooms ?? []
   const room = roomIndex === null ? null : (rooms[roomIndex] ?? null)
@@ -170,7 +174,8 @@ export function ArrangeView({
     if (isMobile) setSheet("selection")
   }
 
-  const send = (text: string) => studio.sendMessage(text, room?.polygon)
+  const send = (text: string) =>
+    studio.sendMessage(text, room?.polygon, room?.name)
 
   const navigator = (
     <RoomNavigator
@@ -229,17 +234,33 @@ export function ArrangeView({
       messages={studio.messages}
       input={studio.input}
       roomName={room?.name ?? null}
-      chatBusy={studio.busy === "chat"}
+      chatBusy={
+        studio.busy === "chat" &&
+        (studio.assistant.phase === "model" ||
+          studio.assistant.phase === "idle")
+      }
       busy={busy}
       onInputChange={studio.setInput}
       onSend={send}
       inputRef={assistantInputRef}
+      assistant={studio.assistant}
+      saveFailed={studio.saveFailed}
+      onReloadSaved={() => void studio.reloadSavedProject()}
     />
   )
 
   const scene = (
     <SceneEditor
-      project={studio.project}
+      project={
+        studio.assistant.proposal?.status === "PENDING" &&
+        studio.assistant.proposalProjectId === studio.project.id &&
+        studio.assistant.phase === "preview"
+          ? {
+              ...studio.project,
+              furniture: studio.assistant.proposal.proposedFurniture,
+            }
+          : studio.project
+      }
       focusRoom={room}
       selectedId={studio.selectedId}
       mode={studio.mode}

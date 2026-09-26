@@ -120,6 +120,32 @@
   min-height: 0;
 }
 
+.assistant-local-status,
+.assistant-setup,
+.assistant-proposal {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--seed-dimension-x3);
+  min-width: 0;
+}
+
+.assistant-proposal {
+  padding-block: var(--seed-dimension-x4);
+  border-block-start: 1px solid var(--seed-color-stroke-neutral-muted);
+}
+
+.assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--seed-dimension-x2);
+}
+
+.assistant-setup pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .assistant-context {
   display: flex;
   flex: none;

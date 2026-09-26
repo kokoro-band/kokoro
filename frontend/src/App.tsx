@@ -110,6 +110,7 @@ function Studio() {
         view={view}
         structureDirty={structureDirty && view !== "structure"}
         showViews={ready}
+        dirty={studio.dirty}
         saving={studio.saving}
         saveFailed={studio.saveFailed}
         saveBusy={studio.busy === "save"}

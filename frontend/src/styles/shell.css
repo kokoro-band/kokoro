@@ -89,6 +89,15 @@
   min-width: 0;
 }
 
+.save-status {
+  flex: none;
+  white-space: nowrap;
+}
+
+.save-status[data-state="dirty"] {
+  color: var(--seed-color-fg-warning);
+}
+
 .workspace {
   display: flex;
   flex: 1;

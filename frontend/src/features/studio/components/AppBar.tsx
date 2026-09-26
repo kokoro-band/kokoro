@@ -37,6 +37,7 @@ export function AppBar({
   view,
   structureDirty,
   showViews,
+  dirty,
   saving,
   saveFailed,
   saveBusy,
@@ -53,6 +54,8 @@ export function AppBar({
   structureDirty: boolean
   /** 프로젝트를 불러온 뒤에만 프로젝트 메뉴와 화면 전환을 보여 줍니다. */
   showViews: boolean
+  /** 저장하지 않은 배치 변경이 있을 때 */
+  dirty: boolean
   saving: boolean
   saveFailed: boolean
   saveBusy: boolean
@@ -148,6 +151,17 @@ export function AppBar({
       )}
 
       <div className="app-bar-end">
+        {showViews && !saveFailed && (
+          <Type
+            variant="caption"
+            className="save-status"
+            data-state={
+              saving || saveBusy ? "saving" : dirty ? "dirty" : "saved"
+            }
+          >
+            {saving || saveBusy ? "저장 중" : dirty ? "저장 안 됨" : "저장됨"}
+          </Type>
+        )}
         {saveFailed && (
           <ActionButton
             variant="neutralWeak"

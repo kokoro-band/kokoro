@@ -383,6 +383,8 @@ export function useStudioController() {
         { id: crypto.randomUUID(), role: "assistant", text: response.reply },
       ])
     } catch (error) {
+      // 실패한 요청을 다시 적지 않도록 입력창이 비어 있으면 되살립니다.
+      setInput((current) => current || text)
       setMessages((current) => [
         ...current,
         {

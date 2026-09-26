@@ -349,6 +349,7 @@ export function useStudioController() {
         "positive"
       )
     } catch (error) {
+      setSaveFailed(true)
       setNotice(
         error instanceof Error ? error.message : "저장하지 못했어요.",
         "critical",

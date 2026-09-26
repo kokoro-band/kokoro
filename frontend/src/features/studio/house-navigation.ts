@@ -51,3 +51,27 @@ export function canPlaceFurniture(
   if (project.room && !containsPoint(project.room.outline, x, z)) return false
   return !focusRoom || containsPoint(focusRoom.polygon, x, z)
 }
+
+/**
+ * 좌표를 직접 입력했을 때 쓰는 자리 찾기입니다. 목표 자리에 둘 수 없으면 지금
+ * 자리 쪽으로 0.1m씩 되돌아오며 둘 수 있는 가장 가까운 자리를 고릅니다.
+ */
+export function nearestPlacement(
+  project: Project,
+  focusRoom: RoomLabel | null,
+  current: { x: number; z: number },
+  target: { x: number; z: number }
+) {
+  if (canPlaceFurniture(project, focusRoom, target.x, target.z)) return target
+  const steps = Math.ceil(
+    Math.max(Math.abs(target.x - current.x), Math.abs(target.z - current.z)) /
+      0.1
+  )
+  for (let step = 1; step < steps; step++) {
+    const ratio = step / steps
+    const x = Math.round((target.x + (current.x - target.x) * ratio) * 10) / 10
+    const z = Math.round((target.z + (current.z - target.z) * ratio) * 10) / 10
+    if (canPlaceFurniture(project, focusRoom, x, z)) return { x, z }
+  }
+  return { x: current.x, z: current.z }
+}

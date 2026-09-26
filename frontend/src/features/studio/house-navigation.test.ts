@@ -4,6 +4,7 @@ import { sampleProject } from "./data"
 import {
   canPlaceFurniture,
   containsPoint,
+  nearestPlacement,
   projectTotal,
   roomCenter,
   roomForFurniture,
@@ -54,5 +55,29 @@ describe("canPlaceFurniture", () => {
       false
     )
     expect(canPlaceFurniture(sampleProject, null, otherX, otherZ)).toBe(true)
+  })
+})
+
+describe("nearestPlacement", () => {
+  const livingRoom = sampleProject.room!.rooms.find(
+    (room) => room.name === "거실"
+  )!
+  const current = { x: 4.5, z: 4 }
+
+  it("keeps a typed spot that is already inside the room", () => {
+    expect(
+      nearestPlacement(sampleProject, livingRoom, current, { x: 5, z: 4 })
+    ).toEqual({ x: 5, z: 4 })
+  })
+
+  it("pulls a typed spot outside the room back to its nearest edge", () => {
+    const placed = nearestPlacement(sampleProject, livingRoom, current, {
+      x: 3,
+      z: 4,
+    })
+    expect(placed).toEqual({ x: 3.2, z: 4 })
+    expect(
+      canPlaceFurniture(sampleProject, livingRoom, placed.x, placed.z)
+    ).toBe(true)
   })
 })

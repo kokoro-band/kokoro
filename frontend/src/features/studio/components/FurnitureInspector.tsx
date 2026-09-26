@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   IconTrashcanLine,
   IconXmarkLine,
@@ -16,7 +17,8 @@ import { MeterField } from "./MeterField"
 export function FurnitureInspector({
   selected,
   bounds,
-  onUpdate,
+  roomName,
+  onPlace,
   onPreview,
   onCommitPreview,
   onDelete,
@@ -24,13 +26,18 @@ export function FurnitureInspector({
 }: {
   selected: Furniture
   bounds: { width: number; depth: number }
-  onUpdate: (update: Partial<Furniture>) => void
+  roomName: string | null
+  /** 입력한 위치로 옮기고, 방 안쪽으로 맞췄다면 true를 돌려줍니다. */
+  onPlace: (update: { x?: number; z?: number }) => boolean
   onPreview: (update: Partial<Furniture>) => void
   onCommitPreview: () => void
   onDelete: () => void
   onClose?: () => void
 }) {
   const item = catalog.find((entry) => entry.id === selected.catalogId)
+  const [adjusted, setAdjusted] = useState(false)
+  const place = (update: { x?: number; z?: number }) =>
+    setAdjusted(onPlace(update))
 
   return (
     <div className="inspector-form">
@@ -72,17 +79,19 @@ export function FurnitureInspector({
             label="가로"
             value={selected.x}
             max={bounds.width}
-            onCommit={(x) => onUpdate({ x })}
+            onCommit={(x) => place({ x })}
           />
           <MeterField
             label="세로"
             value={selected.z}
             max={bounds.depth}
-            onCommit={(z) => onUpdate({ z })}
+            onCommit={(z) => place({ z })}
           />
         </div>
-        <Type variant="caption" as="p">
-          평면도 왼쪽 위 모서리에서 잰 거리예요.
+        <Type variant="caption" as="p" role="status">
+          {adjusted
+            ? `${roomName ?? "집"} 밖으로는 옮길 수 없어서 가장 가까운 안쪽 자리에 두었어요.`
+            : "평면도 왼쪽 위 모서리에서 잰 거리예요."}
         </Type>
       </section>
 

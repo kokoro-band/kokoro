@@ -21,6 +21,7 @@ import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
 import {
   canPlaceFurniture,
+  nearestPlacement,
   roomCenter,
 } from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
@@ -110,6 +111,16 @@ export function ArrangeView({
     })
   }
 
+  /** 입력한 좌표가 방 밖이면 가장 가까운 안쪽 자리로 옮기고, 맞췄는지 알려 줍니다. */
+  const placeSelected = (update: { x?: number; z?: number }) => {
+    if (!selected) return false
+    const target = { x: update.x ?? selected.x, z: update.z ?? selected.z }
+    const placed = nearestPlacement(studio.project, room, selected, target)
+    if (placed.x !== selected.x || placed.z !== selected.z)
+      studio.updateSelected(placed)
+    return placed.x !== target.x || placed.z !== target.z
+  }
+
   const deleteSelected = () => {
     studio.deleteSelected()
     if (isMobile) setSheet(null)
@@ -192,7 +203,8 @@ export function ArrangeView({
       key={selected.id}
       selected={selected}
       bounds={studio.roomBounds}
-      onUpdate={studio.updateSelected}
+      roomName={room?.name ?? null}
+      onPlace={placeSelected}
       onPreview={studio.previewSelected}
       onCommitPreview={studio.commitPreview}
       onDelete={deleteSelected}

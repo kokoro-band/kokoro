@@ -42,7 +42,6 @@
 {
   "jobId": "…",
   "projectId": "…",
-  "objectKey": "project-id/uuid/plan.pdf",
   "status": "PROCESSING",
   "progress": 25,
   "errorCode": null,
@@ -52,6 +51,8 @@
 ```
 
 완료 상태는 `READY`, 실패 상태는 `FAILED`이며 실패 시 `errorCode`, `errorMessage`, `retryable`을 확인합니다. 현재 저장소 구현은 로컬 파일 시스템이고, 운영 object storage는 `FloorPlanStorage` 구현체를 교체하는 방식으로 연결합니다.
+
+원본 파일의 저장 경로인 `objectKey`는 API 응답에 포함하지 않습니다. 현재 서버의 READY는 데모 작업 상태이며 자동 인식된 공간을 의미하지 않습니다. 브라우저에서 이미지 초안을 만든 뒤 사용자가 보정한 공간은 별도의 공간 저장 API로 전송합니다.
 
 처리 중인 도면이 있는 프로젝트에 새 도면을 업로드하면 `409 Conflict`를 반환합니다. 기존 작업이 완료되거나 실패한 뒤 새 도면을 업로드할 수 있습니다.
 

@@ -153,3 +153,12 @@
     display: none;
   }
 }
+
+/* 손가락으로 누르는 기기에서는 작은 아이콘 버튼도 44px 이상으로 키웁니다. */
+@media (pointer: coarse) {
+  .viewport-toolbar .seed-action-button,
+  .seed-bottom-sheet__closeButton {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

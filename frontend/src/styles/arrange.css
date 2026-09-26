@@ -230,16 +230,30 @@
   width: 100%;
 }
 
-.mobile-sheet-body {
+/*
+ * 시트 안의 패널과 AI 배치는 자기 안쪽 여백을 가지고 있으므로 SEED 시트 본문의
+ * 좌우 여백을 없애 좁은 화면을 넓게 씁니다. SEED 규칙보다 앞서도록 두 클래스로 고릅니다.
+ */
+.seed-bottom-sheet__body.mobile-sheet-body {
+  --seed-box-padding-x: 0;
   display: flex;
   flex-direction: column;
-  padding: 0;
+  padding: 0 0 env(safe-area-inset-bottom);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mobile-sheet-body > .panel,
 .mobile-sheet-body > .assistant {
   flex: 1;
   min-height: 0;
+}
+
+/* 낮은 화면에서 선택한 가구 시트를 스크롤해도 가구 빼기는 늘 보이게 합니다. */
+.mobile-sheet-body .inspector-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--seed-color-bg-layer-default);
 }
 
 .mobile-sheet-body .panel-header:not(.panel-header-back) {

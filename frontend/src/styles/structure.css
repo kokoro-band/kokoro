@@ -190,6 +190,8 @@
   }
 
   .structure-inspector {
+    /* 세로로 쌓인 화면에서 줄어들면 고정된 버튼 줄이 입력란을 덮습니다. */
+    flex-shrink: 0;
     height: auto;
     border-top: 1px solid var(--line);
     border-left: 0;

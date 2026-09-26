@@ -382,9 +382,9 @@ export function ArrangeView({
               <BottomSheet.Body
                 className="mobile-sheet-body"
                 // 방 고르기와 AI 배치는 같은 높이로 열어 화면 위쪽을 남기고,
-                // 선택한 가구는 내용만큼만 엽니다.
+                // 선택한 가구는 내용만큼 열되 화면을 넘으면 본문을 스크롤합니다.
                 height={sheet === "selection" ? undefined : "56dvh"}
-                maxHeight="56dvh"
+                maxHeight={sheet === "selection" ? "72dvh" : "56dvh"}
               >
                 {sheet === "navigator" && navigator}
                 {sheet === "assistant" && assistant}

@@ -8,7 +8,9 @@ import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
 import com.kokoro.room.project.ProjectModels.LayoutActionType;
+import com.kokoro.room.project.ProjectModels.LayoutCandidate;
 import com.kokoro.room.project.ProjectModels.LayoutCommand;
+import com.kokoro.room.project.ProjectModels.LayoutProposal;
 import com.kokoro.room.floorplan.FloorPlanStorage;
 import com.kokoro.room.security.CurrentUser;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
@@ -19,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +36,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class ProjectService {
     private static final long MAX_FLOOR_PLAN_BYTES = 15L * 1024 * 1024;
+    private static final Duration PROPOSAL_TTL = Duration.ofMinutes(5);
     private final ProjectRepository projectRepository;
     private final FloorPlanStorage floorPlanStorage;
     private final FloorPlanJobRepository floorPlanJobRepository;
@@ -42,13 +46,14 @@ public class ProjectService {
     private final CurrentUser currentUser;
     private final LayoutCommandInterpreter layoutCommandInterpreter;
     private final RoomModelValidator roomModelValidator;
+    private final LayoutProposalRepository layoutProposalRepository;
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
                           FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
                           FloorPlanJobCoordinator floorPlanJobCoordinator,
                           FurniturePlacementValidator furniturePlacementValidator,
                           CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter,
-                          RoomModelValidator roomModelValidator) {
+                          RoomModelValidator roomModelValidator, LayoutProposalRepository layoutProposalRepository) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
@@ -58,6 +63,7 @@ public class ProjectService {
         this.currentUser = currentUser;
         this.layoutCommandInterpreter = layoutCommandInterpreter;
         this.roomModelValidator = roomModelValidator;
+        this.layoutProposalRepository = layoutProposalRepository;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -174,48 +180,131 @@ public class ProjectService {
     }
 
     @Transactional
-    public ChatCommandResponse applyCommand(String id, String message) {
+    public ChatCommandResponse applyCommand(String id, String message, String furnitureId) {
         RenovationProject project = find(id);
         LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message, bounds(project));
         if (interpretation.requiresConfirmation()) {
-            return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true, project);
+            Instant now = Instant.now();
+            Instant expiresAt = now.plus(PROPOSAL_TTL);
+            String proposalId = UUID.randomUUID().toString();
+            layoutProposalRepository.insert(new LayoutProposal(proposalId, id, currentUser.id(),
+                    project.updatedAt(), interpretation.commands(), now, expiresAt, null));
+            return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true,
+                    project, proposalId, expiresAt, interpretation.commands(), List.of());
         }
+
+        List<ResolvedCommand> resolved = new ArrayList<>();
+        for (LayoutCommand command : interpretation.commands()) {
+            if (command.type() == LayoutActionType.ADD) {
+                resolved.add(new ResolvedCommand(command, null));
+                continue;
+            }
+            if (furnitureId != null) {
+                FurnitureItem target = project.furniture().stream()
+                        .filter(item -> item.id().equals(furnitureId)).findFirst()
+                        .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "대상 가구를 찾을 수 없습니다."));
+                resolved.add(new ResolvedCommand(command, target));
+                continue;
+            }
+            List<FurnitureItem> matches = project.furniture().stream()
+                    .filter(item -> item.catalogId().equals(command.catalogId())).toList();
+            if (matches.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "대상 가구를 찾을 수 없습니다.");
+            if (matches.size() > 1) {
+                List<LayoutCandidate> candidates = matches.stream()
+                        .map(item -> new LayoutCandidate(item.id(), item.name())).toList();
+                return new ChatCommandResponse("어떤 가구를 대상으로 할지 선택해 주세요.", List.of(),
+                        interpretation.commands(), false, project, null, null, List.of(), candidates);
+            }
+            resolved.add(new ResolvedCommand(command, matches.get(0)));
+        }
+
         List<FurnitureItem> next = new ArrayList<>(project.furniture());
         List<String> actions = new ArrayList<>();
-        for (LayoutCommand command : interpretation.commands()) {
-            FurnitureItem target = next.stream().filter(item -> item.catalogId().equals(command.catalogId())).findFirst().orElse(null);
-            if (command.type() == LayoutActionType.ADD) {
-                FurnitureItem item = furniture(unique(command.catalogId()), command.catalogId(), displayName(command.catalogId()),
-                        category(command.catalogId()), command.x(), command.z(), command.rotation(), color(command.catalogId()));
-                next.add(item);
-                actions.add(item.name() + " 배치");
-            } else if (target != null && command.type() == LayoutActionType.REMOVE) {
-                next.remove(target);
-                actions.add(target.name() + " 삭제");
-            } else if (target != null && command.type() == LayoutActionType.MOVE) {
-                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(), target.category(),
-                        command.x(), command.z(), target.rotation(), target.color()));
-                actions.add(target.name() + " 이동");
-            } else if (target != null && command.type() == LayoutActionType.ROTATE) {
-                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(), target.category(),
-                        target.x(), target.z(), command.rotation(), target.color()));
-                actions.add(target.name() + " 회전");
-            }
+        for (ResolvedCommand command : resolved) {
+            applyResolvedCommand(next, command, actions);
         }
         if (actions.isEmpty()) {
-            return new ChatCommandResponse(
-                    interpretation.reply(), List.of(), interpretation.commands(), false,
-                    project
-            );
+            return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), false,
+                    project, null, null, List.of(), List.of());
         }
 
         RenovationProject updated = saveLayout(id, next);
         return new ChatCommandResponse(
                 String.join(", ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
-                actions, interpretation.commands(), false,
-                updated
+                actions, interpretation.commands(), false, updated, null, null, List.of(), List.of()
         );
     }
+
+    @Transactional
+    public ChatCommandResponse confirmCommand(String id, String proposalId) {
+        RenovationProject project = find(id);
+        LayoutProposal proposal = layoutProposalRepository.findById(proposalId)
+                .filter(candidate -> candidate.projectId().equals(id) && candidate.ownerId().equals(currentUser.id()))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "확인할 제안을 찾을 수 없습니다."));
+
+        if (proposal.consumedAt() != null) {
+            return alreadyProcessed(proposal, project);
+        }
+        if (Instant.now().isAfter(proposal.expiresAt())) {
+            throw new ResponseStatusException(CONFLICT, "제안이 만료되었습니다. 다시 요청해 주세요.");
+        }
+        if (!project.updatedAt().equals(proposal.baseUpdatedAt())) {
+            throw new ResponseStatusException(CONFLICT, "그 사이 배치가 바뀌어 다시 요청해야 합니다.");
+        }
+        if (!layoutProposalRepository.tryConsume(proposalId, Instant.now())) {
+            return alreadyProcessed(proposal, find(id));
+        }
+
+        List<FurnitureItem> next = new ArrayList<>(project.furniture());
+        List<String> actions = new ArrayList<>();
+        for (LayoutCommand command : proposal.commands()) {
+            if (command.type() == LayoutActionType.CLEAR) {
+                next.clear();
+                actions.add("전체 삭제");
+            }
+        }
+        RenovationProject updated = actions.isEmpty() ? project : saveLayout(id, next);
+        return new ChatCommandResponse(String.join(", ", actions) + "했습니다.", actions, proposal.commands(),
+                false, updated, proposal.proposalId(), proposal.expiresAt(), List.of(), List.of());
+    }
+
+    private ChatCommandResponse alreadyProcessed(LayoutProposal proposal, RenovationProject project) {
+        return new ChatCommandResponse("이미 처리된 요청입니다.", List.of(), proposal.commands(), false, project,
+                proposal.proposalId(), proposal.expiresAt(), List.of(), List.of());
+    }
+
+    private void applyResolvedCommand(List<FurnitureItem> next, ResolvedCommand command, List<String> actions) {
+        LayoutCommand original = command.command();
+        switch (original.type()) {
+            case ADD -> {
+                FurnitureItem item = furniture(unique(original.catalogId()), original.catalogId(),
+                        displayName(original.catalogId()), category(original.catalogId()),
+                        original.x(), original.z(), original.rotation(), color(original.catalogId()));
+                next.add(item);
+                actions.add(item.name() + " 배치");
+            }
+            case REMOVE -> {
+                next.remove(command.target());
+                actions.add(command.target().name() + " 삭제");
+            }
+            case MOVE -> {
+                FurnitureItem target = command.target();
+                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
+                        target.category(), original.x(), original.z(), target.rotation(), target.color()));
+                actions.add(target.name() + " 이동");
+            }
+            case ROTATE -> {
+                FurnitureItem target = command.target();
+                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
+                        target.category(), target.x(), target.z(), original.rotation(), target.color()));
+                actions.add(target.name() + " 회전");
+            }
+            case CLEAR -> { /* CLEAR only ever reaches the confirm flow. */ }
+        }
+    }
+
+    /** Pairs an interpreted command with the concrete furniture it targets, resolved before anything is mutated. */
+    private record ResolvedCommand(LayoutCommand command, FurnitureItem target) {}
 
     private static String displayName(String catalogId) {
         return switch (catalogId) {

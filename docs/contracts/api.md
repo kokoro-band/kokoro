@@ -93,7 +93,21 @@
 
 `x`와 `z`는 미터이며 원점은 공간 데이터 바운딩 박스의 왼쪽 위입니다. 자세한 규칙은 `docs/contracts/room-model.md`에 있습니다.
 
-서버는 카탈로그의 실제 폭·깊이와 회전값으로 가구의 바닥 사각형을 만들어 공간 데이터의 외곽선 안에 있는지, 가구끼리 겹치지 않는지 검증합니다. 공간 데이터가 없으면 `dimensions` 크기의 직사각형을 외곽선으로 사용합니다. 경계선에 정확히 닿는 배치는 허용하고, 하나라도 실패하면 전체 배치를 저장하지 않습니다. 지원하지 않는 `catalogId`, 방 밖 좌표, 겹치는 가구는 `400 Bad Request`와 사유를 반환합니다.
+서버는 카탈로그의 실제 폭·깊이와 회전값으로 가구의 바닥 사각형을 만들어 공간 데이터의 외곽선 안에 있는지, 내부 벽이나 문 앞 여유 구역을 침범하지 않는지, 가구끼리 겹치지 않는지 검증합니다. 공간 데이터가 없으면 `dimensions` 크기의 직사각형을 외곽선으로 사용합니다. 경계선에 정확히 닿는 배치는 허용하고, 하나라도 실패하면 전체 배치를 저장하지 않습니다.
+
+지원하지 않는 `catalogId`, 방 밖 좌표, 중복된 가구 `id`는 사유만 담은 `400 Bad Request`입니다. 방 경계·내부 벽·문 여유 구역·가구 겹침 위반은 구조화된 오류를 반환합니다:
+
+```json
+{
+  "status": 400,
+  "code": "WALL_COLLISION",
+  "detail": "가구 '소파'가 벽을 가로지릅니다.",
+  "furnitureIds": ["sofa-01"],
+  "wallId": "wall-1"
+}
+```
+
+`code`는 `OUTSIDE_ROOM`, `WALL_COLLISION`, `DOOR_CLEARANCE`, `FURNITURE_OVERLAP` 중 하나이며, 대상은 `furnitureIds`로, 충돌한 벽이나 문은 각각 `wallId`/`openingId`로 식별합니다. 문 여유 구역은 문 구간의 양쪽으로 0.8m를 비워두는 제품 휴리스틱이며 보행이나 시공 기준을 인증하는 수치가 아닙니다.
 
 ## 자연어 배치
 
@@ -105,4 +119,20 @@
 
 응답은 사용자에게 보여줄 문장과 적용한 동작과 변경된 프로젝트를 함께 반환합니다. 현재 처리기는 소파와 테이블과 의자와 화분과 비우기 명령을 지원합니다.
 
-자연어 명령 응답에는 구조화된 `commands`도 포함됩니다. 명령 타입은 `ADD`, `MOVE`, `ROTATE`, `REMOVE`, `CLEAR`이며, 허용되지 않거나 대상을 찾지 못한 명령은 프로젝트를 변경하지 않습니다. 전체 삭제처럼 되돌리기 어려운 명령은 `requiresConfirmation: true`로 확인을 먼저 요청합니다.
+자연어 명령 응답에는 구조화된 `commands`도 포함됩니다. 명령 타입은 `ADD`, `MOVE`, `ROTATE`, `REMOVE`, `CLEAR`이며, 대상을 찾지 못한 명령이 하나라도 있으면 전체 요청을 `400 Bad Request`로 거부하고 아무것도 적용하지 않습니다.
+
+같은 `catalogId`의 가구가 여러 개면 임의로 하나를 고르지 않고, 응답의 `candidates`(`furnitureId`, `name`)로 후보를 돌려주고 아무것도 바꾸지 않습니다. 요청에 `furnitureId`를 함께 보내면 그 가구를 대상으로 확정합니다:
+
+```json
+{ "message": "의자를 90도 회전해줘", "furnitureId": "chair-01" }
+```
+
+전체 삭제처럼 되돌리기 어려운 명령은 즉시 적용하지 않고 `requiresConfirmation: true`와 `proposalId`, `expiresAt`(5분 뒤 만료), `proposedCommands`로 확인을 먼저 요청합니다. 이 시점까지 `appliedActions`는 비어 있고 프로젝트는 바뀌지 않습니다.
+
+`POST /projects/{projectId}/layout/commands/confirm`
+
+```json
+{ "proposalId": "..." }
+```
+
+제안된 명령만 실행하며 임의의 `commands`는 받지 않습니다. `proposalId`가 없거나 다른 사용자의 제안이면 `404`, 만료됐거나 제안 이후 배치가 바뀌었으면(`updatedAt` 불일치) `409`입니다. 같은 `proposalId`를 다시 보내면 재실행 없이 이미 처리된 결과 상태를 그대로 반환합니다.

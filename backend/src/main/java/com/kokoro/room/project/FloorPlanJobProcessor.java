@@ -1,13 +1,10 @@
 package com.kokoro.room.project;
 
 import com.kokoro.room.project.ProjectModels.ConversionStatus;
-import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
-import com.kokoro.room.project.ProjectModels.RenovationProject;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.Optional;
 
 @Component
 public class FloorPlanJobProcessor {
@@ -60,14 +57,6 @@ public class FloorPlanJobProcessor {
 
     private void updateProject(String projectId, String jobId, ConversionStatus status, int progress,
                                String errorCode, String errorMessage, boolean retryable) {
-        Optional<RenovationProject> project = projectRepository.findById(projectId);
-        if (project.isEmpty()) return;
-        FloorPlan previous = project.get().floorPlan();
-        FloorPlan next = new FloorPlan(previous.fileName(), previous.size(), status, progress, previous.uploadedAt(),
-                jobId, previous.objectKey(), errorCode, errorMessage, retryable);
-        RenovationProject updated = new RenovationProject(project.get().id(), project.get().ownerId(), project.get().name(),
-                project.get().roomType(), project.get().dimensions(), project.get().room(), next,
-                project.get().furniture(), Instant.now());
-        projectRepository.replace(updated);
+        projectRepository.updateFloorPlanStatus(projectId, jobId, status, progress, errorCode, errorMessage, retryable);
     }
 }

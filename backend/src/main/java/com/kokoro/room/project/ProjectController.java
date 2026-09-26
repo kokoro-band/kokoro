@@ -73,7 +73,7 @@ public class ProjectController {
             @PathVariable String projectId,
             @Valid @RequestBody SaveRoomRequest request
     ) {
-        return projectService.saveRoom(projectId, request.room());
+        return projectService.saveRoom(projectId, request.room(), request.expectedRevision());
     }
 
     @PutMapping("/{projectId}/layout")
@@ -81,7 +81,7 @@ public class ProjectController {
             @PathVariable String projectId,
             @Valid @RequestBody SaveLayoutRequest request
     ) {
-        return projectService.saveLayout(projectId, request.furniture());
+        return projectService.saveLayout(projectId, request.furniture(), request.expectedRevision());
     }
 
     @PostMapping("/{projectId}/layout/commands")
@@ -89,6 +89,6 @@ public class ProjectController {
             @PathVariable String projectId,
             @Valid @RequestBody ChatCommandRequest request
     ) {
-        return projectService.applyCommand(projectId, request.message());
+        return projectService.applyCommand(projectId, request.message(), request.expectedRevision());
     }
 }

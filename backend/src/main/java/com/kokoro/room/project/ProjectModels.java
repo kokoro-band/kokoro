@@ -7,6 +7,7 @@ import tools.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
 import java.util.List;
@@ -128,10 +129,12 @@ public final class ProjectModels {
             RoomModel room,
             FloorPlan floorPlan,
             List<FurnitureItem> furniture,
-            Instant updatedAt
+            Instant updatedAt,
+            long revision
     ) {}
 
-    public record SaveRoomRequest(@NotNull @Valid RoomModel room) {}
+    public record SaveRoomRequest(@NotNull @Valid RoomModel room,
+                                  @PositiveOrZero Long expectedRevision) {}
 
     public record CreateProjectRequest(
             @NotBlank String name,
@@ -139,9 +142,11 @@ public final class ProjectModels {
             @NotNull @Valid Dimensions dimensions
     ) {}
 
-    public record SaveLayoutRequest(@NotNull List<@Valid FurnitureItem> furniture) {}
+    public record SaveLayoutRequest(@NotNull List<@Valid FurnitureItem> furniture,
+                                    @PositiveOrZero Long expectedRevision) {}
 
-    public record ChatCommandRequest(@NotBlank String message) {}
+    public record ChatCommandRequest(@NotBlank String message,
+                                     @PositiveOrZero Long expectedRevision) {}
 
     public enum LayoutActionType { ADD, MOVE, ROTATE, REMOVE, CLEAR }
 

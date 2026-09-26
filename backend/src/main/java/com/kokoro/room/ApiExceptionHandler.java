@@ -15,6 +15,15 @@ public class ApiExceptionHandler {
         problem.setProperty("violations", exception.violations());
         return problem;
     }
+    @ExceptionHandler(com.kokoro.room.project.FurniturePlacementException.class)
+    public ProblemDetail furniturePlacement(com.kokoro.room.project.FurniturePlacementException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), exception.getMessage());
+        problem.setProperty("code", exception.code());
+        problem.setProperty("furnitureIds", exception.furnitureIds());
+        if (exception.wallId() != null) problem.setProperty("wallId", exception.wallId());
+        if (exception.openingId() != null) problem.setProperty("openingId", exception.openingId());
+        return problem;
+    }
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handle(ResponseStatusException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

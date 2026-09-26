@@ -161,8 +161,12 @@
     align-items: stretch;
   }
 
-  .plan-import-actions > * {
-    flex: 1;
+  .plan-import-actions {
+    flex-wrap: wrap;
+  }
+
+  .plan-import-actions > .seed-action-button {
+    flex: 1 1 auto;
   }
 }
 

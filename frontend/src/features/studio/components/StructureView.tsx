@@ -1004,6 +1004,12 @@ export function StructureView({
         <PlanImport
           initialArea={clampArea(areaInput)}
           onImport={importPlan}
+          onDrawBlank={() => {
+            setImporting(false)
+            // 처음 시작하는 중이면 이미 준비된 빈 집을 보여 주고, 아니면 평수로 새로 그립니다.
+            if (choosingStart) setChoosingStart(false)
+            else restart()
+          }}
           onClose={() => setImporting(false)}
         />
       )}

@@ -106,10 +106,13 @@ function fullCrop(source: Source): Crop {
 export function PlanImport({
   initialArea,
   onImport,
+  onDrawBlank,
   onClose,
 }: {
   initialArea: number
   onImport: (draft: RoomDraft, areaPyeong: number) => void
+  /** 도면을 읽지 못했을 때 도면 없이 빈 집에서 그리기 */
+  onDrawBlank: () => void
   onClose: () => void
 }) {
   const [source, setSource] = useState<Source | null>(null)
@@ -443,6 +446,15 @@ export function PlanImport({
               {statusText}
             </Type>
             <div className="plan-import-actions">
+              {status === "failed" && (
+                <ActionButton
+                  variant="neutralWeak"
+                  size="medium"
+                  onClick={onDrawBlank}
+                >
+                  빈 집에서 그리기
+                </ActionButton>
+              )}
               {source && (status === "ready" || status === "failed") && (
                 <ActionButton
                   variant="neutralWeak"

@@ -92,7 +92,11 @@ export function FloorPlanDialog({
                 )}
               </span>
               <div className="floor-plan-file-text">
-                <Type variant="label" maxLines={1}>
+                <Type
+                  variant="label"
+                  maxLines={2}
+                  title={file.fileName || undefined}
+                >
                   {file.fileName || "아직 올린 도면이 없어요"}
                 </Type>
                 <Type variant="caption" numeric>

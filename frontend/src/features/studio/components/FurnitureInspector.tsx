@@ -48,7 +48,7 @@ export function FurnitureInspector({
           size="large"
         />
         <div className="inspector-identity-text">
-          <Type variant="title" as="h2" maxLines={1}>
+          <Type variant="title" as="h2" maxLines={2} title={selected.name}>
             {selected.name}
           </Type>
           <Type variant="caption" numeric maxLines={1}>

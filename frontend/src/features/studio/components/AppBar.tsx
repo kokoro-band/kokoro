@@ -87,7 +87,9 @@ export function AppBar({
                   className="project-switcher"
                   aria-label={`${projectName} 프로젝트 메뉴`}
                 >
-                  <span className="project-switcher-name">{projectName}</span>
+                  <span className="project-switcher-name" title={projectName}>
+                    {projectName}
+                  </span>
                   <Icon svg={<IconChevronDownLine />} size="x4" />
                 </ActionButton>
               </MenuTrigger>

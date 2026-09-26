@@ -442,6 +442,7 @@ export function PlanImport({
               variant="caption"
               aria-live="polite"
               className="plan-import-status"
+              title={statusText || undefined}
             >
               {statusText}
             </Type>

@@ -35,6 +35,8 @@
   flex-direction: column;
   gap: var(--seed-dimension-x0_5);
   min-width: 0;
+  /* 공백 없는 긴 파일 이름도 두 줄 안에서 끊어 보여 줍니다. */
+  overflow-wrap: anywhere;
 }
 
 /* 도면 이미지로 시작 */

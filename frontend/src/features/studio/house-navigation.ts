@@ -36,3 +36,18 @@ export function furniturePrice(item: Furniture) {
 export function projectTotal(project: Project) {
   return project.furniture.reduce((sum, item) => sum + furniturePrice(item), 0)
 }
+
+/** 끌어서 옮길 때처럼 집 밖이나 지금 고른 방 밖에는 가구를 두지 않습니다. */
+export function canPlaceFurniture(
+  project: Project,
+  focusRoom: RoomLabel | null,
+  x: number,
+  z: number
+) {
+  const margin = 0.2
+  const bounds = project.room?.bounds ?? project.dimensions
+  if (x < margin || z < margin) return false
+  if (x > bounds.width - margin || z > bounds.depth - margin) return false
+  if (project.room && !containsPoint(project.room.outline, x, z)) return false
+  return !focusRoom || containsPoint(focusRoom.polygon, x, z)
+}

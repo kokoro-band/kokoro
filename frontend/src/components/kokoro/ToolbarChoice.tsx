@@ -5,6 +5,8 @@ export type ToolbarChoiceItem<T extends string> = {
   value: T
   label: string
   icon?: ReactNode
+  /** 마우스를 올렸을 때 보여 줄 설명. 단축키를 알려 줄 때 씁니다. */
+  title?: string
 }
 
 /**
@@ -60,6 +62,7 @@ export function ToolbarChoice<T extends string>({
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
             data-value={item.value}
+            title={item.title}
             variant="ghost"
             size={size}
             color={checked ? "fg.neutral" : "fg.neutralMuted"}

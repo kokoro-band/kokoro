@@ -225,9 +225,19 @@ SEED CLI로 가져온 스니펫은 `frontend/seed-design/ui`에 있고 `seed-des
 | 로딩과 진행률 | Progress Circle | 스니펫. Loading Indicator는 버튼 안에서만 씁니다 |
 | 저장 결과와 짧은 피드백 | Snackbar | 스니펫 어댑터. 모바일 도크는 Avoid Overlap |
 | 새 프로젝트와 도면 파일과 도면 이미지로 시작 | Content Dialog | 직접 사용 |
+| 단축키 안내 | Content Dialog | 직접 사용. `size="large"`, 키 이름은 `kbd` |
 | 모바일 도구 | Bottom Sheet | 직접 사용 |
 | 상태 표시 | Badge | 직접 사용 |
 | 모든 글자 | Text | `Type` wrapper로 역할만 지정 |
+
+### Keyboard shortcuts
+
+단축키는 `frontend/src/features/studio/shortcuts.ts` 한 곳에 키와 이름과 묶음을 적고, 동작은 `useShortcut`으로 그 동작을 가진 컴포넌트에서 연결합니다. 앱 바의 단축키 안내와 버튼 `title`은 같은 목록을 읽으므로 키를 바꾸면 안내도 함께 바뀝니다.
+
+- 키는 `event.code`로 맞춰 한글 입력기가 켜져 있어도 같은 자리의 키로 동작합니다. `mod`는 Mac에서 ⌘, 그 밖에서 Ctrl로 보여 줍니다.
+- 글을 입력하는 곳과 대화상자와 메뉴가 열려 있을 때는 동작하지 않습니다. 화살표 키는 툴바 선택과 탭과 슬라이더처럼 화살표를 스스로 쓰는 위젯에 포커스가 있으면 쉽니다.
+- 숫자 `1` `2` `3`은 앱 바 순서대로 구조와 배치와 내역을 엽니다. 화면 안의 단축키는 그 화면이 보일 때만 동작합니다.
+- 끌어서 옮기기처럼 화살표로 옮긴 가구는 키를 뗄 때 실행 취소 기록 하나로 남깁니다.
 
 ### Iconography
 

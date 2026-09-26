@@ -1,4 +1,10 @@
-import { useEffect, useRef, type FormEvent, type KeyboardEvent } from "react"
+import {
+  useEffect,
+  useRef,
+  type FormEvent,
+  type KeyboardEvent,
+  type Ref,
+} from "react"
 import { IconPaperplaneTiltedFill } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Badge, Chip, Icon, ScrollFog } from "@seed-design/react"
 import { ProgressCircle } from "seed-design/ui/progress-circle"
@@ -22,6 +28,7 @@ export function AssistantPanel({
   busy,
   onInputChange,
   onSend,
+  inputRef,
 }: {
   messages: ChatMessage[]
   input: string
@@ -30,6 +37,7 @@ export function AssistantPanel({
   busy: boolean
   onInputChange: (input: string) => void
   onSend: (text: string) => void
+  inputRef?: Ref<HTMLTextAreaElement>
 }) {
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -114,6 +122,7 @@ export function AssistantPanel({
           onValueChange={({ value }) => onInputChange(value)}
         >
           <TextFieldTextarea
+            ref={inputRef}
             aria-label="가구 배치 요청"
             placeholder="예: 소파 옆에 화분을 놓아줘"
             autoresize

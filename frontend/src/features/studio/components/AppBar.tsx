@@ -5,6 +5,7 @@ import {
   IconDocumentLine,
   IconHouseLine,
   IconPlusLine,
+  IconQuestionmarkCircleLine,
 } from "@karrotmarket/react-monochrome-icon"
 import {
   ActionButton,
@@ -21,6 +22,7 @@ import {
 } from "seed-design/ui/menu"
 
 import { Type } from "@/components/kokoro/Type"
+import { shortcutText } from "@/features/studio/shortcuts"
 
 export type StudioView = "structure" | "arrange" | "summary"
 
@@ -44,6 +46,7 @@ export function AppBar({
   onOpenSample,
   onOpenFloorPlan,
   onExport,
+  onOpenShortcuts,
 }: {
   projectName: string
   view: StudioView
@@ -59,6 +62,7 @@ export function AppBar({
   onOpenSample: () => void
   onOpenFloorPlan: () => void
   onExport: () => void
+  onOpenShortcuts: () => void
 }) {
   return (
     <header className="app-bar">
@@ -156,6 +160,17 @@ export function AppBar({
             다시 저장
           </ActionButton>
         )}
+        <ActionButton
+          variant="ghost"
+          size="small"
+          layout="iconOnly"
+          className="shortcut-guide-button"
+          aria-label="단축키"
+          title={`단축키 (${shortcutText("guide")})`}
+          onClick={onOpenShortcuts}
+        >
+          <Icon svg={<IconQuestionmarkCircleLine />} size="x5" />
+        </ActionButton>
       </div>
     </header>
   )

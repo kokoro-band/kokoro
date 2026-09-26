@@ -10,12 +10,14 @@ import { ArrangeView } from "@/features/studio/components/ArrangeView"
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
+import { ShortcutGuide } from "@/features/studio/components/ShortcutGuide"
 import { StructureView } from "@/features/studio/components/StructureView"
 import { SummaryView } from "@/features/studio/components/SummaryView"
 import {
   useStudioController,
   type Notice,
 } from "@/features/studio/hooks/useStudioController"
+import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import { useMediaQuery } from "@/lib/use-media-query"
 
 export default function App() {
@@ -72,7 +74,17 @@ function Studio() {
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [floorPlanOpen, setFloorPlanOpen] = useState(false)
   const [applying, setApplying] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const ready = studio.projectLoad.status === "ready"
+
+  useShortcut("guide", () => setGuideOpen(true))
+  useShortcut("viewStructure", () => setView("structure"), { enabled: ready })
+  useShortcut("viewArrange", () => setView("arrange"), { enabled: ready })
+  useShortcut("viewSummary", () => setView("summary"), { enabled: ready })
+  // 구조 화면은 저장하지 않은 초안이 따로 있어서 구조 편집기가 저장을 맡습니다.
+  useShortcut("save", studio.saveProject, {
+    enabled: ready && view !== "structure",
+  })
 
   // 저장된 구조가 바뀌면 구조 편집기를 새 기준으로 다시 시작합니다.
   const structureKey = useMemo(
@@ -110,6 +122,7 @@ function Studio() {
         }}
         onOpenFloorPlan={() => setFloorPlanOpen(true)}
         onExport={studio.exportProject}
+        onOpenShortcuts={() => setGuideOpen(true)}
       />
       <main id="workspace" className="workspace">
         {!ready ? (
@@ -186,6 +199,7 @@ function Studio() {
           return created
         }}
       />
+      <ShortcutGuide open={guideOpen} view={view} onOpenChange={setGuideOpen} />
       <FloorPlanDialog
         open={floorPlanOpen}
         project={studio.project}

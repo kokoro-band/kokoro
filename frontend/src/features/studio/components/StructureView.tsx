@@ -35,6 +35,7 @@ import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
 import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
 import { Type } from "@/components/kokoro/Type"
 import { useEditorHistory } from "@/features/studio/hooks/useEditorHistory"
+import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import {
   addOpening,
   addRoom,
@@ -64,6 +65,7 @@ import {
   type RoomDraft,
   type RoomRect,
 } from "@/features/studio/room-builder"
+import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts"
 import type { Opening, RoomModel, Wall } from "@/features/studio/types"
 
 import { MeterField } from "./MeterField"
@@ -81,27 +83,37 @@ const padding = 0.6
 const minFrame = 4
 const defaultAreaPyeong = 20
 
-const tools: { id: Tool; label: string; hint: string; icon: ReactNode }[] = [
+const tools: {
+  id: Tool
+  label: string
+  hint: string
+  icon: ReactNode
+  shortcut: ShortcutId
+}[] = [
   {
     id: "select",
+    shortcut: "toolSelect",
     icon: <IconHandPointUpLine />,
     label: "이동",
     hint: "방을 끌어서 옮겨요. 방을 누르면 오른쪽에서 이름과 크기를 바꿀 수 있어요.",
   },
   {
     id: "split",
+    shortcut: "toolSplit",
     icon: <IconScissorsLine />,
     label: "나누기",
     hint: "방 안을 누르면 그 자리에 벽이 생기면서 두 방으로 나뉘어요.",
   },
   {
     id: "erase",
+    shortcut: "toolErase",
     icon: <IconEraserHorizlineLine />,
     label: "합치기",
     hint: "방 사이의 벽을 누르면 두 방이 하나로 합쳐져요.",
   },
   {
     id: "opening",
+    shortcut: "toolOpening",
     icon: <IconWindow4HouseLine />,
     label: "문·창",
     hint: "벽을 누르면 그 자리에 문이나 창이 생겨요. 다시 누르면 없어져요.",
@@ -245,22 +257,55 @@ export function StructureView({
     onDirtyChange(dirty)
   }, [dirty, onDirtyChange])
 
-  const { undo, redo } = history
-  useEffect(() => {
-    if (!active) return
-    function onKeyDown(event: KeyboardEvent) {
-      if (!event.ctrlKey && !event.metaKey) return
-      const target = event.target as HTMLElement | null
-      if (target?.closest("input, textarea, [contenteditable='true']")) return
-      const key = event.key.toLowerCase()
-      if (key !== "z" && key !== "y") return
-      event.preventDefault()
-      if (key === "y" || event.shiftKey) redo()
-      else undo()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [active, undo, redo])
+  // 구조 화면이 가려져 있거나 시작 방법을 고르는 동안에는 편집 단축키를 쉬게 합니다.
+  const editing = active && !choosingStart
+  const canApply = connected && !overlapping && dirty && !saving
+  useShortcut("undo", history.undo, { enabled: active })
+  useShortcut("redo", history.redo, { enabled: active })
+  useShortcut(
+    "save",
+    () => {
+      if (canApply) onApply(model)
+    },
+    { enabled: active }
+  )
+  useShortcut("toolSelect", () => setTool("select"), { enabled: editing })
+  useShortcut("toolSplit", () => setTool("split"), { enabled: editing })
+  useShortcut("toolErase", () => setTool("erase"), { enabled: editing })
+  useShortcut("toolOpening", () => setTool("opening"), { enabled: editing })
+  useShortcut(
+    "toolOption",
+    () => {
+      if (tool === "split")
+        setAxis((current) =>
+          current === "vertical" ? "horizontal" : "vertical"
+        )
+      else setOpeningType((current) => (current === "door" ? "window" : "door"))
+    },
+    { enabled: editing && (tool === "split" || tool === "opening") }
+  )
+  useShortcut("addRoom", addNextRoom, { enabled: editing })
+  useShortcut("deleteRoom", deleteSelectedRoom, {
+    enabled: editing && Boolean(selected) && draft.rooms.length > 1,
+  })
+  useShortcut(
+    "structureEscape",
+    () => {
+      if (tool !== "select") setTool("select")
+      else setSelectedId(null)
+    },
+    { enabled: editing && (tool !== "select" || Boolean(selected)) }
+  )
+
+  function addNextRoom() {
+    editDraft((current) => addRoom(current, nextRoomName(current)))
+  }
+
+  function deleteSelectedRoom() {
+    if (!selected) return
+    editDraft((current) => removeRoom(current, selected.id))
+    setSelectedId(null)
+  }
 
   function editDraft(updater: (current: RoomDraft) => RoomDraft, tag?: string) {
     history.set(
@@ -459,6 +504,7 @@ export function StructureView({
                 value: item.id,
                 label: item.label,
                 icon: item.icon,
+                title: `${item.label} (${shortcutText(item.shortcut)})`,
               }))}
               value={tool}
               onValueChange={setTool}
@@ -497,9 +543,8 @@ export function StructureView({
             <ActionButton
               variant="ghost"
               size="small"
-              onClick={() =>
-                editDraft((current) => addRoom(current, nextRoomName(current)))
-              }
+              title={`방 추가 (${shortcutText("addRoom")})`}
+              onClick={addNextRoom}
             >
               <PrefixIcon svg={<IconPlusLine />} />방 추가
             </ActionButton>
@@ -533,7 +578,7 @@ export function StructureView({
               size="small"
               layout="iconOnly"
               aria-label="실행 취소"
-              title="실행 취소 (Ctrl+Z)"
+              title={`실행 취소 (${shortcutText("undo")})`}
               disabled={!history.canUndo}
               onClick={history.undo}
             >
@@ -544,7 +589,7 @@ export function StructureView({
               size="small"
               layout="iconOnly"
               aria-label="다시 실행"
-              title="다시 실행 (Ctrl+Shift+Z)"
+              title={`다시 실행 (${shortcutText("redo")})`}
               disabled={!history.canRedo}
               onClick={history.redo}
             >
@@ -753,10 +798,7 @@ export function StructureView({
                   size="small"
                   color="fg.critical"
                   disabled={draft.rooms.length <= 1}
-                  onClick={() => {
-                    editDraft((current) => removeRoom(current, selected.id))
-                    setSelectedId(null)
-                  }}
+                  onClick={deleteSelectedRoom}
                 >
                   <PrefixIcon svg={<IconTrashcanLine />} />
                   삭제
@@ -948,8 +990,9 @@ export function StructureView({
           <ActionButton
             variant="brandSolid"
             size="medium"
-            disabled={!connected || overlapping || !dirty || saving}
+            disabled={!canApply}
             loading={saving}
+            title={`${room ? "구조 저장" : "이 구조로 시작"} (${shortcutText("save")})`}
             onClick={() => onApply(model)}
           >
             {room ? "구조 저장" : "이 구조로 시작"}

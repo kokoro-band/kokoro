@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import {
   IconHouseLine,
   IconPlusLine,
@@ -17,8 +17,13 @@ import {
 } from "seed-design/ui/tabs"
 
 import { Type } from "@/components/kokoro/Type"
+import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
-import { roomCenter } from "@/features/studio/house-navigation"
+import {
+  canPlaceFurniture,
+  roomCenter,
+} from "@/features/studio/house-navigation"
+import { shortcutText } from "@/features/studio/shortcuts"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
@@ -29,6 +34,18 @@ import { SceneEditor } from "./SceneEditor"
 type Studio = ReturnType<typeof useStudioController>
 type InspectorTab = "selection" | "assistant"
 type MobileSheet = "navigator" | "selection" | "assistant" | null
+
+/** 평면도에서 화살표 키가 가리키는 방향. 세로는 아래로 갈수록 커집니다. */
+const nudgeDirections: Record<string, [x: number, z: number]> = {
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+}
+
+function round1(value: number) {
+  return Math.round(value * 10) / 10
+}
 
 export function ArrangeView({
   studio,
@@ -59,6 +76,73 @@ export function ArrangeView({
     },
     [isMobile, selectStudioFurniture]
   )
+  const assistantInputRef = useRef<HTMLTextAreaElement>(null)
+  const selected = studio.selected
+  const hasHouse = Boolean(houseRoom && rooms.length > 0)
+  const hasSelection = hasHouse && Boolean(selected)
+
+  const changeRoom = (index: number | null) => {
+    studio.selectFurniture(null)
+    onRoomChange(index)
+    if (isMobile && index !== null) setSheet(null)
+  }
+
+  /** 집 전체와 방들을 차례로 돕니다. */
+  const stepRoom = (step: number) => {
+    const count = rooms.length + 1
+    const next = (((roomIndex ?? -1) + 1 + step + count) % count) - 1
+    changeRoom(next < 0 ? null : next)
+  }
+
+  const nudge = (event: KeyboardEvent, distance: number) => {
+    const direction = nudgeDirections[event.code]
+    if (!selected || !direction) return
+    const x = round1(selected.x + direction[0] * distance)
+    const z = round1(selected.z + direction[1] * distance)
+    if (canPlaceFurniture(studio.project, room, x, z))
+      studio.previewSelected({ x, z })
+  }
+
+  const rotate = (degrees: number) => {
+    if (!selected) return
+    studio.updateSelected({
+      rotation: (selected.rotation + degrees + 360) % 360,
+    })
+  }
+
+  const deleteSelected = () => {
+    studio.deleteSelected()
+    if (isMobile) setSheet(null)
+  }
+
+  useShortcut("nudge", (event) => nudge(event, 0.1), { enabled: hasSelection })
+  useShortcut("nudgeFar", (event) => nudge(event, 0.5), {
+    enabled: hasSelection,
+  })
+  // 끌어서 옮길 때처럼 키를 떼면 한 번에 실행 취소 기록으로 남깁니다.
+  useShortcut("nudge", studio.commitPreview, { enabled: hasHouse, keyup: true })
+  useShortcut("rotate", () => rotate(90), { enabled: hasSelection })
+  useShortcut("rotateBack", () => rotate(-90), { enabled: hasSelection })
+  useShortcut("deleteFurniture", deleteSelected, { enabled: hasSelection })
+  useShortcut(
+    "arrangeEscape",
+    () => {
+      if (selected) selectFurniture(null)
+      else changeRoom(null)
+    },
+    { enabled: hasHouse && (Boolean(selected) || roomIndex !== null) }
+  )
+  useShortcut("previousRoom", () => stepRoom(-1), { enabled: hasHouse })
+  useShortcut("nextRoom", () => stepRoom(1), { enabled: hasHouse })
+  useShortcut(
+    "focusAssistant",
+    () => {
+      if (isMobile) setSheet("assistant")
+      else setInspectorTab("assistant")
+      requestAnimationFrame(() => assistantInputRef.current?.focus())
+    },
+    { enabled: hasHouse }
+  )
 
   if (!houseRoom || rooms.length === 0) {
     return (
@@ -78,12 +162,6 @@ export function ArrangeView({
         />
       </div>
     )
-  }
-
-  const changeRoom = (index: number | null) => {
-    studio.selectFurniture(null)
-    onRoomChange(index)
-    if (isMobile && index !== null) setSheet(null)
   }
 
   const addFurniture = (catalogId: string) => {
@@ -109,18 +187,15 @@ export function ArrangeView({
     />
   )
 
-  const selection = studio.selected ? (
+  const selection = selected ? (
     <FurnitureInspector
-      key={studio.selected.id}
-      selected={studio.selected}
+      key={selected.id}
+      selected={selected}
       bounds={studio.roomBounds}
       onUpdate={studio.updateSelected}
       onPreview={studio.previewSelected}
       onCommitPreview={studio.commitPreview}
-      onDelete={() => {
-        studio.deleteSelected()
-        if (isMobile) setSheet(null)
-      }}
+      onDelete={deleteSelected}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
     />
   ) : (
@@ -137,7 +212,12 @@ export function ArrangeView({
         </li>
         <li>
           <Type variant="description">
-            Ctrl+Z로 방금 한 일을 되돌릴 수 있어요.
+            {shortcutText("undo")}로 방금 한 일을 되돌릴 수 있어요.
+          </Type>
+        </li>
+        <li>
+          <Type variant="description">
+            {shortcutText("guide")}를 누르면 단축키를 모두 볼 수 있어요.
           </Type>
         </li>
       </ul>
@@ -153,6 +233,7 @@ export function ArrangeView({
       busy={busy}
       onInputChange={studio.setInput}
       onSend={send}
+      inputRef={assistantInputRef}
     />
   )
 
@@ -213,7 +294,7 @@ export function ArrangeView({
               <PrefixIcon svg={<IconSparkle2Line />} />
               AI 배치
             </ActionButton>
-            {studio.selected && (
+            {selected && (
               <ActionButton
                 variant="neutralWeak"
                 size="medium"

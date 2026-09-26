@@ -146,3 +146,10 @@
     flex: 1;
   }
 }
+
+/* 키보드가 없는 터치 기기에서는 단축키 안내를 감춥니다. */
+@media (hover: none) and (pointer: coarse) {
+  .shortcut-guide-button {
+    display: none;
+  }
+}

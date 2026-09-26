@@ -19,6 +19,8 @@ import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
 import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
 import { Type } from "@/components/kokoro/Type"
 import { roomForFurniture } from "@/features/studio/house-navigation"
+import { useShortcut } from "@/features/studio/hooks/useShortcut"
+import { shortcutText } from "@/features/studio/shortcuts"
 import type { Project, RoomLabel, ViewMode } from "@/features/studio/types"
 
 const RoomScene = lazy(async () => {
@@ -89,21 +91,6 @@ export function SceneEditor({
       document.removeEventListener("fullscreenchange", syncFullscreen)
   }, [])
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (!event.ctrlKey && !event.metaKey) return
-      const target = event.target as HTMLElement | null
-      if (target?.closest("input, textarea, [contenteditable='true']")) return
-      const key = event.key.toLowerCase()
-      if (key !== "z" && key !== "y") return
-      event.preventDefault()
-      if (key === "y" || event.shiftKey) onRedo()
-      else onUndo()
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onUndo, onRedo])
-
   const toggleFullscreen = () => {
     const panel = panelRef.current
     if (!panel) return
@@ -113,11 +100,25 @@ export function SceneEditor({
     action.catch(onFullscreenError)
   }
 
+  useShortcut("undo", onUndo)
+  useShortcut("redo", onRedo)
+  useShortcut("toggleDimension", () =>
+    onModeChange(mode === "2d" ? "3d" : "2d")
+  )
+  useShortcut("fullscreen", toggleFullscreen)
+
   return (
     <section ref={panelRef} className="viewport" aria-label="배치 화면">
       <div className="viewport-toolbar">
         <ToolbarChoice
-          items={viewModes}
+          items={viewModes.map((item) =>
+            item.value === "vr"
+              ? item
+              : {
+                  ...item,
+                  title: `2D와 3D 바꾸기 (${shortcutText("toggleDimension")})`,
+                }
+          )}
           value={mode}
           onValueChange={onModeChange}
           aria-label="보기 방식"
@@ -128,7 +129,7 @@ export function SceneEditor({
             size="small"
             layout="iconOnly"
             aria-label="실행 취소"
-            title="실행 취소 (Ctrl+Z)"
+            title={`실행 취소 (${shortcutText("undo")})`}
             disabled={!canUndo}
             onClick={onUndo}
           >
@@ -139,7 +140,7 @@ export function SceneEditor({
             size="small"
             layout="iconOnly"
             aria-label="다시 실행"
-            title="다시 실행 (Ctrl+Shift+Z)"
+            title={`다시 실행 (${shortcutText("redo")})`}
             disabled={!canRedo}
             onClick={onRedo}
           >
@@ -158,6 +159,7 @@ export function SceneEditor({
               isFullscreen ? "전체 화면 끝내기" : "전체 화면으로 보기"
             }
             aria-pressed={isFullscreen}
+            title={`${isFullscreen ? "전체 화면 끝내기" : "전체 화면으로 보기"} (${shortcutText("fullscreen")})`}
             onClick={toggleFullscreen}
           >
             <Icon

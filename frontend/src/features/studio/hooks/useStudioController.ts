@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
   isServerMode,
+  getProject,
   makeFurniture,
   readActiveProjectId,
   readSavedProject,
@@ -17,25 +18,38 @@ import {
   sendCommandMutationOptions,
   uploadPlanMutationOptions,
 } from "@/features/studio/project-queries"
+import { withObjectParticle } from "@/features/studio/format"
 import type {
   RoomModel,
   Category,
   ChatMessage,
   Furniture,
+  Point2,
   Project,
   ProjectLoadState,
   UploadAttempt,
   ViewMode,
 } from "@/features/studio/types"
 
+export type Notice = {
+  id: number
+  text: string
+  tone: "default" | "positive" | "critical"
+  /** 저장 실패처럼 알림 안에서 바로 다시 시도할 수 있을 때 */
+  action?: "retrySave"
+}
+
+/** 다른 알림이 없던 시간이 이만큼 지나야 자동 저장을 알립니다. */
+const autosaveNoticeQuietMs = 45_000
+
 const maxFloorPlanBytes = 15 * 1024 * 1024
 const supportedFloorPlanTypes = ["application/pdf", "image/png", "image/jpeg"]
 
 function validateFloorPlan(file: File) {
   if (!supportedFloorPlanTypes.includes(file.type))
-    return "PDF, PNG, JPG 형식의 도면을 선택해 주세요."
-  if (file.size > maxFloorPlanBytes) return "도면 파일은 15MB 이하여야 합니다."
-  if (file.size === 0) return "비어 있는 파일은 업로드할 수 없습니다."
+    return "PDF, PNG, JPG 파일만 올릴 수 있어요."
+  if (file.size > maxFloorPlanBytes) return "15MB 이하의 파일만 올릴 수 있어요."
+  if (file.size === 0) return "비어 있는 파일이에요. 다른 파일을 골라 주세요."
   return null
 }
 
@@ -50,13 +64,25 @@ export function useStudioController() {
       ? { status: "loading", message: "" }
       : { status: "ready", message: "" }
   )
-  const [selectedId, setSelectedId] = useState<string | null>("sofa-01")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<ViewMode>("3d")
   const [category, setCategory] = useState<Category>("전체")
-  const [leftTab, setLeftTab] = useState<"furniture" | "plan">("furniture")
+  const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
-  const [notice, setNotice] = useState("")
+  const [notice, setNoticeState] = useState<Notice | null>(null)
+  const noticeIdRef = useRef(0)
+  const lastNoticeAtRef = useRef(0)
+  const setNotice = useCallback(function setNotice(
+    text: string,
+    tone: Notice["tone"] = "default",
+    action?: Notice["action"]
+  ) {
+    if (text) lastNoticeAtRef.current = Date.now()
+    setNoticeState(
+      text ? { id: (noticeIdRef.current += 1), text, tone, action } : null
+    )
+  }, [])
   const [busy, setBusy] = useState<
     "chat" | "save" | "upload" | "create" | null
   >(null)
@@ -65,7 +91,7 @@ export function useStudioController() {
   const [future, setFuture] = useState<Furniture[][]>([])
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [showLeft, setShowLeft] = useState(true)
+  const [saveFailed, setSaveFailed] = useState(false)
 
   const queryClient = useQueryClient()
   const createProjectMutation = useMutation(
@@ -90,6 +116,7 @@ export function useStudioController() {
   const queuedSaveRef = useRef<Project | null>(null)
   const saveLoopRef = useRef<Promise<void> | null>(null)
   const saveProjectAsyncRef = useRef(saveProjectMutation.mutateAsync)
+  const transientBaseRef = useRef<Furniture[] | null>(null)
 
   const selected = project.furniture.find((item) => item.id === selectedId)
   const roomBounds = project.room?.bounds ?? {
@@ -97,42 +124,68 @@ export function useStudioController() {
     depth: project.dimensions.depth,
   }
 
-  const queueServerSave = useCallback(function queueServerSave(
-    snapshot: Project
-  ) {
-    if (!isServerMode) return
-    queuedSaveRef.current = snapshot
-    if (saveLoopRef.current) return
+  const dismissNotice = useCallback(() => setNotice(""), [setNotice])
 
-    saveLoopRef.current = (async () => {
-      setSaving(true)
-      try {
-        while (queuedSaveRef.current) {
-          const next = queuedSaveRef.current
-          queuedSaveRef.current = null
-          try {
-            const saved = await saveProjectAsyncRef.current(next)
-            if (projectRef.current === next) {
-              projectRef.current = saved
-              setProject(saved)
-              setDirty(false)
-            }
-          } catch (error) {
+  // 서버 모드는 서버에, 로컬 데모는 이 브라우저에 자동으로 저장합니다.
+  const queueSave = useCallback(
+    function queueSave(snapshot: Project) {
+      queuedSaveRef.current = snapshot
+      if (saveLoopRef.current) return
+
+      saveLoopRef.current = (async () => {
+        setSaving(true)
+        let failed = false
+        try {
+          while (queuedSaveRef.current) {
+            const next = queuedSaveRef.current
             queuedSaveRef.current = null
-            setDirty(true)
-            setNotice(
-              error instanceof Error
-                ? error.message
-                : "배치를 자동 저장하지 못했습니다."
-            )
+            try {
+              const saved = await saveProjectAsyncRef.current(next)
+              setSaveFailed(false)
+              if (projectRef.current === next) {
+                projectRef.current = saved
+                setProject(saved)
+                setDirty(false)
+              }
+            } catch (error) {
+              failed = true
+              queuedSaveRef.current = null
+              setDirty(true)
+              setSaveFailed(true)
+              setNotice(
+                error instanceof Error
+                  ? error.message
+                  : "자동으로 저장하지 못했어요.",
+                "critical",
+                "retrySave"
+              )
+            }
           }
+          // 저장은 조용히 하고, 한동안 다른 알림이 없었을 때만 저장됐다고 알려 줍니다.
+          if (
+            !failed &&
+            Date.now() - lastNoticeAtRef.current > autosaveNoticeQuietMs
+          ) {
+            setNotice("자동으로 저장했어요.", "positive")
+          }
+        } finally {
+          saveLoopRef.current = null
+          setSaving(false)
         }
-      } finally {
-        saveLoopRef.current = null
-        setSaving(false)
-      }
-    })()
-  }, [])
+      })()
+    },
+    [setNotice]
+  )
+
+  /** 서버를 거치지 않고 바뀐 프로젝트를 로컬 데모에서만 저장합니다. */
+  const persistLocalChange = useCallback(
+    function persistLocalChange(snapshot: Project) {
+      if (isServerMode) return
+      setDirty(true)
+      queueSave(snapshot)
+    },
+    [queueSave]
+  )
 
   const loadServerProject = useCallback(
     async function loadServerProject(projectId: string) {
@@ -146,7 +199,7 @@ export function useStudioController() {
         rememberActiveProject(loaded.id)
         projectRef.current = loaded
         setProject(loaded)
-        setSelectedId(loaded.furniture[0]?.id ?? null)
+        setSelectedId(null)
         setPast([])
         setFuture([])
         setUploadAttempt(null)
@@ -159,7 +212,7 @@ export function useStudioController() {
           message:
             error instanceof Error
               ? error.message
-              : "서버에서 프로젝트를 불러오지 못했습니다.",
+              : "프로젝트를 불러오지 못했어요.",
         })
       }
     },
@@ -183,7 +236,7 @@ export function useStudioController() {
     projectRef.current = updated
     setProject(updated)
     setDirty(true)
-    queueServerSave(updated)
+    queueSave(updated)
   }
 
   const selectFurniture = useCallback(function selectFurniture(
@@ -192,15 +245,15 @@ export function useStudioController() {
     setSelectedId(id)
   }, [])
 
-  const moveFurniture = useCallback(function moveFurniture(
+  const previewFurniture = useCallback(function previewFurniture(
     id: string,
-    x: number,
-    z: number
+    update: Partial<Furniture>
   ) {
+    transientBaseRef.current ??= projectRef.current.furniture
     const updated = {
       ...projectRef.current,
       furniture: projectRef.current.furniture.map((item) =>
-        item.id === id ? { ...item, x, z } : item
+        item.id === id ? { ...item, ...update } : item
       ),
     }
     projectRef.current = updated
@@ -208,11 +261,23 @@ export function useStudioController() {
     setDirty(true)
   }, [])
 
-  const saveMovedFurniture = useCallback(
-    function saveMovedFurniture() {
-      queueServerSave(projectRef.current)
+  const moveFurniture = useCallback(
+    function moveFurniture(id: string, x: number, z: number) {
+      previewFurniture(id, { x, z })
     },
-    [queueServerSave]
+    [previewFurniture]
+  )
+
+  const commitPreview = useCallback(
+    function commitPreview() {
+      const base = transientBaseRef.current
+      transientBaseRef.current = null
+      if (!base || base === projectRef.current.furniture) return
+      setPast((history) => [...history.slice(-29), base])
+      setFuture([])
+      queueSave(projectRef.current)
+    },
+    [queueSave]
   )
 
   function updateSelected(update: Partial<Furniture>) {
@@ -228,16 +293,20 @@ export function useStudioController() {
     setSelectedId(null)
   }
 
-  function addFurniture(catalogId: string) {
+  function addFurniture(catalogId: string, position?: [number, number]) {
     const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
-      round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8)),
-      round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
+      position
+        ? round(position[0])
+        : round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8)),
+      position
+        ? round(position[1])
+        : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
     commitFurniture([...project.furniture, item])
     setSelectedId(item.id)
-    setNotice(`${item.name}를 추가했습니다.`)
+    setNotice(`${withObjectParticle(item.name)} 놓았어요.`)
   }
 
   function undo() {
@@ -249,7 +318,7 @@ export function useStudioController() {
     projectRef.current = updated
     setProject(updated)
     setDirty(true)
-    queueServerSave(updated)
+    queueSave(updated)
   }
 
   function redo() {
@@ -261,7 +330,7 @@ export function useStudioController() {
     projectRef.current = updated
     setProject(updated)
     setDirty(true)
-    queueServerSave(updated)
+    queueSave(updated)
   }
 
   async function handleSave() {
@@ -269,24 +338,29 @@ export function useStudioController() {
     setBusy("save")
     try {
       const saved = await saveProjectMutation.mutateAsync(snapshot)
+      setSaveFailed(false)
       if (projectRef.current === snapshot) {
         projectRef.current = saved
         setProject(saved)
         setDirty(false)
       }
       setNotice(
-        isServerMode
-          ? "서버에 배치를 저장했습니다."
-          : "이 브라우저에 프로젝트를 저장했습니다."
+        isServerMode ? "저장했어요." : "이 브라우저에 저장했어요.",
+        "positive"
       )
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "저장하지 못했습니다.")
+      setSaveFailed(true)
+      setNotice(
+        error instanceof Error ? error.message : "저장하지 못했어요.",
+        "critical",
+        "retrySave"
+      )
     } finally {
       setBusy(null)
     }
   }
 
-  async function handleChat(text: string) {
+  async function handleChat(text: string, focus?: Point2[]) {
     if (!text.trim() || busy) return
     setMessages((current) => [
       ...current,
@@ -298,17 +372,20 @@ export function useStudioController() {
       const response = await sendCommandMutation.mutateAsync({
         project,
         message: text,
+        focus,
       })
       setPast((history) => [...history.slice(-29), project.furniture])
       setFuture([])
       projectRef.current = response.project
       setProject(response.project)
-      setDirty(!isServerMode)
+      persistLocalChange(response.project)
       setMessages((current) => [
         ...current,
         { id: crypto.randomUUID(), role: "assistant", text: response.reply },
       ])
     } catch (error) {
+      // 실패한 요청을 다시 적지 않도록 입력창이 비어 있으면 되살립니다.
+      setInput((current) => current || text)
       setMessages((current) => [
         ...current,
         {
@@ -317,7 +394,7 @@ export function useStudioController() {
           text:
             error instanceof Error
               ? error.message
-              : "요청을 처리하지 못했습니다.",
+              : "요청을 처리하지 못했어요. 다시 시도해 주세요.",
         },
       ])
     } finally {
@@ -329,7 +406,6 @@ export function useStudioController() {
     if (!file) return
     setNotice("")
     const validationError = validateFloorPlan(file)
-    setLeftTab("plan")
     if (validationError) {
       setUploadAttempt({
         file,
@@ -362,17 +438,38 @@ export function useStudioController() {
           ? { ...current, phase: "CONVERTING", progress: 74 }
           : current
       )
-      await new Promise((resolve) => window.setTimeout(resolve, 450))
-      projectRef.current = uploaded
-      setProject(uploaded)
+      let resolved = uploaded
+      if (isServerMode && uploaded.floorPlan.status === "PROCESSING") {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((resolve) => window.setTimeout(resolve, 500))
+          resolved = await getProject(uploaded.id)
+          setUploadAttempt((current) =>
+            current?.file === file
+              ? { ...current, progress: resolved.floorPlan.progress }
+              : current
+          )
+          if (resolved.floorPlan.status !== "PROCESSING") break
+        }
+      }
+      projectRef.current = resolved
+      setProject(resolved)
       setUploadAttempt(null)
-      setDirty(true)
-      setNotice("도면을 등록했습니다. 현재 변환기는 예제 방 치수를 사용합니다.")
+      persistLocalChange(resolved)
+      setNotice(
+        resolved.floorPlan.status === "READY"
+          ? resolved.room
+            ? "도면을 올렸어요. 로컬 데모에서는 예제 집 구조를 보여 드려요."
+            : "도면을 올렸어요. 구조에서 방을 나눠 주세요."
+          : resolved.floorPlan.status === "FAILED"
+            ? "도면을 읽지 못했어요. 도면 파일에서 다른 파일을 올려 주세요."
+            : "도면을 올렸어요. 도면 파일에서 처리 상태를 확인할 수 있어요.",
+        resolved.floorPlan.status === "FAILED" ? "critical" : "default"
+      )
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "도면을 등록하지 못했습니다. 다시 시도해 주세요."
+          : "도면을 올리지 못했어요. 다시 시도해 주세요."
       setUploadAttempt((current) =>
         current?.file === file
           ? { ...current, status: "FAILED", error: message }
@@ -406,13 +503,17 @@ export function useStudioController() {
       setFuture([])
       setMessages(initialMessages)
       setUploadAttempt(null)
-      setLeftTab("plan")
-      setDirty(!isServerMode)
-      setNotice("새 프로젝트를 만들었습니다. 도면을 업로드해 주세요.")
+      setLeftTab("furniture")
+      setDirty(false)
+      persistLocalChange(created)
+      setNotice("새 프로젝트를 만들었어요. 먼저 집 구조를 잡아 주세요.")
       return true
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "프로젝트를 만들지 못했습니다."
+        error instanceof Error
+          ? error.message
+          : "프로젝트를 만들지 못했어요. 다시 시도해 주세요.",
+        "critical"
       )
       return false
     } finally {
@@ -429,8 +530,11 @@ export function useStudioController() {
     projectRef.current = sample
     setProject(sample)
     setUploadAttempt(null)
-    setDirty(true)
-    setNotice("예제 프로젝트를 열었습니다.")
+    setPast([])
+    setFuture([])
+    setSelectedId(null)
+    persistLocalChange(sample)
+    setNotice("예제 집을 열었어요.")
   }
 
   async function applyRoom(room: RoomModel) {
@@ -447,13 +551,16 @@ export function useStudioController() {
       }
       projectRef.current = next
       setProject(next)
-      setNotice("공간 정보를 저장했습니다.")
+      setNotice("구조를 저장했어요.", "positive")
+      return true
     } catch (error) {
       setNotice(
         error instanceof Error
           ? error.message
-          : "공간 정보를 저장하지 못했습니다."
+          : "구조를 저장하지 못했어요. 다시 시도해 주세요.",
+        "critical"
       )
+      return false
     }
   }
 
@@ -466,7 +573,7 @@ export function useStudioController() {
     anchor.download = `${project.name}-layout.json`
     anchor.click()
     URL.revokeObjectURL(url)
-    setNotice("배치 데이터를 JSON 파일로 내보냈습니다.")
+    setNotice("배치를 JSON 파일로 내보냈어요.")
   }
 
   return {
@@ -486,7 +593,7 @@ export function useStudioController() {
     uploadAttempt,
     dirty,
     saving,
-    showLibrary: showLeft,
+    saveFailed,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
@@ -498,18 +605,22 @@ export function useStudioController() {
     addFurniture,
     retryUpload,
     setMode,
-    toggleLibrary: () => setShowLeft((current) => !current),
     undo,
     redo,
-    reportFullscreenError: () => setNotice("전체 화면을 시작하지 못했습니다."),
+    reportFullscreenError: () =>
+      setNotice("전체 화면으로 바꾸지 못했어요.", "critical"),
     selectFurniture,
     moveFurniture,
-    saveMovedFurniture,
+    previewSelected: (update: Partial<Furniture>) => {
+      if (selectedId) previewFurniture(selectedId, update)
+    },
+    commitPreview,
     setInput,
-    sendMessage: (text: string) => void handleChat(text),
+    sendMessage: (text: string, focus?: Point2[]) =>
+      void handleChat(text, focus),
     updateSelected,
     deleteSelected,
-    dismissNotice: () => setNotice(""),
+    dismissNotice,
     uploadFloorPlan: (file?: File) => void handleUpload(file),
     createProject: handleCreate,
   }

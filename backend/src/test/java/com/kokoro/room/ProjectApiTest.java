@@ -44,6 +44,28 @@ class ProjectApiTest {
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
+    void placementErrorIdentifiesTheWallAndDoesNotChangeStoredState() throws Exception {
+        String created = mockMvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"벽 검증","roomType":"거실","dimensions":{"width":6,"depth":4,"height":2.4}}
+                """)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asString();
+        var room = mapper.readTree(getClass().getResourceAsStream("/contracts/room-v2.json")).path("room");
+        String before = mockMvc.perform(put("/api/projects/{id}/room", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(mapper.createObjectNode().set("room", room))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"furniture":[{"id":"blocked-chair","catalogId":"chair-shell","name":"의자","category":"의자",
+                 "x":0.4,"z":2,"rotation":0,"color":"#000000"}]}
+                """))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("WALL_COLLISION"))
+                .andExpect(jsonPath("$.furnitureIds[0]").value("blocked-chair"))
+                .andExpect(jsonPath("$.wallId").value("w-0-0-0-4"));
+        String after = mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals(mapper.readTree(before), mapper.readTree(after));
+    }
+
+    @Test
     void exposesHealthAndSampleProject() throws Exception {
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())

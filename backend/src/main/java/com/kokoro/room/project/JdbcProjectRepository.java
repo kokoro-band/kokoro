@@ -10,6 +10,11 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import static org.springframework.http.HttpStatus.CONFLICT;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -31,6 +36,7 @@ public class JdbcProjectRepository implements ProjectRepository {
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<RenovationProject> findAll() {
         Map<String, RenovationProject> projects = new LinkedHashMap<>();
         jdbc.query("""
@@ -38,7 +44,7 @@ public class JdbcProjectRepository implements ProjectRepository {
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
                        floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                        floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
-                       floor_plan_retryable, updated_at
+                       floor_plan_retryable, updated_at, revision
                   FROM projects ORDER BY updated_at DESC
                 """, (rs, rowNum) -> mapProject(rs))
                 .forEach(project -> projects.put(project.id(), project));
@@ -47,21 +53,33 @@ public class JdbcProjectRepository implements ProjectRepository {
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Optional<RenovationProject> findById(String id) {
+        return readById(id, false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<RenovationProject> lockById(String id) {
+        return readById(id, true);
+    }
+
+    private Optional<RenovationProject> readById(String id, boolean lock) {
         List<RenovationProject> projects = jdbc.query("""
                 SELECT id, owner_id, name, room_type, width, depth, height, room,
                        floor_plan_file_name, floor_plan_size, floor_plan_status,
                        floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                        floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
-                       floor_plan_retryable, updated_at
+                       floor_plan_retryable, updated_at, revision
                   FROM projects WHERE id = ?
-                """, (rs, rowNum) -> mapProject(rs), id);
+                """ + (lock ? " FOR UPDATE" : ""), (rs, rowNum) -> mapProject(rs), id);
         if (projects.isEmpty()) return Optional.empty();
         RenovationProject project = projects.get(0);
         return Optional.of(replaceFurniture(project));
     }
 
     @Override
+    @Transactional
     public void insert(RenovationProject project) {
         jdbc.update("""
                 INSERT INTO projects (
@@ -69,37 +87,51 @@ public class JdbcProjectRepository implements ProjectRepository {
                     floor_plan_file_name, floor_plan_size, floor_plan_status,
                     floor_plan_progress, floor_plan_uploaded_at, floor_plan_job_id,
                     floor_plan_object_key, floor_plan_error_code, floor_plan_error_message,
-                    floor_plan_retryable, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    floor_plan_retryable, updated_at, revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, project.id(), project.ownerId(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 writeRoom(project.room()),
                 project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
                 project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
                 project.floorPlan().objectKey(), project.floorPlan().errorCode(), project.floorPlan().errorMessage(),
-                project.floorPlan().retryable(), timestamp(project.updatedAt()));
+                project.floorPlan().retryable(), timestamp(project.updatedAt()), project.revision());
         insertFurniture(project);
     }
 
     @Override
+    @Transactional
     public void replace(RenovationProject project) {
-        jdbc.update("DELETE FROM furniture_items WHERE project_id = ?", project.id());
-                jdbc.update("""
+        int changed = jdbc.update("""
                 UPDATE projects
                    SET owner_id = ?, name = ?, room_type = ?, width = ?, depth = ?, height = ?, room = ?::jsonb,
                        floor_plan_file_name = ?, floor_plan_size = ?, floor_plan_status = ?,
                        floor_plan_progress = ?, floor_plan_uploaded_at = ?, floor_plan_job_id = ?,
                        floor_plan_object_key = ?, floor_plan_error_code = ?, floor_plan_error_message = ?,
-                       floor_plan_retryable = ?, updated_at = ?
-                 WHERE id = ?
+                       floor_plan_retryable = ?, updated_at = ?, revision = ?
+                 WHERE id = ? AND revision = ?
                 """, project.ownerId(), project.name(), project.roomType(),
                 project.dimensions().width(), project.dimensions().depth(), project.dimensions().height(),
                 writeRoom(project.room()), project.floorPlan().fileName(), project.floorPlan().size(), project.floorPlan().status().name(),
                 project.floorPlan().progress(), timestamp(project.floorPlan().uploadedAt()), project.floorPlan().jobId(),
                 project.floorPlan().objectKey(), project.floorPlan().errorCode(), project.floorPlan().errorMessage(),
-                project.floorPlan().retryable(), timestamp(project.updatedAt()),
-                project.id());
+                project.floorPlan().retryable(), timestamp(project.updatedAt()), project.revision(),
+                project.id(), project.revision() - 1);
+        if (changed != 1) throw new ResponseStatusException(CONFLICT, "프로젝트가 변경되었습니다. 최신 상태를 불러와 주세요.");
+        jdbc.update("DELETE FROM furniture_items WHERE project_id = ?", project.id());
         insertFurniture(project);
+    }
+
+    @Override
+    public boolean updateFloorPlanStatus(String projectId, String jobId, ConversionStatus status,
+                                        int progress, String errorCode, String errorMessage, boolean retryable) {
+        return jdbc.update("""
+                UPDATE projects SET floor_plan_status = ?, floor_plan_progress = ?,
+                       floor_plan_error_code = ?, floor_plan_error_message = ?, floor_plan_retryable = ?,
+                       updated_at = ?, revision = revision + 1
+                 WHERE id = ? AND floor_plan_job_id = ? AND floor_plan_status = 'PROCESSING'
+                """, status.name(), progress, errorCode, errorMessage, retryable,
+                Timestamp.from(Instant.now()), projectId, jobId) == 1;
     }
 
     @Override
@@ -142,7 +174,7 @@ public class JdbcProjectRepository implements ProjectRepository {
                         instant(rs.getTimestamp("floor_plan_uploaded_at")), rs.getString("floor_plan_job_id"),
                         rs.getString("floor_plan_object_key"), rs.getString("floor_plan_error_code"),
                         rs.getString("floor_plan_error_message"), rs.getBoolean("floor_plan_retryable")),
-                new ArrayList<>(), instant(rs.getTimestamp("updated_at")));
+                new ArrayList<>(), instant(rs.getTimestamp("updated_at")), rs.getLong("revision"));
     }
 
     private String writeRoom(RoomModel room) {

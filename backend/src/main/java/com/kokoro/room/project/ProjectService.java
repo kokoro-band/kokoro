@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -70,7 +72,7 @@ public class ProjectService {
                             furniture("chair-01", "chair-shell", "셸 체어", "의자", 4.2, 1.3, 25, "#4A665A"),
                             furniture("plant-01", "plant-olive", "올리브 화분", "장식", 4.9, 3.2, 0, "#69805E")
                     )),
-                    Instant.now()
+                    Instant.now(), 0
             );
             projectRepository.insert(sample);
         }
@@ -97,15 +99,15 @@ public class ProjectService {
                 null,
                 new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null, null, null, null, null, false),
                 new ArrayList<>(),
-                Instant.now()
+                Instant.now(), 0
         );
         projectRepository.insert(project);
         return project;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = IOException.class)
     public void delete(String id) throws IOException {
-        RenovationProject project = find(id);
+        RenovationProject project = lock(id, null);
         if (project.floorPlan().objectKey() != null) {
             floorPlanStorage.delete(project.floorPlan().objectKey());
         }
@@ -113,8 +115,9 @@ public class ProjectService {
         projectRepository.delete(id);
     }
 
+    @Transactional(rollbackFor = IOException.class)
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
-        RenovationProject project = find(id);
+        RenovationProject project = lock(id, null);
         if (file.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "도면 파일이 비어 있습니다.");
         if (file.getSize() > MAX_FLOOR_PLAN_BYTES) throw new ResponseStatusException(BAD_REQUEST, "도면은 15MB 이하여야 합니다.");
 
@@ -136,7 +139,12 @@ public class ProjectService {
                 stored.objectKey(), null, null, true);
         RenovationProject updated = copy(project, floorPlan, project.furniture());
         projectRepository.replace(updated);
-        floorPlanJobDispatcher.dispatch(id, jobId);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                floorPlanJobDispatcher.dispatch(id, jobId);
+            }
+        });
         return updated;
     }
 
@@ -147,8 +155,8 @@ public class ProjectService {
     }
 
     @Transactional
-    public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
-        RenovationProject project = find(id);
+    public RenovationProject saveLayout(String id, List<FurnitureItem> furniture, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         furniturePlacementValidator.validate(project.dimensions(), project.room(), furniture);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
         projectRepository.replace(updated);
@@ -156,19 +164,20 @@ public class ProjectService {
     }
 
     @Transactional
-    public RenovationProject saveRoom(String id, RoomModel room) {
-        RenovationProject project = find(id);
+    public RenovationProject saveRoom(String id, RoomModel room, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         roomModelValidator.validate(room);
         RenovationProject updated = new RenovationProject(project.id(), project.ownerId(), project.name(),
-                project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now());
+                project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now(),
+                project.revision() + 1);
         furniturePlacementValidator.validate(updated.dimensions(), room, updated.furniture());
         projectRepository.replace(updated);
         return updated;
     }
 
     @Transactional
-    public ChatCommandResponse applyCommand(String id, String message) {
-        RenovationProject project = find(id);
+    public ChatCommandResponse applyCommand(String id, String message, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message, bounds(project));
         if (interpretation.requiresConfirmation()) {
             return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true, project);
@@ -202,7 +211,7 @@ public class ProjectService {
             );
         }
 
-        RenovationProject updated = saveLayout(id, next);
+        RenovationProject updated = saveLayout(id, next, project.revision());
         return new ChatCommandResponse(
                 String.join(", ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
                 actions, interpretation.commands(), false,
@@ -241,7 +250,16 @@ public class ProjectService {
     private RenovationProject copy(RenovationProject project, FloorPlan floorPlan, List<FurnitureItem> furniture) {
         return new RenovationProject(
                 project.id(), project.ownerId(), project.name(), project.roomType(), project.dimensions(),
-                project.room(), floorPlan, furniture, Instant.now());
+                project.room(), floorPlan, furniture, Instant.now(), project.revision() + 1);
+    }
+
+    RenovationProject lock(String id, Long expectedRevision) {
+        RenovationProject project = projectRepository.lockById(id).filter(this::owned)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
+        if (expectedRevision != null && expectedRevision != project.revision()) {
+            throw new ResponseStatusException(CONFLICT, "프로젝트가 변경되었습니다. 최신 상태를 불러와 주세요.");
+        }
+        return project;
     }
 
     private static RoomBounds bounds(RenovationProject project) {

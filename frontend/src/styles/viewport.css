@@ -94,6 +94,34 @@
   box-shadow: var(--seed-shadow-s1);
 }
 
+.viewport-minimap-mobile {
+  right: var(--seed-dimension-x3);
+  bottom: var(--seed-dimension-x3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--seed-dimension-x2);
+  max-width: calc(100% - var(--seed-dimension-x6));
+}
+
+.viewport-minimap-mobile .viewport-minimap {
+  width: min(14rem, 100%);
+  max-height: min(14rem, 40dvh);
+  overflow: auto;
+}
+
+.viewport-minimap-mobile .seed-action-button.viewport-minimap-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  background: var(--seed-color-bg-layer-floating);
+  box-shadow: var(--seed-shadow-s1);
+}
+
+.viewport-minimap-mobile
+  .seed-action-button.viewport-minimap-toggle:is(:hover, :active) {
+  background: var(--seed-color-bg-layer-floating-pressed);
+}
+
 /* Three.js 렌더러 */
 .room-renderer {
   position: absolute;
@@ -240,10 +268,6 @@
 
   .viewport-toolbar-group > .toolbar-divider {
     display: none;
-  }
-
-  .viewport-minimap {
-    width: 8rem;
   }
 
   .viewport-hint {

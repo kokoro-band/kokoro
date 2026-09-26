@@ -11,6 +11,7 @@ import {
   IconArrowUturnRightLine,
   IconCorner4InwardLine,
   IconCorner4OutwardLine,
+  IconMapLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon } from "@seed-design/react"
 import { ProgressCircle } from "seed-design/ui/progress-circle"
@@ -43,6 +44,7 @@ export function SceneEditor({
   project,
   focusRoom,
   minimap,
+  isMobile,
   selectedId,
   mode,
   canUndo,
@@ -58,6 +60,7 @@ export function SceneEditor({
   project: Project
   focusRoom: RoomLabel | null
   minimap?: ReactNode
+  isMobile?: boolean
   selectedId: string | null
   mode: ViewMode
   canUndo: boolean
@@ -73,6 +76,8 @@ export function SceneEditor({
   const panelRef = useRef<HTMLElement>(null)
   const xrEntryRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isMinimapOpen, setIsMinimapOpen] = useState(false)
+  const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
   const visibleFurniture =
@@ -90,6 +95,17 @@ export function SceneEditor({
     return () =>
       document.removeEventListener("fullscreenchange", syncFullscreen)
   }, [])
+
+  useEffect(() => {
+    if (!isMobile || !isMinimapOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setIsMinimapOpen(false)
+      minimapButtonRef.current?.focus()
+    }
+    document.addEventListener("keydown", closeOnEscape)
+    return () => document.removeEventListener("keydown", closeOnEscape)
+  }, [isMobile, isMinimapOpen])
 
   const toggleFullscreen = () => {
     const panel = panelRef.current
@@ -211,9 +227,33 @@ export function SceneEditor({
             </section>
           </div>
         )}
-        {minimap && (
+        {minimap && !isMobile && (
           <div className="viewport-overlay overlay-top-end viewport-minimap">
             {minimap}
+          </div>
+        )}
+        {minimap && isMobile && (
+          <div className="viewport-overlay viewport-minimap-mobile">
+            {isMinimapOpen && (
+              <div id="viewport-minimap-panel" className="viewport-minimap">
+                {minimap}
+              </div>
+            )}
+            <ActionButton
+              ref={minimapButtonRef}
+              className="viewport-minimap-toggle"
+              variant="neutralWeak"
+              size="medium"
+              aria-label={isMinimapOpen ? "미니맵 닫기" : "미니맵 열기"}
+              aria-expanded={isMinimapOpen}
+              aria-controls={
+                isMinimapOpen ? "viewport-minimap-panel" : undefined
+              }
+              onClick={() => setIsMinimapOpen((open) => !open)}
+            >
+              <Icon svg={<IconMapLine />} size="x5" />
+              미니맵
+            </ActionButton>
           </div>
         )}
         {mode !== "vr" && (

@@ -297,6 +297,7 @@ export function ArrangeView({
       focusRoom={room}
       selectedId={studio.selectedId}
       mode={studio.mode}
+      isMobile={isMobile}
       canUndo={studio.canUndo}
       canRedo={studio.canRedo}
       onModeChange={studio.setMode}
@@ -313,6 +314,7 @@ export function ArrangeView({
           selectedRoom={roomIndex}
           onEnter={changeRoom}
           compact
+          keyboardAccessible={isMobile}
         />
       }
     />

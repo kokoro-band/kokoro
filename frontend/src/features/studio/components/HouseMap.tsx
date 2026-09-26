@@ -10,12 +10,14 @@ export function HouseMap({
   selectedRoom,
   onEnter,
   compact = false,
+  keyboardAccessible = false,
 }: {
   room: RoomModel
   furniture: Furniture[]
   selectedRoom: number | null
   onEnter: (index: number) => void
   compact?: boolean
+  keyboardAccessible?: boolean
 }) {
   const padding = 0.4
   const viewBox = `${-padding} ${-padding} ${room.bounds.width + padding * 2} ${room.bounds.depth + padding * 2}`
@@ -41,7 +43,7 @@ export function HouseMap({
               points={label.polygon.map(([x, z]) => `${x},${z}`).join(" ")}
               role="button"
               // 작은 평면도는 방 목록과 같은 일을 하므로 Tab 순서에서 뺍니다.
-              tabIndex={compact ? -1 : 0}
+              tabIndex={compact && !keyboardAccessible ? -1 : 0}
               aria-label={`${label.name} 들어가기, 가구 ${count}개`}
               onClick={() => onEnter(index)}
               onKeyDown={(event) => {

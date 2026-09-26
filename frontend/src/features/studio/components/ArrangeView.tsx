@@ -78,6 +78,9 @@ export function ArrangeView({
     [isMobile, selectStudioFurniture]
   )
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
+  const navigatorRef = useRef<HTMLElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const dockPlaceRef = useRef<HTMLButtonElement>(null)
   const selected = studio.selected
   const hasHouse = Boolean(houseRoom && rooms.length > 0)
   const hasSelection = hasHouse && Boolean(selected)
@@ -121,9 +124,55 @@ export function ArrangeView({
     return placed.x !== target.x || placed.z !== target.z
   }
 
+  /** 모바일 시트가 닫히면 사라진 버튼 대신 도크의 첫 버튼으로 포커스를 옮깁니다. */
+  const focusDock = () => {
+    const active = document.activeElement
+    if (
+      !active ||
+      active === document.body ||
+      sheetRef.current?.contains(active)
+    )
+      dockPlaceRef.current?.focus()
+  }
+
   const deleteSelected = () => {
+    if (!selected) return
+    const listItems = () =>
+      Array.from(
+        navigatorRef.current?.querySelectorAll<HTMLElement>(
+          "[data-furniture-id]"
+        ) ?? []
+      )
+    const index = listItems().findIndex(
+      (item) => item.dataset.furnitureId === selected.id
+    )
     studio.deleteSelected()
-    if (isMobile) setSheet(null)
+    if (isMobile) {
+      setSheet(null)
+      requestAnimationFrame(focusDock)
+      return
+    }
+    // 지운 버튼에 있던 포커스를 목록의 다음 가구로, 목록이 비면 빈 목록의
+    // 버튼이나 지금 고른 목록 탭으로 옮깁니다.
+    requestAnimationFrame(() => {
+      const items = listItems()
+      const panel = navigatorRef.current
+      const next =
+        items[Math.min(Math.max(index, 0), items.length - 1)] ??
+        panel?.querySelector<HTMLElement>(".panel-body button") ??
+        panel?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      next?.focus()
+    })
+  }
+
+  const openAssistant = () => {
+    if (isMobile) {
+      // 시트 안의 입력창은 열릴 때 autoFocus로 포커스를 받습니다.
+      setSheet("assistant")
+      return
+    }
+    setInspectorTab("assistant")
+    requestAnimationFrame(() => assistantInputRef.current?.focus())
   }
 
   useShortcut("nudge", (event) => nudge(event, 0.1), { enabled: hasSelection })
@@ -145,15 +194,7 @@ export function ArrangeView({
   )
   useShortcut("previousRoom", () => stepRoom(-1), { enabled: hasHouse })
   useShortcut("nextRoom", () => stepRoom(1), { enabled: hasHouse })
-  useShortcut(
-    "focusAssistant",
-    () => {
-      if (isMobile) setSheet("assistant")
-      else setInspectorTab("assistant")
-      requestAnimationFrame(() => assistantInputRef.current?.focus())
-    },
-    { enabled: hasHouse }
-  )
+  useShortcut("focusAssistant", openAssistant, { enabled: hasHouse })
 
   if (!houseRoom || rooms.length === 0) {
     return (
@@ -246,6 +287,7 @@ export function ArrangeView({
       onInputChange={studio.setInput}
       onSend={send}
       inputRef={assistantInputRef}
+      autoFocus={isMobile}
     />
   )
 
@@ -291,6 +333,7 @@ export function ArrangeView({
         <SnackbarAvoidOverlap>
           <nav className="mobile-dock" aria-label="배치 도구">
             <ActionButton
+              ref={dockPlaceRef}
               variant="neutralWeak"
               size="medium"
               onClick={() => setSheet("navigator")}
@@ -301,7 +344,7 @@ export function ArrangeView({
             <ActionButton
               variant="neutralWeak"
               size="medium"
-              onClick={() => setSheet("assistant")}
+              onClick={openAssistant}
             >
               <PrefixIcon svg={<IconSparkle2Line />} />
               AI 배치
@@ -323,10 +366,13 @@ export function ArrangeView({
           onOpenChange={(open) => {
             if (!open) setSheet(null)
           }}
+          onAnimationEnd={(open) => {
+            if (!open) focusDock()
+          }}
         >
           <BottomSheet.Backdrop />
           <BottomSheet.Positioner>
-            <BottomSheet.Content className="mobile-sheet">
+            <BottomSheet.Content ref={sheetRef} className="mobile-sheet">
               <BottomSheet.Header>
                 <BottomSheet.Title>{sheetTitle}</BottomSheet.Title>
                 <BottomSheet.CloseButton aria-label="닫기">
@@ -357,7 +403,11 @@ export function ArrangeView({
 
   return (
     <div className="arrange">
-      <aside className="arrange-navigator" aria-label="방과 가구">
+      <aside
+        ref={navigatorRef}
+        className="arrange-navigator"
+        aria-label="방과 가구"
+      >
         {navigator}
       </aside>
       {scene}

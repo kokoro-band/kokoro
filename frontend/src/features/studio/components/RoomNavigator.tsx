@@ -208,6 +208,7 @@ export function RoomNavigator({
             {roomFurniture.map((item) => (
               <ListButtonItem
                 key={item.id}
+                data-furniture-id={item.id}
                 highlighted={selectedId === item.id}
                 aria-pressed={selectedId === item.id}
                 prefix={

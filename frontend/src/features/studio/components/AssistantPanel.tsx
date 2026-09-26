@@ -29,6 +29,7 @@ export function AssistantPanel({
   onInputChange,
   onSend,
   inputRef,
+  autoFocus = false,
 }: {
   messages: ChatMessage[]
   input: string
@@ -38,6 +39,8 @@ export function AssistantPanel({
   onInputChange: (input: string) => void
   onSend: (text: string) => void
   inputRef?: Ref<HTMLTextAreaElement>
+  /** 모바일 시트처럼 패널을 열자마자 입력하게 할 때 */
+  autoFocus?: boolean
 }) {
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -126,6 +129,7 @@ export function AssistantPanel({
             aria-label="가구 배치 요청"
             placeholder="예: 소파 옆에 화분을 놓아줘"
             autoresize
+            autoFocus={autoFocus}
             onKeyDown={handleKeyDown}
           />
         </TextField>

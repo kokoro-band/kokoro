@@ -23,7 +23,8 @@ export function HouseMap({
     <svg
       className={`house-map ${compact ? "house-map-compact" : ""}`}
       viewBox={viewBox}
-      role="img"
+      // img 역할은 안의 방 버튼을 보조 기기에서 감추므로 group으로 묶습니다.
+      role="group"
       aria-label="방을 선택할 수 있는 집 평면도"
     >
       {room.rooms.map((label, index) => {
@@ -39,7 +40,8 @@ export function HouseMap({
             <polygon
               points={label.polygon.map(([x, z]) => `${x},${z}`).join(" ")}
               role="button"
-              tabIndex={0}
+              // 작은 평면도는 방 목록과 같은 일을 하므로 Tab 순서에서 뺍니다.
+              tabIndex={compact ? -1 : 0}
               aria-label={`${label.name} 들어가기, 가구 ${count}개`}
               onClick={() => onEnter(index)}
               onKeyDown={(event) => {

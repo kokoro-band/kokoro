@@ -37,6 +37,7 @@ public class ProjectService {
     private final FloorPlanStorage floorPlanStorage;
     private final FloorPlanJobRepository floorPlanJobRepository;
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
+    private final FloorPlanJobCoordinator floorPlanJobCoordinator;
     private final FurniturePlacementValidator furniturePlacementValidator;
     private final CurrentUser currentUser;
     private final LayoutCommandInterpreter layoutCommandInterpreter;
@@ -44,6 +45,7 @@ public class ProjectService {
 
     public ProjectService(ProjectRepository projectRepository, FloorPlanStorage floorPlanStorage,
                           FloorPlanJobRepository floorPlanJobRepository, FloorPlanJobDispatcher floorPlanJobDispatcher,
+                          FloorPlanJobCoordinator floorPlanJobCoordinator,
                           FurniturePlacementValidator furniturePlacementValidator,
                           CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter,
                           RoomModelValidator roomModelValidator) {
@@ -51,6 +53,7 @@ public class ProjectService {
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
         this.floorPlanJobDispatcher = floorPlanJobDispatcher;
+        this.floorPlanJobCoordinator = floorPlanJobCoordinator;
         this.furniturePlacementValidator = furniturePlacementValidator;
         this.currentUser = currentUser;
         this.layoutCommandInterpreter = layoutCommandInterpreter;
@@ -128,15 +131,19 @@ public class ProjectService {
 
         FloorPlanStorage.StoredFloorPlan stored = floorPlanStorage.store(id, file);
         String jobId = UUID.randomUUID().toString();
-        Instant createdAt = Instant.now();
-        floorPlanJobRepository.insert(new FloorPlanJob(jobId, id, stored.objectKey(), ConversionStatus.PROCESSING,
-                0, null, null, true, createdAt, null, null));
-        FloorPlan floorPlan = new FloorPlan(
-                stored.fileName(), stored.size(), ConversionStatus.PROCESSING, 0, createdAt, jobId,
-                stored.objectKey(), null, null, true);
-        RenovationProject updated = copy(project, floorPlan, project.furniture());
-        projectRepository.replace(updated);
-        floorPlanJobDispatcher.dispatch(id, jobId);
+        RenovationProject updated;
+        try {
+            updated = floorPlanJobCoordinator.start(id, project.ownerId(), jobId, stored, Instant.now());
+        } catch (RuntimeException | Error exception) {
+            cleanupStoredFile(stored.objectKey(), exception);
+            throw exception;
+        }
+        try {
+            floorPlanJobDispatcher.dispatch(id, jobId);
+        } catch (RuntimeException exception) {
+            floorPlanJobCoordinator.fail(id, jobId, "DISPATCH_FAILED", "도면 변환 작업을 시작하지 못했습니다.");
+            throw exception;
+        }
         return updated;
     }
 
@@ -260,5 +267,13 @@ public class ProjectService {
 
     private static String unique(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private void cleanupStoredFile(String objectKey, Throwable original) {
+        try {
+            floorPlanStorage.delete(objectKey);
+        } catch (IOException cleanupFailure) {
+            original.addSuppressed(cleanupFailure);
+        }
     }
 }

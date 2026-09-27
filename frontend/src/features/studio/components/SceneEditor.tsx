@@ -1,5 +1,6 @@
 import {
   lazy,
+  useCallback,
   Suspense,
   useEffect,
   useRef,
@@ -15,6 +16,12 @@ import {
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon } from "@seed-design/react"
 import { ProgressCircle } from "seed-design/ui/progress-circle"
+import {
+  MenuRoot,
+  MenuTrigger,
+  MenuContent,
+  MenuItem,
+} from "seed-design/ui/menu"
 
 import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
 import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
@@ -43,8 +50,8 @@ const cursorTools: { value: CursorTool; label: string }[] = [
 ]
 
 const hints: Record<CursorTool, string> = {
-  select: "가구를 눌러 선택해요. 옮기려면 2번을 누르세요.",
-  move: "가구를 끌어서 옮겨요. 화면을 옮기려면 3번을 누르세요.",
+  select: "가구를 눌러 선택해요. 문을 누르면 열고 닫을 수 있어요.",
+  move: "가구는 벽에 맞춰 멈춰요. 문을 누르면 열고 닫을 수 있어요.",
   pan: "화면을 끌어서 옮겨요. 휠로 확대해요.",
 }
 
@@ -78,7 +85,12 @@ export function SceneEditor({
   onRedo: () => void
   onFullscreenError: () => void
   onSelect: (id: string | null) => void
-  onMove: (id: string, x: number, z: number) => void
+  onMove: (
+    id: string,
+    x: number,
+    z: number,
+    focus?: RoomLabel | null
+  ) => boolean
   onMoveEnd: () => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
@@ -86,6 +98,15 @@ export function SceneEditor({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isMinimapOpen, setIsMinimapOpen] = useState(false)
   const [tool, setTool] = useState<CursorTool>("move")
+  const [doorStates, setDoorStates] = useState<Record<string, boolean>>({})
+  const onDoorChange = useCallback(function changeDoorState(
+    id: string,
+    open: boolean
+  ) {
+    setDoorStates((states) => ({ ...states, [id]: open }))
+  }, [])
+  const doors =
+    project.room?.openings.filter((opening) => opening.type === "door") ?? []
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
@@ -157,6 +178,31 @@ export function SceneEditor({
           aria-label="보기 방식"
         />
         <div className="viewport-toolbar-actions">
+          {mode !== "vr" && doors.length > 0 && (
+            <MenuRoot size="small" placement="bottom-end">
+              <MenuTrigger asChild>
+                <ActionButton
+                  variant="ghost"
+                  size="small"
+                  aria-label="문 열고 닫기"
+                >
+                  문
+                </ActionButton>
+              </MenuTrigger>
+              <MenuContent aria-label="문 열고 닫기">
+                {doors.map((door, index) => (
+                  <MenuItem
+                    key={door.id}
+                    label={`${index + 1}번 문 ${doorStates[door.id] ? "닫기" : "열기"}`}
+                    description={
+                      doorStates[door.id] ? "열려 있어요" : "닫혀 있어요"
+                    }
+                    onClick={() => onDoorChange(door.id, !doorStates[door.id])}
+                  />
+                ))}
+              </MenuContent>
+            </MenuRoot>
+          )}
           <ActionButton
             variant="ghost"
             size="small"
@@ -229,6 +275,8 @@ export function SceneEditor({
             onSelect={onSelect}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
+            doorStates={doorStates}
+            onDoorChange={onDoorChange}
             xrEntryContainer={xrEntryRef}
           />
         </Suspense>

@@ -28,21 +28,25 @@ export default function App() {
   )
 }
 
-/** 컨트롤러의 알림을 SEED Snackbar 큐로 넘깁니다. */
+/** Sends controller notices to the SEED Snackbar queue. */
 function NoticeSnackbar({
   notice,
   onShown,
   onRetrySave,
+  onRestoreSaved,
 }: {
   notice: Notice | null
   onShown: () => void
   onRetrySave: () => void
+  onRestoreSaved: () => void
 }) {
   const adapter = useSnackbarAdapter()
   const retryRef = useRef(onRetrySave)
+  const restoreRef = useRef(onRestoreSaved)
   useEffect(() => {
     retryRef.current = onRetrySave
-  }, [onRetrySave])
+    restoreRef.current = onRestoreSaved
+  }, [onRetrySave, onRestoreSaved])
   useEffect(() => {
     if (!notice) return
     adapter.create({
@@ -52,7 +56,12 @@ function NoticeSnackbar({
           message={notice.text}
           {...(notice.action === "retrySave"
             ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
-            : {})}
+            : notice.action === "restoreSaved"
+              ? {
+                  actionLabel: "되돌리기",
+                  onAction: () => restoreRef.current(),
+                }
+              : {})}
         />
       ),
     })
@@ -81,12 +90,12 @@ function Studio() {
   useShortcut("viewStructure", () => setView("structure"), { enabled: ready })
   useShortcut("viewArrange", () => setView("arrange"), { enabled: ready })
   useShortcut("viewSummary", () => setView("summary"), { enabled: ready })
-  // 구조 화면은 저장하지 않은 초안이 따로 있어서 구조 편집기가 저장을 맡습니다.
+  // The structure editor owns saving because its unsaved draft is separate.
   useShortcut("save", studio.saveProject, {
     enabled: ready && view !== "structure",
   })
 
-  // 저장된 구조가 바뀌면 구조 편집기를 새 기준으로 다시 시작합니다.
+  // Restart the structure editor when the saved structure changes.
   const structureKey = useMemo(
     () => `${studio.project.id}:${JSON.stringify(studio.project.room ?? null)}`,
     [studio.project.id, studio.project.room]
@@ -113,9 +122,11 @@ function Studio() {
         dirty={studio.dirty}
         saving={studio.saving}
         saveFailed={studio.saveFailed}
+        saveRejected={studio.saveRejected}
         saveBusy={studio.busy === "save"}
         onViewChange={setView}
         onSave={studio.saveProject}
+        onRestoreSaved={studio.restoreSavedProject}
         onCreateProject={() => setNewProjectOpen(true)}
         onOpenSample={() => {
           studio.openSampleProject()
@@ -178,6 +189,7 @@ function Studio() {
         notice={studio.notice}
         onShown={studio.dismissNotice}
         onRetrySave={studio.saveProject}
+        onRestoreSaved={studio.restoreSavedProject}
       />
       <input
         ref={uploadRef}

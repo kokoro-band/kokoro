@@ -77,6 +77,12 @@ public class FurniturePlacementValidator {
         }
     }
 
+    /** Manual drafts may need placement repairs, but must still contain usable furniture data. */
+    public void validateData(List<FurnitureItem> furniture) {
+        checkDuplicateIds(furniture);
+        furniture.forEach(this::box);
+    }
+
     private void checkDuplicateIds(List<FurnitureItem> furniture) {
         Set<String> seen = new HashSet<>();
         for (FurnitureItem item : furniture) {

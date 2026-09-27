@@ -22,8 +22,10 @@ import {
   roomForFurniture,
 } from "@/features/studio/house-navigation"
 import type { Category, Furniture, Project } from "@/features/studio/types"
+import type { PlacementIssue } from "@/features/studio/placement-issues"
 
 import { FurnitureThumb } from "./FurnitureThumb"
+import { PlacementIssueList } from "./PlacementIssueList"
 
 const categories: Category[] = ["전체", "소파", "테이블", "의자", "장식"]
 
@@ -42,6 +44,8 @@ export function RoomNavigator({
   onCategoryChange,
   onAddFurniture,
   onSelectFurniture,
+  issues,
+  onSelectIssue,
 }: {
   project: Project
   roomIndex: number | null
@@ -53,9 +57,19 @@ export function RoomNavigator({
   onCategoryChange: (category: Category) => void
   onAddFurniture: (catalogId: string) => void
   onSelectFurniture: (id: string) => void
+  issues: PlacementIssue[]
+  onSelectIssue: (id: string) => void
 }) {
   const rooms = project.room?.rooms ?? []
   const room = roomIndex === null ? null : rooms[roomIndex]
+  const issueList = (
+    <PlacementIssueList
+      furniture={project.furniture}
+      issues={issues}
+      selectedId={selectedId}
+      onSelect={onSelectIssue}
+    />
+  )
 
   if (!room) {
     return (
@@ -69,6 +83,7 @@ export function RoomNavigator({
           </Type>
         </header>
         <div className="panel-body">
+          {issueList}
           <Type variant="description" as="p" className="panel-intro">
             꾸밀 방을 고르세요. 평면도에서 방을 눌러도 돼요.
           </Type>
@@ -148,6 +163,7 @@ export function RoomNavigator({
       </TabsRoot>
       {tab === "furniture" ? (
         <div className="panel-body">
+          {issueList}
           <ChipTabsRoot
             className="category-tabs"
             variant="neutralSolid"
@@ -188,6 +204,7 @@ export function RoomNavigator({
         </div>
       ) : roomFurniture.length === 0 ? (
         <div className="panel-body panel-empty">
+          {issueList}
           <Type variant="heading" as="p">
             아직 이 방에 놓은 가구가 없어요
           </Type>
@@ -204,6 +221,7 @@ export function RoomNavigator({
         </div>
       ) : (
         <div className="panel-body">
+          {issueList}
           <List className="catalog-list">
             {roomFurniture.map((item) => (
               <ListButtonItem

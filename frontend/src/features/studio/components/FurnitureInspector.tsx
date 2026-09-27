@@ -5,6 +5,7 @@ import {
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon, PrefixIcon } from "@seed-design/react"
 import { Slider } from "seed-design/ui/slider"
+import { Callout } from "seed-design/ui/callout"
 
 import { Type } from "@/components/kokoro/Type"
 import { catalog } from "@/features/studio/data"
@@ -23,6 +24,7 @@ export function FurnitureInspector({
   onCommitPreview,
   onDelete,
   onClose,
+  issue,
 }: {
   selected: Furniture
   bounds: { width: number; depth: number }
@@ -33,6 +35,7 @@ export function FurnitureInspector({
   onCommitPreview: () => void
   onDelete: () => void
   onClose?: () => void
+  issue?: string
 }) {
   const item = catalog.find((entry) => entry.id === selected.catalogId)
   const [adjusted, setAdjusted] = useState(false)
@@ -69,6 +72,16 @@ export function FurnitureInspector({
           </ActionButton>
         )}
       </header>
+
+      {issue && (
+        <div className="placement-issue-detail">
+          <Callout
+            tone="critical"
+            title="배치 확인 필요"
+            description={`${issue} 아래 위치와 방향을 바꾸거나 가구를 빼 주세요. 수정 중에도 저장돼요.`}
+          />
+        </div>
+      )}
 
       <section className="inspector-section" aria-labelledby="position-title">
         <Type variant="heading" as="h3" id="position-title">

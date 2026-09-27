@@ -18,6 +18,7 @@ import java.time.Instant;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,6 +66,23 @@ class FurnitureCommandTest {
                                 ]}
                                 """))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void aiStillRejectsInvalidPlacementAtomicallyAfterManualDraftSave() throws Exception {
+        String id = createProject();
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[{"id":"chair-a","catalogId":"chair-shell","name":"의자","category":"의자","x":20,"z":20,"rotation":0,"color":"#000000"}]}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/projects/{id}/layout/commands", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"의자를 90도 회전해줘\",\"furnitureId\":\"chair-a\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("OUTSIDE_ROOM"));
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(jsonPath("$.furniture[0].rotation").value(0))
+                .andExpect(jsonPath("$.furniture[0].x").value(20));
     }
 
     @Test

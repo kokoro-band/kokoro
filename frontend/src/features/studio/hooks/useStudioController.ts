@@ -540,6 +540,9 @@ export function useStudioController() {
   async function applyRoom(room: RoomModel) {
     setNotice("")
     try {
+      // Finish the current layout write before saving a new structure. Both API
+      // endpoints replace the project and must not race in this recovery flow.
+      await saveLoopRef.current
       const updated = await saveRoomMutation.mutateAsync({
         project: projectRef.current,
         room,

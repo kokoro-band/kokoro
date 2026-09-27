@@ -79,6 +79,14 @@ export function ArrangeView({
     },
     [isMobile, selectStudioFurniture]
   )
+  // Scene picks don't open the mobile sheet, so it won't cover a drag.
+  const selectSceneFurniture = useCallback(
+    (id: string | null) => {
+      if (id) setInspectorTab("selection")
+      selectStudioFurniture(id)
+    },
+    [selectStudioFurniture]
+  )
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
   const navigatorRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -326,7 +334,7 @@ export function ArrangeView({
       onUndo={studio.undo}
       onRedo={studio.redo}
       onFullscreenError={studio.reportFullscreenError}
-      onSelect={selectFurniture}
+      onSelect={selectSceneFurniture}
       onMove={studio.moveFurniture}
       onMoveEnd={studio.commitPreview}
       minimap={

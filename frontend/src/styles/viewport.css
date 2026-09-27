@@ -86,36 +86,30 @@
   box-shadow: var(--seed-shadow-s1);
 }
 
-.viewport-cursor-tools {
+.viewport-cursor-dock {
   bottom: var(--seed-dimension-x3);
   left: 50%;
   width: max-content;
   max-width: calc(100% - var(--seed-dimension-x6));
+  transform: translateX(-50%);
+}
+
+.viewport-cursor-tool {
+  display: inline-flex;
+}
+
+.viewport-cursor-dock .seed-help-bubble__content {
+  width: max-content;
+}
+
+.viewport-cursor-tools {
   padding: var(--seed-dimension-x1);
   border-radius: var(--seed-radius-r3);
   background: var(--seed-color-bg-layer-floating);
-  box-shadow: var(--seed-shadow-s2);
-  transform: translateX(-50%);
-  pointer-events: auto;
+  box-shadow: var(--seed-shadow-s1);
 }
 
-.viewport-cursor-tools .choice-button {
-  min-height: 44px;
-}
-
-.viewport-cursor-hint {
-  bottom: calc(var(--seed-dimension-x16) + var(--seed-dimension-x3));
-  left: var(--seed-dimension-x3);
-  right: var(--seed-dimension-x3);
-  text-align: center;
-  pointer-events: none;
-}
-
-.viewport-cursor-hint > * {
-  pointer-events: none;
-}
-
-.viewport-canvas:has(.viewport-cursor-tools) .viewport-minimap-mobile {
+.viewport-canvas:has(.viewport-cursor-dock) .viewport-minimap-mobile {
   top: var(--seed-dimension-x3);
   bottom: auto;
 }
@@ -306,5 +300,9 @@
 
   .viewport-hint {
     display: none;
+  }
+
+  .viewport-cursor-tools .seed-action-button.choice-button {
+    min-height: 44px;
   }
 }

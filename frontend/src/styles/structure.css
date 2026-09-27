@@ -138,7 +138,67 @@
 }
 
 .plan-surface[data-tool="opening"] .plan-opening {
-  cursor: pointer;
+  cursor: grab;
+}
+
+.plan-surface[data-tool="select"] .plan-opening {
+  cursor: grab;
+}
+
+.plan-opening-hit {
+  stroke: transparent;
+  stroke-width: 28px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+.plan-resize-handle {
+  cursor: ew-resize;
+}
+
+/* Hit areas remain 28 CSS pixels even when the plan is large. */
+.plan-handle-hit {
+  fill: transparent;
+  stroke: none;
+  stroke-width: 0;
+  pointer-events: fill;
+}
+
+.plan-handle-dot {
+  fill: var(--seed-color-stroke-brand-solid);
+  stroke: var(--seed-color-bg-layer-default);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.plan-resize-handle:hover .plan-handle-dot {
+  stroke: var(--seed-color-fg-brand);
+}
+
+.plan-opening[aria-pressed="true"] .plan-opening-gap {
+  stroke: var(--seed-color-bg-brand-weak);
+}
+
+.plan-room:focus-visible,
+.plan-opening:focus-visible {
+  outline: none;
+}
+
+.plan-room-focus,
+.plan-opening-focus {
+  fill: none;
+  stroke: var(--seed-color-stroke-brand-solid);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.plan-opening-focus {
+  display: none;
+}
+.plan-opening:focus-visible .plan-opening-focus {
+  display: block;
 }
 
 .plan-opening-gap {

@@ -56,7 +56,6 @@ import {
   removeRoom,
   renameRoom,
   roomsAcrossWall,
-  resizeRoom,
   roomPolygon,
   setNotch,
   splitRoom,
@@ -70,6 +69,19 @@ import type { Opening, RoomModel, Wall } from "@/features/studio/types"
 
 import { MeterField } from "./MeterField"
 import { PlanImport } from "./PlanImport"
+import { useStructureDrag } from "../hooks/useStructureDrag"
+import { usePlanScale } from "../hooks/usePlanScale"
+import {
+  adjustOpening,
+  alongWall,
+  draftOrigin,
+  maxRoomSize,
+  minOpeningWidth,
+  openingLimits,
+  resizeStructure,
+  type OpeningHandle,
+  type ResizeHandle,
+} from "../structure-editing"
 
 type Tool = "select" | "split" | "erase" | "opening"
 
@@ -95,7 +107,7 @@ const tools: {
     shortcut: "toolSelect",
     icon: <IconHandPointUpLine />,
     label: "이동",
-    hint: "방을 끌어서 옮겨요. 방을 누르면 오른쪽에서 이름과 크기를 바꿀 수 있어요.",
+    hint: "방 안을 끌면 이동하고 가장자리 점을 끌면 크기가 바뀌어요. 문과 창도 끌어서 조절해 보세요.",
   },
   {
     id: "split",
@@ -116,7 +128,7 @@ const tools: {
     shortcut: "toolOpening",
     icon: <IconWindow4HouseLine />,
     label: "문·창",
-    hint: "벽을 누르면 그 자리에 문이나 창이 생겨요. 다시 누르면 없어져요.",
+    hint: "벽을 누르면 문이나 창이 생겨요. 문과 창은 끌어서 옮기고 양 끝으로 폭을 조절해요.",
   },
 ]
 
@@ -204,7 +216,14 @@ export function StructureView({
     openings: room?.openings ?? [],
   }))
   const history = useEditorHistory<EditorState>(() => initial)
-  const { draft, openings } = history.present
+  const gesture = useStructureDrag(active && !saving, history.present, (next) =>
+    history.set(() => next)
+  )
+  const { draft, openings } = gesture.preview?.state ?? history.present
+  const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(
+    null
+  )
+  const [focusedRoomId, setFocusedRoomId] = useState<string | null>(null)
 
   const [selectedId, setSelectedId] = useState<string | null>(
     draft.rooms[0]?.id ?? null
@@ -224,12 +243,6 @@ export function StructureView({
       (room ? draftAreaPyeong(draftFromModel(room)) : defaultAreaPyeong)
   )
   const surfaceRef = useRef<SVGSVGElement>(null)
-  const dragRef = useRef<{
-    id: string
-    offsetX: number
-    offsetZ: number
-  } | null>(null)
-  const notchDragRef = useRef<string | null>(null)
 
   const model = useMemo(
     () => buildRoomModel(draft, openings),
@@ -241,6 +254,13 @@ export function StructureView({
   )
   const dirty = !room || JSON.stringify(model) !== initialSignature
   const selected = draft.rooms.find((item) => item.id === selectedId)
+  const selectedOpening = model.openings.find(
+    (item) => item.id === selectedOpeningId
+  )
+  const limits = selectedOpening
+    ? openingLimits(model, selectedOpening.id)
+    : null
+  const origin = draftOrigin(draft)
   const connected = isConnected(draft)
   const overlapping = hasOverlap(draft)
   const currentArea = draftAreaPyeong(draft)
@@ -251,17 +271,24 @@ export function StructureView({
     width: Math.max(frameFor(areaInput).width, model.bounds.width, minFrame),
     depth: Math.max(frameFor(areaInput).depth, model.bounds.depth, minFrame),
   }
-  const viewBox = `${-padding} ${-padding} ${view.width + padding * 2} ${view.depth + padding * 2}`
+  const viewBox =
+    gesture.preview?.viewBox ??
+    `${origin[0] - padding} ${origin[1] - padding} ${view.width + padding * 2} ${view.depth + padding * 2}`
+  const planScale = usePlanScale(surfaceRef, viewBox)
 
-  useEffect(() => {
-    onDirtyChange(dirty)
-  }, [dirty, onDirtyChange])
+  useEffect(
+    function reportStructureDirty() {
+      onDirtyChange(dirty)
+    },
+    [dirty, onDirtyChange]
+  )
 
   // 구조 화면이 가려져 있거나 시작 방법을 고르는 동안에는 편집 단축키를 쉬게 합니다.
-  const editing = active && !choosingStart
-  const canApply = connected && !overlapping && dirty && !saving
-  useShortcut("undo", history.undo, { enabled: active })
-  useShortcut("redo", history.redo, { enabled: active })
+  const editing = active && !choosingStart && !gesture.dragging && !saving
+  const canApply =
+    connected && !overlapping && dirty && !saving && !gesture.dragging
+  useShortcut("undo", history.undo, { enabled: editing })
+  useShortcut("redo", history.redo, { enabled: editing })
   useShortcut(
     "save",
     () => {
@@ -291,10 +318,12 @@ export function StructureView({
   useShortcut(
     "structureEscape",
     () => {
-      if (tool !== "select") setTool("select")
+      if (gesture.dragging) gesture.cancel()
+      else if (selectedOpeningId) setSelectedOpeningId(null)
+      else if (tool !== "select") setTool("select")
       else setSelectedId(null)
     },
-    { enabled: editing && (tool !== "select" || Boolean(selected)) }
+    { enabled: active && !choosingStart }
   )
 
   function addNextRoom() {
@@ -347,26 +376,31 @@ export function StructureView({
   }
 
   function startDrag(event: React.PointerEvent, id: string) {
+    if (!editing || !event.isPrimary || event.button !== 0) return
     if (tool === "split") {
       const plan = pointerToPlan(event)
       if (plan) splitAt(id, plan.x, plan.z)
       return
     }
     if (tool !== "select") return
-    const plan = pointerToPlan(event)
-    const target = draft.rooms.find((item) => item.id === id)
-    if (!plan || !target) return
     setSelectedId(id)
-    history.mark()
-    dragRef.current = {
-      id,
-      offsetX: plan.x - target.x,
-      offsetZ: plan.z - target.z,
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    setSelectedOpeningId(null)
+    gesture.begin(event, surfaceRef.current, (start, dx, dz) => {
+      const target = start.draft.rooms.find((item) => item.id === id)!
+      return {
+        state: {
+          ...start,
+          draft: moveRoom(start.draft, id, target.x + dx, target.z + dz),
+        },
+      }
+    })
   }
 
   function dragRoom(event: React.PointerEvent) {
+    if (gesture.dragging) {
+      gesture.move(event)
+      return
+    }
     const plan = pointerToPlan(event)
     if (!plan) return
 
@@ -375,42 +409,77 @@ export function StructureView({
       setPreview(target ? { id: target.id, x: plan.x, z: plan.z } : null)
       return
     }
-
-    const notchId = notchDragRef.current
-    if (notchId) {
-      history.replace((current) => {
-        const target = current.draft.rooms.find((item) => item.id === notchId)
-        if (!target?.notch) return current
-        return {
-          ...current,
-          draft: setNotch(
-            current.draft,
-            notchId,
-            notchFromPoint(target, target.notch.corner, plan.x, plan.z)
-          ),
-        }
-      })
-      return
-    }
-
-    const drag = dragRef.current
-    if (!drag) return
-    history.replace((current) => ({
-      ...current,
-      draft: moveRoom(
-        current.draft,
-        drag.id,
-        plan.x - drag.offsetX,
-        plan.z - drag.offsetZ
-      ),
-    }))
   }
 
   function startNotchDrag(event: React.PointerEvent, id: string) {
-    notchDragRef.current = id
-    history.mark()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    event.stopPropagation()
+    gesture.begin(event, surfaceRef.current, (start, dx, dz) => {
+      const target = start.draft.rooms.find((item) => item.id === id)!
+      const handle = notchHandle(target)
+      return {
+        state: {
+          ...start,
+          draft: setNotch(
+            start.draft,
+            id,
+            notchFromPoint(
+              target,
+              target.notch!.corner,
+              handle.x + dx,
+              handle.z + dz
+            )
+          ),
+        },
+      }
+    })
+  }
+
+  function startResize(event: React.PointerEvent, handle: ResizeHandle) {
+    if (!selected) return
+    gesture.begin(event, surfaceRef.current, (start, dx, dz) =>
+      resizeStructure(start, selected.id, handle, dx, dz)
+    )
+  }
+
+  function resizeSelected(width: number, depth: number) {
+    if (!selected || gesture.dragging) return
+    const result = resizeStructure(
+      history.present,
+      selected.id,
+      "se",
+      width - selected.width,
+      depth - selected.depth
+    )
+    gesture.setError(result.error ?? "")
+    if (result.state !== history.present) history.set(() => result.state)
+  }
+
+  function startOpeningDrag(
+    event: React.PointerEvent,
+    opening: Opening,
+    wall: Wall,
+    handle: OpeningHandle
+  ) {
+    if (!editing || (tool !== "select" && tool !== "opening")) return
+    setSelectedOpeningId(opening.id)
+    setSelectedId(null)
+    gesture.begin(event, surfaceRef.current, (start, dx, dz) => ({
+      state: {
+        ...start,
+        openings: adjustOpening(
+          buildRoomModel(start.draft, start.openings),
+          opening.id,
+          handle,
+          alongWall(wall, [wall.a[0] + dx, wall.a[1] + dz])
+        ),
+      },
+    }))
+  }
+
+  function editSelectedOpening(handle: OpeningHandle, delta: number) {
+    if (!selectedOpening || gesture.dragging) return
+    const next = adjustOpening(model, selectedOpening.id, handle, delta, false)
+    if (next !== model.openings)
+      history.set((current) => ({ ...current, openings: next }))
   }
 
   function importPlan(next: RoomDraft, areaPyeong: number) {
@@ -448,11 +517,6 @@ export function StructureView({
     setSelectedId(initial.draft.rooms[0]?.id ?? null)
   }
 
-  function endDrag() {
-    dragRef.current = null
-    notchDragRef.current = null
-  }
-
   function toggleShape(target: RoomRect, corner: Corner | null) {
     editDraft((current) =>
       setNotch(
@@ -478,7 +542,13 @@ export function StructureView({
   }
 
   function placeOpening(wall: Wall, event: React.PointerEvent) {
-    if (tool !== "opening") return
+    if (
+      tool !== "opening" ||
+      !editing ||
+      !event.isPrimary ||
+      event.button !== 0
+    )
+      return
     const plan = pointerToPlan(event)
     if (!plan) return
     const length = wallLength(wall)
@@ -489,15 +559,10 @@ export function StructureView({
     editOpenings((current) => addOpening(current, wall.id, openingType, along))
   }
 
-  function dropOpening(openingId: string) {
-    if (tool !== "opening") return
-    editOpenings((current) => removeOpening(current, openingId))
-  }
-
   return (
     <div className="structure">
       <section className="viewport" aria-label="집 구조 편집">
-        <div className="viewport-toolbar">
+        <div className="viewport-toolbar" inert={gesture.dragging || saving}>
           <div className="viewport-toolbar-group">
             <ToolbarChoice
               items={tools.map((item) => ({
@@ -605,8 +670,9 @@ export function StructureView({
             data-tool={tool}
             viewBox={viewBox}
             onPointerMove={dragRoom}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
+            onPointerUp={gesture.end}
+            onPointerCancel={gesture.cancelPointer}
+            onLostPointerCapture={gesture.cancelPointer}
             onPointerLeave={() => setPreview(null)}
             aria-label="방 배치 편집기"
           >
@@ -636,6 +702,23 @@ export function StructureView({
                 <g key={item.id}>
                   <polygon
                     className={`plan-room${item.id === selectedId ? " is-selected" : ""}`}
+                    role="button"
+                    tabIndex={tool === "select" ? 0 : -1}
+                    aria-label={`${item.name} 선택`}
+                    aria-pressed={item.id === selectedId}
+                    onFocus={() => setFocusedRoomId(item.id)}
+                    onBlur={() => setFocusedRoomId(null)}
+                    onKeyDown={(event) => {
+                      if (
+                        (event.key === "Enter" || event.key === " ") &&
+                        editing &&
+                        tool === "select"
+                      ) {
+                        event.preventDefault()
+                        setSelectedId(item.id)
+                        setSelectedOpeningId(null)
+                      }
+                    }}
                     points={polygon
                       .map((point) => `${point[0]},${point[1]}`)
                       .join(" ")}
@@ -691,66 +774,175 @@ export function StructureView({
               />
             )}
 
-            {model.walls.map((wall) => (
-              <line
-                key={wall.id}
-                className="plan-wall"
-                x1={wall.a[0]}
-                y1={wall.a[1]}
-                x2={wall.b[0]}
-                y2={wall.b[1]}
-                strokeWidth={wall.thickness}
-                onPointerDown={(event) => {
-                  if (tool === "erase") eraseWall(wall)
-                  else placeOpening(wall, event)
-                }}
-              />
-            ))}
+            <g transform={`translate(${origin[0]} ${origin[1]})`}>
+              {model.walls.map((wall) => (
+                <line
+                  key={wall.id}
+                  className="plan-wall"
+                  x1={wall.a[0]}
+                  y1={wall.a[1]}
+                  x2={wall.b[0]}
+                  y2={wall.b[1]}
+                  strokeWidth={wall.thickness}
+                  onPointerDown={(event) => {
+                    if (!editing || !event.isPrimary || event.button !== 0)
+                      return
+                    if (tool === "erase") eraseWall(wall)
+                    else placeOpening(wall, event)
+                  }}
+                />
+              ))}
 
-            {model.openings.map((opening) => {
-              const wall = model.walls.find(
-                (item) => item.id === opening.wallId
-              )
-              if (!wall) return null
-              const shape = openingShape(wall, opening)
-              return (
-                <g
-                  key={opening.id}
-                  className={`plan-opening is-${opening.type}`}
-                  onPointerDown={() => dropOpening(opening.id)}
-                >
-                  <line
-                    className="plan-opening-gap"
-                    x1={shape.start.x}
-                    y1={shape.start.z}
-                    x2={shape.end.x}
-                    y2={shape.end.z}
-                    strokeWidth={wall.thickness + 0.02}
-                  />
-                  {opening.type === "door" ? (
-                    <path
-                      className="plan-door-swing"
-                      d={`M ${shape.end.x} ${shape.end.z} A ${shape.width} ${shape.width} 0 0 1 ${shape.leaf.x} ${shape.leaf.z} L ${shape.start.x} ${shape.start.z}`}
-                    />
-                  ) : (
+              {model.openings.map((opening) => {
+                const wall = model.walls.find(
+                  (item) => item.id === opening.wallId
+                )
+                if (!wall) return null
+                const shape = openingShape(wall, opening)
+                return (
+                  <g
+                    key={opening.id}
+                    className={`plan-opening is-${opening.type}`}
+                    role="button"
+                    tabIndex={tool === "select" || tool === "opening" ? 0 : -1}
+                    aria-label={`${opening.type === "door" ? "문" : "창문"} 선택 ${opening.id}`}
+                    aria-pressed={opening.id === selectedOpeningId}
+                    onKeyDown={(event) => {
+                      if (
+                        (event.key === "Enter" || event.key === " ") &&
+                        editing &&
+                        (tool === "select" || tool === "opening")
+                      ) {
+                        event.preventDefault()
+                        setSelectedOpeningId(opening.id)
+                        setSelectedId(null)
+                      }
+                    }}
+                    onPointerDown={(event) =>
+                      startOpeningDrag(event, opening, wall, "move")
+                    }
+                  >
                     <line
-                      className="plan-window-glass"
+                      className="plan-opening-hit"
                       x1={shape.start.x}
                       y1={shape.start.z}
                       x2={shape.end.x}
                       y2={shape.end.z}
-                      strokeWidth={wall.thickness * 0.4}
                     />
-                  )}
-                </g>
-              )
-            })}
+                    <line
+                      className="plan-opening-gap"
+                      x1={shape.start.x}
+                      y1={shape.start.z}
+                      x2={shape.end.x}
+                      y2={shape.end.z}
+                      strokeWidth={wall.thickness + 0.02}
+                    />
+                    {opening.type === "door" ? (
+                      <path
+                        className="plan-door-swing"
+                        d={`M ${shape.end.x} ${shape.end.z} A ${shape.width} ${shape.width} 0 0 1 ${shape.leaf.x} ${shape.leaf.z} L ${shape.start.x} ${shape.start.z}`}
+                      />
+                    ) : (
+                      <line
+                        className="plan-window-glass"
+                        x1={shape.start.x}
+                        y1={shape.start.z}
+                        x2={shape.end.x}
+                        y2={shape.end.z}
+                        strokeWidth={wall.thickness * 0.4}
+                      />
+                    )}
+                    {opening.id === selectedOpeningId &&
+                      (tool === "select" || tool === "opening") &&
+                      (["from", "to"] as const).map((handle) => {
+                        const point =
+                          handle === "from" ? shape.start : shape.end
+                        return (
+                          <g
+                            key={handle}
+                            className="plan-resize-handle"
+                            data-handle={`opening-${handle}`}
+                            transform={`translate(${point.x} ${point.z})`}
+                            onPointerDown={(event) => {
+                              event.stopPropagation()
+                              startOpeningDrag(event, opening, wall, handle)
+                            }}
+                          >
+                            <circle
+                              className="plan-handle-hit"
+                              r={14 / planScale}
+                            />
+                            <circle
+                              className="plan-handle-dot"
+                              r={5 / planScale}
+                            />
+                          </g>
+                        )
+                      })}
+                    <line
+                      className="plan-opening-focus"
+                      x1={shape.start.x}
+                      y1={shape.start.z}
+                      x2={shape.end.x}
+                      y2={shape.end.z}
+                    />
+                  </g>
+                )
+              })}
+            </g>
+            {selected &&
+              tool === "select" &&
+              !selectedOpening &&
+              (["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const).map(
+                (handle) => {
+                  const x =
+                    selected.x +
+                    (handle.includes("w")
+                      ? 0
+                      : handle.includes("e")
+                        ? selected.width
+                        : selected.width / 2)
+                  const z =
+                    selected.z +
+                    (handle.includes("n")
+                      ? 0
+                      : handle.includes("s")
+                        ? selected.depth
+                        : selected.depth / 2)
+                  return (
+                    <g
+                      key={handle}
+                      className="plan-resize-handle"
+                      data-handle={handle}
+                      style={{ cursor: `${handle}-resize` }}
+                      transform={`translate(${x} ${z})`}
+                      onPointerDown={(event) => startResize(event, handle)}
+                    >
+                      <circle className="plan-handle-hit" r={14 / planScale} />
+                      <circle className="plan-handle-dot" r={5 / planScale} />
+                    </g>
+                  )
+                }
+              )}
+            {draft.rooms
+              .filter((item) => item.id === focusedRoomId)
+              .map((item) => (
+                <polygon
+                  key={item.id}
+                  className="plan-room-focus"
+                  points={roomPolygon(item)
+                    .map((point) => point.join(","))
+                    .join(" ")}
+                />
+              ))}
           </svg>
 
           {active ? (
             <SnackbarAvoidOverlap>
               <div className="viewport-overlay overlay-bottom-start viewport-hint">
-                <Type variant="caption">{activeTool.hint}</Type>
+                <Type variant="caption" role="status">
+                  {gesture.error || activeTool.hint}
+                </Type>
               </div>
             </SnackbarAvoidOverlap>
           ) : null}
@@ -782,8 +974,66 @@ export function StructureView({
         </div>
       </section>
 
-      <aside className="structure-inspector panel" aria-label="구조 정보">
+      <aside
+        className="structure-inspector panel"
+        aria-label="구조 정보"
+        inert={gesture.dragging || saving}
+      >
         <div className="panel-body">
+          {selectedOpening && limits && (
+            <section
+              className="inspector-section"
+              aria-label="선택한 문 또는 창문"
+            >
+              <div className="inspector-section-heading">
+                <Type variant="heading" as="h2">
+                  선택한 {selectedOpening.type === "door" ? "문" : "창문"}
+                </Type>
+                <ActionButton
+                  variant="ghost"
+                  size="small"
+                  color="fg.critical"
+                  onClick={() => {
+                    editOpenings((current) =>
+                      removeOpening(current, selectedOpening.id)
+                    )
+                    setSelectedOpeningId(null)
+                  }}
+                >
+                  삭제
+                </ActionButton>
+              </div>
+              <MeterField
+                key={`position-${selectedOpening.id}`}
+                label="벽 시작점에서 거리"
+                precision={2}
+                value={selectedOpening.from}
+                min={limits.min}
+                max={limits.max - (selectedOpening.to - selectedOpening.from)}
+                onCommit={(value) =>
+                  editSelectedOpening("move", value - selectedOpening.from)
+                }
+              />
+              <MeterField
+                key={`width-${selectedOpening.id}`}
+                label="폭"
+                precision={2}
+                value={selectedOpening.to - selectedOpening.from}
+                min={minOpeningWidth}
+                max={limits.max - selectedOpening.from}
+                onCommit={(value) =>
+                  editSelectedOpening(
+                    "to",
+                    value - (selectedOpening.to - selectedOpening.from)
+                  )
+                }
+              />
+              <Type variant="caption" as="p">
+                같은 벽 안에서 이동할 수 있어요. 다른 문이나 창문을 넘을 수는
+                없어요.
+              </Type>
+            </section>
+          )}
           <section
             className="inspector-section"
             aria-labelledby="room-section-title"
@@ -826,24 +1076,16 @@ export function StructureView({
                     label="가로"
                     value={selected.width}
                     min={minRoomSize}
-                    max={40}
-                    onCommit={(width) =>
-                      editDraft((current) =>
-                        resizeRoom(current, selected.id, width, selected.depth)
-                      )
-                    }
+                    max={maxRoomSize}
+                    onCommit={(width) => resizeSelected(width, selected.depth)}
                   />
                   <MeterField
                     key={`d-${selected.id}`}
                     label="세로"
                     value={selected.depth}
                     min={minRoomSize}
-                    max={40}
-                    onCommit={(depth) =>
-                      editDraft((current) =>
-                        resizeRoom(current, selected.id, selected.width, depth)
-                      )
-                    }
+                    max={maxRoomSize}
+                    onCommit={(depth) => resizeSelected(selected.width, depth)}
                   />
                 </div>
                 <div className="field-stack">

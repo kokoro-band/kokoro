@@ -162,7 +162,7 @@ public class ProjectService {
     @Transactional
     public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
         RenovationProject project = find(id);
-        furniturePlacementValidator.validate(project.dimensions(), project.room(), furniture);
+        furniturePlacementValidator.validateData(furniture);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
         projectRepository.replace(updated);
         return updated;
@@ -174,7 +174,6 @@ public class ProjectService {
         roomModelValidator.validate(room);
         RenovationProject updated = new RenovationProject(project.id(), project.ownerId(), project.name(),
                 project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now());
-        furniturePlacementValidator.validate(updated.dimensions(), room, updated.furniture());
         projectRepository.replace(updated);
         return updated;
     }
@@ -228,6 +227,7 @@ public class ProjectService {
                     project, null, null, List.of(), List.of());
         }
 
+        furniturePlacementValidator.validate(project.dimensions(), project.room(), next);
         RenovationProject updated = saveLayout(id, next);
         return new ChatCommandResponse(
                 String.join(", ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
@@ -263,6 +263,7 @@ public class ProjectService {
                 actions.add("전체 삭제");
             }
         }
+        furniturePlacementValidator.validate(project.dimensions(), project.room(), next);
         RenovationProject updated = actions.isEmpty() ? project : saveLayout(id, next);
         return new ChatCommandResponse(String.join(", ", actions) + "했습니다.", actions, proposal.commands(),
                 false, updated, proposal.proposalId(), proposal.expiresAt(), List.of(), List.of());

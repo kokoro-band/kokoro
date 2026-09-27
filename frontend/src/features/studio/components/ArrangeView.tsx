@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import {
   IconHouseLine,
   IconPlusLine,
@@ -9,6 +9,7 @@ import {
 import { ActionButton, BottomSheet, Icon, PrefixIcon } from "@seed-design/react"
 import { ResultSection } from "seed-design/ui/result-section"
 import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
+import { ActionableCallout } from "seed-design/ui/callout"
 import {
   TabsContent,
   TabsList,
@@ -25,6 +26,7 @@ import {
   roomCenter,
 } from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
+import { placementIssues } from "@/features/studio/placement-issues"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
@@ -82,6 +84,17 @@ export function ArrangeView({
   const sheetRef = useRef<HTMLDivElement>(null)
   const dockPlaceRef = useRef<HTMLButtonElement>(null)
   const selected = studio.selected
+  const issues = useMemo(
+    () => placementIssues(studio.project),
+    [studio.project]
+  )
+  const selectedIssue = issues.find(
+    (issue) => issue.furnitureId === selected?.id
+  )
+  const selectIssue = (id: string) => {
+    onRoomChange(null)
+    selectFurniture(id)
+  }
   const hasHouse = Boolean(houseRoom && rooms.length > 0)
   const hasSelection = hasHouse && Boolean(selected)
 
@@ -118,6 +131,12 @@ export function ArrangeView({
   const placeSelected = (update: { x?: number; z?: number }) => {
     if (!selected) return false
     const target = { x: update.x ?? selected.x, z: update.z ?? selected.z }
+    // An out-of-bounds item may need both axes repaired separately. Do not clamp
+    // it back to the invalid starting point while the other axis is still outside.
+    if (selectedIssue) {
+      studio.updateSelected(target)
+      return false
+    }
     const placed = nearestPlacement(studio.project, room, selected, target)
     if (placed.x !== selected.x || placed.z !== selected.z)
       studio.updateSelected(placed)
@@ -236,6 +255,8 @@ export function ArrangeView({
       onCategoryChange={studio.setCategory}
       onAddFurniture={addFurniture}
       onSelectFurniture={selectFurniture}
+      issues={issues}
+      onSelectIssue={selectIssue}
     />
   )
 
@@ -243,6 +264,7 @@ export function ArrangeView({
     <FurnitureInspector
       key={selected.id}
       selected={selected}
+      issue={selectedIssue?.reason}
       bounds={studio.roomBounds}
       roomName={room?.name ?? null}
       onPlace={placeSelected}
@@ -331,6 +353,15 @@ export function ArrangeView({
           : "선택한 가구"
     return (
       <div className="arrange arrange-mobile">
+        {issues.length > 0 && (
+          <ActionableCallout
+            tone="critical"
+            className="placement-mobile-notice"
+            title={`배치 확인 필요 ${issues.length}개`}
+            description="가구를 골라 위치를 수정하세요."
+            onClick={() => setSheet("navigator")}
+          />
+        )}
         {scene}
         <SnackbarAvoidOverlap>
           <nav className="mobile-dock" aria-label="배치 도구">

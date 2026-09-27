@@ -13,6 +13,20 @@
   border-right: 1px solid var(--line);
 }
 
+.placement-issues,
+.placement-issue-detail {
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4);
+}
+
+.placement-issues {
+  border-bottom: 1px solid var(--line);
+}
+
+.placement-mobile-notice {
+  flex: none;
+  margin: var(--seed-dimension-x2) var(--seed-dimension-x3);
+}
+
 .arrange-inspector {
   display: flex;
   flex-direction: column;

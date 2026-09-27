@@ -211,7 +211,7 @@ class ProjectApiTest {
     }
 
     @Test
-    void rejectsFurnitureOutsideRoomAndOverlappingFurniture() throws Exception {
+    void savesManualDraftsOutsideRoomAndWithOverlappingFurniture() throws Exception {
         mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -219,8 +219,8 @@ class ProjectApiTest {
                                   {"id":"outside","catalogId":"sofa-cloud","name":"소파","category":"소파","x":0.5,"z":2.1,"rotation":0,"color":"#D8C8B8"}
                                 ]}
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("방 경계")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture[0].x").value(0.5));
 
         mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -230,8 +230,77 @@ class ProjectApiTest {
                                   {"id":"chair-2","catalogId":"chair-shell","name":"의자","category":"의자","x":3.2,"z":2.1,"rotation":0,"color":"#4A665A"}
                                 ]}
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("겹칩니다")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture", hasSize(2)));
+    }
+
+    @Test
+    void startsStructureWithExistingInvalidFurnitureAndSavesRepairsIndividually() throws Exception {
+        String created = mockMvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"배치 복구","roomType":"거실","dimensions":{"width":30,"depth":30,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.furniture", hasSize(0)))
+                .andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asText();
+        var furniture = mapper.readTree("""
+                [{"id":"a","catalogId":"chair-shell","name":"의자 A","category":"의자","x":15,"z":15,"rotation":0,"color":"#000000"},
+                 {"id":"b","catalogId":"chair-shell","name":"의자 B","category":"의자","x":18,"z":18,"rotation":0,"color":"#000000"}]
+                """);
+        String layout = mapper.writeValueAsString(mapper.createObjectNode().set("furniture", furniture));
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content(layout))
+                .andExpect(status().isOk());
+        tools.jackson.databind.JsonNode room;
+        try (var fixture = getClass().getResourceAsStream("/contracts/room-v2.json")) {
+            room = mapper.readTree(fixture).path("room");
+        }
+        mockMvc.perform(put("/api/projects/{id}/room", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(mapper.createObjectNode().set("room", room))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.furniture", hasSize(2)))
+                .andExpect(jsonPath("$.furniture[0].x").value(15))
+                .andExpect(jsonPath("$.furniture[1].x").value(18));
+
+        // Repair one axis while the other axis and another item are still outside.
+        ((tools.jackson.databind.node.ObjectNode) furniture.get(0)).put("x", 1.5);
+        layout = mapper.writeValueAsString(mapper.createObjectNode().set("furniture", furniture));
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content(layout))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(jsonPath("$.furniture[0].x").value(1.5))
+                .andExpect(jsonPath("$.furniture[0].z").value(15))
+                .andExpect(jsonPath("$.furniture[1].x").value(18));
+
+        ((tools.jackson.databind.node.ObjectNode) furniture.get(0)).put("z", 1.0);
+        ((tools.jackson.databind.node.ArrayNode) furniture).remove(1);
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(mapper.createObjectNode().set("furniture", furniture))))
+                .andExpect(status().isOk());
+        var reloaded = new com.kokoro.room.project.JdbcProjectRepository(jdbc, mapper).findById(id).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(1, reloaded.furniture().size());
+        org.junit.jupiter.api.Assertions.assertEquals(1.5, reloaded.furniture().get(0).x());
+        org.junit.jupiter.api.Assertions.assertEquals(1.0, reloaded.furniture().get(0).z());
+        org.junit.jupiter.api.Assertions.assertEquals(mapper.treeToValue(room, com.kokoro.room.project.ProjectModels.RoomModel.class), reloaded.room());
+    }
+
+    @Test
+    void manualDraftStillRejectsInvalidFurnitureDataWithoutChangingSavedState() throws Exception {
+        String created = mockMvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"데이터 검증","roomType":"거실","dimensions":{"width":5,"depth":4,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asText();
+        String valid = """
+                {"id":"a","catalogId":"chair-shell","name":"의자","category":"의자","x":1,"z":1,"rotation":0,"color":"#000000"}
+                """;
+        for (String invalid : java.util.List.of(valid + "," + valid,
+                valid.replace("chair-shell", "missing"), valid.replace("\"x\":1", "\"x\":null"),
+                valid.replace("\"x\":1", "\"x\":1e309"))) {
+            mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"furniture\":[" + invalid + "]}"))
+                    .andExpect(status().isBadRequest());
+            mockMvc.perform(get("/api/projects/{id}", id)).andExpect(jsonPath("$.furniture", hasSize(0)));
+        }
     }
 
     private void awaitReady(String projectId, String jobId) throws Exception {

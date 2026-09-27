@@ -71,7 +71,10 @@ export function AppBar({
     <header className="app-bar">
       <div className="app-bar-start">
         <a className="app-bar-brand" href="#workspace" aria-label="코코로">
-          <img src="/assets/pixel/kokoro-mark.svg" alt="" />
+          <img
+            src={`${import.meta.env.BASE_URL}assets/pixel/kokoro-mark.svg`}
+            alt=""
+          />
           <Type variant="title" className="app-bar-wordmark">
             kokoro
           </Type>

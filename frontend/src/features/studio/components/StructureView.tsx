@@ -885,6 +885,7 @@ export function StructureView({
                       y1={shape.start.z}
                       x2={shape.end.x}
                       y2={shape.end.z}
+                      strokeWidth={3 / planScale}
                     />
                   </g>
                 )
@@ -933,6 +934,7 @@ export function StructureView({
                   points={roomPolygon(item)
                     .map((point) => point.join(","))
                     .join(" ")}
+                  strokeWidth={3 / planScale}
                 />
               ))}
           </svg>

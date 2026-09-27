@@ -23,6 +23,7 @@ import { roomForFurniture } from "@/features/studio/house-navigation"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import { shortcutText } from "@/features/studio/shortcuts"
 import type { Project, RoomLabel, ViewMode } from "@/features/studio/types"
+import type { CursorTool } from "@/features/studio/scene-interaction"
 
 const RoomScene = lazy(async () => {
   const module = await import("@/features/studio/RoomScene")
@@ -35,9 +36,16 @@ const viewModes: { value: ViewMode; label: string }[] = [
   { value: "vr", label: "VR" },
 ]
 
-const hints: Record<Exclude<ViewMode, "vr">, string> = {
-  "2d": "가구를 끌어서 옮겨요. 휠로 확대해요.",
-  "3d": "가구를 끌어서 옮기고, 빈 곳을 끌어서 둘러봐요.",
+const cursorTools: { value: CursorTool; label: string }[] = [
+  { value: "select", label: "1 선택" },
+  { value: "move", label: "2 가구 이동" },
+  { value: "pan", label: "3 화면 이동" },
+]
+
+const hints: Record<CursorTool, string> = {
+  select: "가구를 눌러 선택해요. 옮기려면 2번을 누르세요.",
+  move: "가구를 끌어서 옮겨요. 화면을 옮기려면 3번을 누르세요.",
+  pan: "화면을 끌어서 옮겨요. 휠로 확대해요.",
 }
 
 export function SceneEditor({
@@ -77,6 +85,7 @@ export function SceneEditor({
   const xrEntryRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isMinimapOpen, setIsMinimapOpen] = useState(false)
+  const [tool, setTool] = useState<CursorTool>("move")
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
@@ -87,7 +96,7 @@ export function SceneEditor({
         )
       : project.furniture
 
-  useEffect(() => {
+  useEffect(function synchronizeFullscreen() {
     const syncFullscreen = () => {
       setIsFullscreen(document.fullscreenElement === panelRef.current)
     }
@@ -96,16 +105,19 @@ export function SceneEditor({
       document.removeEventListener("fullscreenchange", syncFullscreen)
   }, [])
 
-  useEffect(() => {
-    if (!isMobile || !isMinimapOpen) return
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      setIsMinimapOpen(false)
-      minimapButtonRef.current?.focus()
-    }
-    document.addEventListener("keydown", closeOnEscape)
-    return () => document.removeEventListener("keydown", closeOnEscape)
-  }, [isMobile, isMinimapOpen])
+  useEffect(
+    function closeMinimapOnEscape() {
+      if (!isMobile || !isMinimapOpen) return
+      const closeOnEscape = (event: KeyboardEvent) => {
+        if (event.key !== "Escape") return
+        setIsMinimapOpen(false)
+        minimapButtonRef.current?.focus()
+      }
+      document.addEventListener("keydown", closeOnEscape)
+      return () => document.removeEventListener("keydown", closeOnEscape)
+    },
+    [isMobile, isMinimapOpen]
+  )
 
   const toggleFullscreen = () => {
     const panel = panelRef.current
@@ -122,6 +134,11 @@ export function SceneEditor({
     onModeChange(mode === "2d" ? "3d" : "2d")
   )
   useShortcut("fullscreen", toggleFullscreen)
+  useShortcut("cursorSelect", () => setTool("select"), {
+    enabled: mode !== "vr",
+  })
+  useShortcut("cursorMove", () => setTool("move"), { enabled: mode !== "vr" })
+  useShortcut("cursorPan", () => setTool("pan"), { enabled: mode !== "vr" })
 
   return (
     <section ref={panelRef} className="viewport" aria-label="배치 화면">
@@ -206,6 +223,7 @@ export function SceneEditor({
             furniture={visibleFurniture}
             selectedId={selectedId}
             mode={mode}
+            tool={tool}
             room={project.room}
             focusRoom={focusRoom}
             onSelect={onSelect}
@@ -258,10 +276,25 @@ export function SceneEditor({
         )}
         {mode !== "vr" && (
           <SnackbarAvoidOverlap>
-            <div className="viewport-overlay overlay-bottom-start viewport-hint">
-              <Type variant="caption">{hints[mode]}</Type>
+            <div className="viewport-overlay viewport-cursor-tools">
+              <ToolbarChoice
+                items={cursorTools}
+                value={tool}
+                onValueChange={setTool}
+                aria-label="커서 도구"
+              />
             </div>
           </SnackbarAvoidOverlap>
+        )}
+        {mode !== "vr" && !isMobile && (
+          <div className="viewport-overlay viewport-cursor-hint" role="status">
+            <Type variant="label">
+              {hints[tool]}
+              {tool === "pan" && mode === "3d"
+                ? " 오른쪽 버튼을 누르고 끌면 회전해요."
+                : ""}
+            </Type>
+          </div>
         )}
       </div>
     </section>

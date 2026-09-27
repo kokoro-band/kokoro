@@ -283,7 +283,7 @@ export function ArrangeView({
       </Type>
       <ul className="inspector-tips">
         <li>
-          <Type variant="description">가구를 끌면 바로 옮겨져요.</Type>
+          <Type variant="description">2번 가구 이동 도구로 끌어서 옮겨요.</Type>
         </li>
         <li>
           <Type variant="description">

@@ -37,6 +37,10 @@ const project = (furniture: Furniture[], model?: RoomModel): Project => ({
 })
 
 describe("repairable placement issues", () => {
+  it("opens the bundled sample without placement warnings", () => {
+    expect(placementIssues(sampleProject)).toEqual([])
+  })
+
   // Coordinates match FurniturePlacementValidatorTest on the server.
   it("does not invent furniture or flag touching edges", () => {
     expect(placementIssues(project([], room))).toEqual([])

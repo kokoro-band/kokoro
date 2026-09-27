@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from "react";
+} from "react"
 import {
   IconArrowUturnLeftLine,
   IconArrowUturnRightLine,
@@ -15,48 +15,48 @@ import {
   IconHandWaveLine,
   IconMapLine,
   IconSofaLine,
-} from "@karrotmarket/react-monochrome-icon";
-import { ActionButton, Icon } from "@seed-design/react";
-import { HelpBubbleAnchor } from "seed-design/ui/help-bubble";
-import { ProgressCircle } from "seed-design/ui/progress-circle";
+} from "@karrotmarket/react-monochrome-icon"
+import { ActionButton, Icon } from "@seed-design/react"
+import { HelpBubbleAnchor } from "seed-design/ui/help-bubble"
+import { ProgressCircle } from "seed-design/ui/progress-circle"
 
-import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar";
-import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice";
-import { Type } from "@/components/kokoro/Type";
-import { roomForFurniture } from "@/features/studio/house-navigation";
-import { useShortcut } from "@/features/studio/hooks/useShortcut";
-import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts";
-import type { Project, RoomLabel, ViewMode } from "@/features/studio/types";
-import type { CursorTool } from "@/features/studio/scene-interaction";
+import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
+import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
+import { Type } from "@/components/kokoro/Type"
+import { roomForFurniture } from "@/features/studio/house-navigation"
+import { useShortcut } from "@/features/studio/hooks/useShortcut"
+import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts"
+import type { Project, RoomLabel, ViewMode } from "@/features/studio/types"
+import type { CursorTool } from "@/features/studio/scene-interaction"
 
 const RoomScene = lazy(async () => {
-  const module = await import("@/features/studio/RoomScene");
-  return { default: module.RoomScene };
-});
+  const module = await import("@/features/studio/RoomScene")
+  return { default: module.RoomScene }
+})
 
 const viewModes: { value: ViewMode; label: string }[] = [
   { value: "2d", label: "2D" },
   { value: "3d", label: "3D" },
   { value: "vr", label: "VR" },
-];
+]
 
 const cursorTools: { value: CursorTool; label: string; icon: ReactNode }[] = [
   { value: "select", label: "선택", icon: <IconHandPointUpLine /> },
   { value: "move", label: "가구 이동", icon: <IconSofaLine /> },
   { value: "pan", label: "화면 이동", icon: <IconHandWaveLine /> },
-];
+]
 
 const cursorShortcuts: Record<CursorTool, ShortcutId> = {
   select: "cursorSelect",
   move: "cursorMove",
   pan: "cursorPan",
-};
+}
 
 const hints: Record<CursorTool, string> = {
   select: "가구를 눌러 선택해요. 옮기려면 2번을 누르세요.",
   move: "가구를 끌어서 옮겨요. 화면을 옮기려면 3번을 누르세요.",
   pan: "화면을 끌어서 옮겨요. 휠로 확대해요.",
-};
+}
 
 export function SceneEditor({
   project,
@@ -75,102 +75,102 @@ export function SceneEditor({
   onMove,
   onMoveEnd,
 }: {
-  project: Project;
-  focusRoom: RoomLabel | null;
-  minimap?: ReactNode;
-  isMobile?: boolean;
-  selectedId: string | null;
-  mode: ViewMode;
-  canUndo: boolean;
-  canRedo: boolean;
-  onModeChange: (mode: ViewMode) => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  onFullscreenError: () => void;
-  onSelect: (id: string | null) => void;
-  onMove: (id: string, x: number, z: number) => void;
-  onMoveEnd: () => void;
+  project: Project
+  focusRoom: RoomLabel | null
+  minimap?: ReactNode
+  isMobile?: boolean
+  selectedId: string | null
+  mode: ViewMode
+  canUndo: boolean
+  canRedo: boolean
+  onModeChange: (mode: ViewMode) => void
+  onUndo: () => void
+  onRedo: () => void
+  onFullscreenError: () => void
+  onSelect: (id: string | null) => void
+  onMove: (id: string, x: number, z: number) => void
+  onMoveEnd: () => void
 }) {
-  const panelRef = useRef<HTMLElement>(null);
-  const xrEntryRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMinimapOpen, setIsMinimapOpen] = useState(false);
-  const [tool, setTool] = useState<CursorTool>("move");
-  const [hintTool, setHintTool] = useState<CursorTool | null>(null);
-  const hintTimerRef = useRef<number | undefined>(undefined);
-  const hintClosedAtRef = useRef(0);
-  const minimapButtonRef = useRef<HTMLButtonElement>(null);
-  const rooms = project.room?.rooms;
-  const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1;
+  const panelRef = useRef<HTMLElement>(null)
+  const xrEntryRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isMinimapOpen, setIsMinimapOpen] = useState(false)
+  const [tool, setTool] = useState<CursorTool>("move")
+  const [hintTool, setHintTool] = useState<CursorTool | null>(null)
+  const hintTimerRef = useRef<number | undefined>(undefined)
+  const hintClosedAtRef = useRef(0)
+  const minimapButtonRef = useRef<HTMLButtonElement>(null)
+  const rooms = project.room?.rooms
+  const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
   const visibleFurniture =
     focusIndex >= 0 && rooms
       ? project.furniture.filter(
-          (item) => roomForFurniture(rooms, item) === focusIndex,
+          (item) => roomForFurniture(rooms, item) === focusIndex
         )
-      : project.furniture;
+      : project.furniture
 
   useEffect(function synchronizeFullscreen() {
     const syncFullscreen = () => {
-      setIsFullscreen(document.fullscreenElement === panelRef.current);
-    };
-    document.addEventListener("fullscreenchange", syncFullscreen);
+      setIsFullscreen(document.fullscreenElement === panelRef.current)
+    }
+    document.addEventListener("fullscreenchange", syncFullscreen)
     return () =>
-      document.removeEventListener("fullscreenchange", syncFullscreen);
-  }, []);
+      document.removeEventListener("fullscreenchange", syncFullscreen)
+  }, [])
 
   useEffect(
     function closeMinimapOnEscape() {
-      if (!isMobile || !isMinimapOpen) return;
+      if (!isMobile || !isMinimapOpen) return
       const closeOnEscape = (event: KeyboardEvent) => {
-        if (event.key !== "Escape") return;
-        setIsMinimapOpen(false);
-        minimapButtonRef.current?.focus();
-      };
-      document.addEventListener("keydown", closeOnEscape);
-      return () => document.removeEventListener("keydown", closeOnEscape);
+        if (event.key !== "Escape") return
+        setIsMinimapOpen(false)
+        minimapButtonRef.current?.focus()
+      }
+      document.addEventListener("keydown", closeOnEscape)
+      return () => document.removeEventListener("keydown", closeOnEscape)
     },
-    [isMobile, isMinimapOpen],
-  );
+    [isMobile, isMinimapOpen]
+  )
 
   // Help opens only on hover dwell or keyboard focus. Clicks, 1/2/3 and touch
   const showToolHintSoon = (value: CursorTool, at: number) => {
-    window.clearTimeout(hintTimerRef.current);
-    const delay = at - hintClosedAtRef.current < 300 ? 0 : 600;
-    hintTimerRef.current = window.setTimeout(() => setHintTool(value), delay);
-  };
+    window.clearTimeout(hintTimerRef.current)
+    const delay = at - hintClosedAtRef.current < 300 ? 0 : 600
+    hintTimerRef.current = window.setTimeout(() => setHintTool(value), delay)
+  }
 
   const hideToolHint = (at = 0) => {
-    window.clearTimeout(hintTimerRef.current);
+    window.clearTimeout(hintTimerRef.current)
     setHintTool((current) => {
-      if (current) hintClosedAtRef.current = at;
-      return null;
-    });
-  };
+      if (current) hintClosedAtRef.current = at
+      return null
+    })
+  }
 
   useEffect(function clearToolHintTimer() {
-    return () => window.clearTimeout(hintTimerRef.current);
-  }, []);
+    return () => window.clearTimeout(hintTimerRef.current)
+  }, [])
 
   const toggleFullscreen = () => {
-    const panel = panelRef.current;
-    if (!panel) return;
+    const panel = panelRef.current
+    if (!panel) return
     const action = isFullscreen
       ? document.exitFullscreen()
-      : panel.requestFullscreen();
-    action.catch(onFullscreenError);
-  };
+      : panel.requestFullscreen()
+    action.catch(onFullscreenError)
+  }
 
-  useShortcut("undo", onUndo);
-  useShortcut("redo", onRedo);
+  useShortcut("undo", onUndo)
+  useShortcut("redo", onRedo)
   useShortcut("toggleDimension", () =>
-    onModeChange(mode === "2d" ? "3d" : "2d"),
-  );
-  useShortcut("fullscreen", toggleFullscreen);
+    onModeChange(mode === "2d" ? "3d" : "2d")
+  )
+  useShortcut("fullscreen", toggleFullscreen)
   useShortcut("cursorSelect", () => setTool("select"), {
     enabled: mode !== "vr",
-  });
-  useShortcut("cursorMove", () => setTool("move"), { enabled: mode !== "vr" });
-  useShortcut("cursorPan", () => setTool("pan"), { enabled: mode !== "vr" });
+  })
+  useShortcut("cursorMove", () => setTool("move"), { enabled: mode !== "vr" })
+  useShortcut("cursorPan", () => setTool("pan"), { enabled: mode !== "vr" })
 
   return (
     <section ref={panelRef} className="viewport" aria-label="배치 화면">
@@ -182,7 +182,7 @@ export function SceneEditor({
               : {
                   ...item,
                   title: `2D와 3D 바꾸기 (${shortcutText("toggleDimension")})`,
-                },
+                }
           )}
           value={mode}
           onValueChange={onModeChange}
@@ -332,7 +332,7 @@ export function SceneEditor({
                         className="viewport-cursor-tool"
                         onPointerEnter={(event) => {
                           if (event.pointerType === "mouse")
-                            showToolHintSoon(item.value, event.timeStamp);
+                            showToolHintSoon(item.value, event.timeStamp)
                         }}
                         onPointerLeave={(event) =>
                           hideToolHint(event.timeStamp)
@@ -340,7 +340,7 @@ export function SceneEditor({
                         onPointerDown={() => hideToolHint()}
                         onFocus={(event) => {
                           if (event.target.matches(":focus-visible"))
-                            setHintTool(item.value);
+                            setHintTool(item.value)
                         }}
                         onBlur={() => hideToolHint()}
                       >
@@ -355,5 +355,5 @@ export function SceneEditor({
         )}
       </div>
     </section>
-  );
+  )
 }

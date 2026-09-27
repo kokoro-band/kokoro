@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react"
+import { Fragment, useRef, type KeyboardEvent, type ReactNode } from "react"
 import { ActionButton, PrefixIcon } from "@seed-design/react"
 
 export type ToolbarChoiceItem<T extends string> = {
@@ -18,12 +18,14 @@ export function ToolbarChoice<T extends string>({
   value,
   onValueChange,
   size = "small",
+  renderItem,
   "aria-label": ariaLabel,
 }: {
   items: ToolbarChoiceItem<T>[]
   value: T
   onValueChange: (value: T) => void
   size?: "xsmall" | "small"
+  renderItem?: (item: ToolbarChoiceItem<T>, button: ReactNode) => ReactNode
   "aria-label": string
 }) {
   const groupRef = useRef<HTMLDivElement>(null)
@@ -55,9 +57,8 @@ export function ToolbarChoice<T extends string>({
     >
       {items.map((item) => {
         const checked = item.value === value
-        return (
+        const button = (
           <ActionButton
-            key={item.value}
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
@@ -72,6 +73,11 @@ export function ToolbarChoice<T extends string>({
             {item.icon && <PrefixIcon svg={item.icon} />}
             {item.label}
           </ActionButton>
+        )
+        return (
+          <Fragment key={item.value}>
+            {renderItem ? renderItem(item, button) : button}
+          </Fragment>
         )
       })}
     </div>

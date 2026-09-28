@@ -264,6 +264,22 @@ describe("StructureView real UI transactions", () => {
     expect(saved.openings[0].to - saved.openings[0].from).toBeCloseTo(1.5)
   })
 
+  it("applies deletion of an existing opening and restores it with undo", () => {
+    const initial = fixture()
+    const top = initial.walls.find(
+      (wall) => wall.a[1] === 0 && wall.b[1] === 0
+    )!
+    const ui = setup(addOpening(initial, top.id, "door", 2))
+    ui.key(ui.svg.querySelector(".plan-opening")!, "Enter")
+    ui.click("삭제")
+    ui.click("구조 저장")
+    expect(ui.apply).toHaveBeenCalledTimes(1)
+    expect(ui.apply.mock.calls[0][0].openings).toEqual([])
+    ui.click("실행 취소")
+    expect(ui.svg.querySelectorAll(".plan-opening")).toHaveLength(1)
+    expect(ui.button("구조 저장").disabled).toBe(true)
+  })
+
   it.each(["pointercancel", "Escape"])(
     "cancels resize via %s and preserves redo",
     (cancel) => {

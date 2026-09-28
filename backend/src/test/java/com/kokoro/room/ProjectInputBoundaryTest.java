@@ -144,6 +144,9 @@ class ProjectInputBoundaryTest {
             for (JsonNode fixture : source.path(group)) {
                 tests.add(DynamicTest.dynamicTest(fixture.path("id").asText(), () -> {
                     String id = createProject();
+                    mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                                    .content(mapper.writeValueAsString(Map.of("furniture", furniture(1)))))
+                            .andExpect(status().isOk());
                     JsonNode before = read(id);
                     var item = mapper.valueToTree(furniture(1).get(0));
                     var body = (tools.jackson.databind.node.ObjectNode) item;
@@ -214,6 +217,26 @@ class ProjectInputBoundaryTest {
         try (var input = getClass().getResourceAsStream("/contracts/furniture-input-boundaries.json")) {
             return mapper.readTree(input);
         }
+    }
+
+    @Test
+    void sharedTextGuardAlsoRejectsNullBytesInProjectFieldsAndMessages() throws Exception {
+        for (String field : List.of("name", "roomType")) {
+            var body = mapper.createObjectNode().put("name", "이름").put("roomType", "거실");
+            body.put(field, "값\0");
+            body.set("dimensions", mapper.valueToTree(new Dimensions(6, 5, 2.4)));
+            int before = count("projects");
+            mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                            .content(mapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").isString());
+            assertEquals(before, count("projects"));
+        }
+        String id = createProject();
+        JsonNode before = read(id);
+        mvc.perform(post("/api/projects/{id}/layout/commands", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("message", "소파\0"))))
+                .andExpect(status().isBadRequest());
+        assertEquals(before, read(id));
     }
 
     private int count(String table) {

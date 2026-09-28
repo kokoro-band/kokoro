@@ -1,5 +1,9 @@
 import type { Furniture, Point2, Project, RoomModel } from "./types"
-import { maxFurnitureCount, projectNameError } from "./input-limits"
+import {
+  assertFurnitureCount,
+  maxFurnitureCount,
+  projectNameError,
+} from "./input-limits"
 
 // This is the browser persistence boundary, not collision or full polygon validation.
 export const maxStoredProjectLength = 1024 * 1024
@@ -160,6 +164,41 @@ function room(value: unknown): RoomModel {
     rooms,
     ...(source.spawn != null ? { spawn: point(source.spawn, bounds) } : {}),
     ...(origin ? { source: origin } : {}),
+  }
+}
+
+// Keep legacy reads below permissive. New writes must fit the API and DB schema.
+export function assertFurnitureWrite(
+  value: unknown
+): asserts value is Furniture[] {
+  check(Array.isArray(value))
+  assertFurnitureCount(value.length)
+  const ids = new Set<string>()
+  for (const valueItem of value) {
+    const item = record(valueItem)
+    for (const [field, max, label] of [
+      ["id", 100, "식별자"],
+      ["catalogId", 100, "카탈로그 식별자"],
+      ["name", 200, "이름"],
+      ["color", 20, "색상"],
+    ] as const) {
+      const value = item[field]
+      if (
+        typeof value !== "string" ||
+        !value.trim() ||
+        value.length > max ||
+        value.includes("\0")
+      )
+        throw new Error(
+          `가구 ${label} 값을 확인해 주세요. 공백이 아닌 ${max}자 이내 값이 필요해요.`
+        )
+    }
+    id(item.id, ids)
+    id(item.catalogId)
+    choice(item.category, ["소파", "테이블", "의자", "장식"] as const)
+    number(item.x)
+    number(item.z)
+    number(item.rotation)
   }
 }
 

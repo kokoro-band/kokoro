@@ -47,8 +47,8 @@ public class RoomModelValidator {
                 } else if (outlineValid && (!inside(room.outline(), wall.a()) || !inside(room.outline(), wall.b()))) {
                     add(errors, path, "벽 끝점이 공간 외곽을 벗어났습니다.");
                 }
-                if (wall.thickness() == null || !Double.isFinite(wall.thickness()) || wall.thickness() <= 0) {
-                    add(errors, path + ".thickness", "벽 두께는 양수여야 합니다.");
+                if (!between(wall.thickness(), Math.ulp(1.0), 200)) {
+                    add(errors, path + ".thickness", "벽 두께는 브라우저 최소 단위 이상이며 200m 이하여야 합니다.");
                 }
             }
         }

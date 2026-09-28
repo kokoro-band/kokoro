@@ -5,7 +5,10 @@ import { sampleProject } from "./data"
 import { parseStoredProject } from "./project-validation"
 import type { Project } from "./types"
 
-vi.mock("@/lib/http-client", () => ({ request: vi.fn(), UPLOAD_TIMEOUT_MS: 60_000 }))
+vi.mock("@/lib/http-client", () => ({
+  request: vi.fn(),
+  UPLOAD_TIMEOUT_MS: 60_000,
+}))
 const setItem = vi.fn()
 const getItem = vi.fn()
 beforeEach(() => {
@@ -14,7 +17,10 @@ beforeEach(() => {
   vi.stubGlobal("localStorage", { setItem, getItem })
   vi.mocked(request).mockResolvedValue(sampleProject)
 })
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
 
 const cases = [
   ...fixtures.strings.map((f) => ({ ...f, value: f.unit.repeat(f.repeat) })),
@@ -37,21 +43,31 @@ describe.each(["local", "server"])("%s furniture write boundary", (mode) => {
     expect(project).toEqual(before)
   })
 
-  it.each([null, [null]])("rejects malformed list %j before side effects", async (furniture) => {
-    vi.stubEnv("VITE_API_MODE", mode)
-    const { saveProject } = await import("./project-api")
-    const project = { ...sampleProject, furniture } as unknown as Project
-    await expect(saveProject(project)).rejects.toThrow()
-    expect(request).not.toHaveBeenCalled()
-    expect(setItem).not.toHaveBeenCalled()
-  })
+  it.each([null, [null]])(
+    "rejects malformed list %j before side effects",
+    async (furniture) => {
+      vi.stubEnv("VITE_API_MODE", mode)
+      const { saveProject } = await import("./project-api")
+      const project = { ...sampleProject, furniture } as unknown as Project
+      await expect(saveProject(project)).rejects.toThrow()
+      expect(request).not.toHaveBeenCalled()
+      expect(setItem).not.toHaveBeenCalled()
+    }
+  )
 })
 
-it.each(fixtures.dimensions)("stored dimension $field $value", ({ field, value, accepted }) => {
-  const project = { ...sampleProject, dimensions: { ...sampleProject.dimensions, [field]: value } }
-  if (accepted) expect(parseStoredProject(project).dimensions).toEqual(project.dimensions)
-  else expect(() => parseStoredProject(project)).toThrow()
-})
+it.each(fixtures.dimensions)(
+  "stored dimension $field $value",
+  ({ field, value, accepted }) => {
+    const project = {
+      ...sampleProject,
+      dimensions: { ...sampleProject.dimensions, [field]: value },
+    }
+    if (accepted)
+      expect(parseStoredProject(project).dimensions).toEqual(project.dimensions)
+    else expect(() => parseStoredProject(project)).toThrow()
+  }
+)
 
 it("keeps legacy long furniture readable and preserves the original when a new save fails", async () => {
   vi.stubEnv("VITE_API_MODE", "local")
@@ -61,7 +77,8 @@ it("keeps legacy long furniture readable and preserves the original when a new s
   project.furniture[0].color = "a".repeat(64)
   const raw = JSON.stringify(project)
   getItem.mockReturnValue(raw)
-  const { readSavedProjectWithRecovery, saveProject } = await import("./project-api")
+  const { readSavedProjectWithRecovery, saveProject } =
+    await import("./project-api")
   const restored = readSavedProjectWithRecovery()
   expect(restored).toEqual({ project, recovery: null })
   await expect(saveProject(project)).rejects.toThrow()

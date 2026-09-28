@@ -75,7 +75,7 @@ describe("operable doors", () => {
     setManualDoorStates(thirdDoors, { door: false })
     expect(thirdDoors[0].hinge.rotation.y).toBeCloseTo(closingAngle)
     animateDoors(thirdDoors, null, 1 / 30)
-    expect(thirdDoors[0].angle).toBeLessThan(closingAngle)
+    expect(Math.abs(thirdDoors[0].angle)).toBeLessThan(Math.abs(closingAngle))
   })
   it("starts closed and animates the actual leaf for manual open and close", () => {
     const { door, advance } = setup()
@@ -83,7 +83,7 @@ describe("operable doors", () => {
     expect(door.local.userData.doorId).toBe("door")
     door.manualOpen = true
     advance()
-    expect(door.hinge.rotation.y).toBeCloseTo((85 * Math.PI) / 180)
+    expect(door.hinge.rotation.y).toBeCloseTo((-85 * Math.PI) / 180)
     door.manualOpen = false
     advance()
     expect(door.hinge.rotation.y).toBe(0)

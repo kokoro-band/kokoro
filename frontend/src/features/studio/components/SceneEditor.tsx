@@ -469,6 +469,16 @@ export function SceneEditor({
             </div>
           </SnackbarAvoidOverlap>
         )}
+        {mode !== "vr" && !isMobile && (
+          <div className="viewport-overlay viewport-cursor-hint" role="status">
+            <Type variant="label">
+              {hints[tool]}
+              {tool === "pan" && mode === "3d"
+                ? " 오른쪽 버튼을 누르고 끌면 회전해요."
+                : ""}
+            </Type>
+          </div>
+        )}
       </div>
     </section>
   )

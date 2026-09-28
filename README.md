@@ -47,8 +47,6 @@
 
 ## 프론트엔드 실행
 
-설치 없이 체험하려면 [GitHub Pages 데모](https://kokoro-band.github.io/kokoro/)를 엽니다. 데모는 각 방문자의 브라우저에 작업을 저장합니다. 자동 배포와 지원 범위는 [데모 배포 문서](docs/github-pages-demo.md)에 있습니다.
-
 ```bash
 cd frontend
 vp install
@@ -80,6 +78,8 @@ VITE_API_MODE=server VITE_API_BASE_URL=http://localhost:8080/api vp dev
 ```
 
 ## 검증
+
+공개 데모의 배포 방법과 지원 범위는 [GitHub Pages 데모 안내](docs/github-pages-demo.md)를 참고합니다. main 통합 전까지 공개 화면은 기존 데모 커밋을 사용합니다.
 
 ```bash
 cd frontend

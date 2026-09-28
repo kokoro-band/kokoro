@@ -428,9 +428,7 @@ export function animateDoors(
 ) {
   for (const door of doors) {
     if (door.manualOpen !== null) {
-      door.openTarget = door.manualOpen
-        ? Math.sign(door.openTarget || door.angle || 1) * doorOpenAngle
-        : null
+      door.openTarget = door.manualOpen ? -doorOpenAngle : null
     } else if (person) {
       const distance = Math.hypot(
         person.x - door.center.x,

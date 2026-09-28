@@ -14,7 +14,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
   vi.stubEnv("VITE_API_MODE", "server")
-  vi.mocked(request).mockResolvedValue(sampleProject)
+  vi.mocked(request).mockImplementation(async (config) =>
+    config.url?.endsWith("/commands")
+      ? { project: { ...sampleProject, revision: 0 } }
+      : { ...sampleProject, revision: 0 }
+  )
 })
 
 describe("project API paths", () => {
@@ -61,7 +65,7 @@ describe("project API paths", () => {
   it("uses validated project paths for every project request", async () => {
     const { getProject, saveProject, saveRoom, sendCommand, uploadPlan } =
       await import("./project-api")
-    const project = structuredClone(sampleProject)
+    const project = { ...structuredClone(sampleProject), revision: 0 }
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
 
     await getProject(project.id)
@@ -82,6 +86,7 @@ describe("project API paths", () => {
     expect(vi.mocked(request).mock.calls[3][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
     expect(vi.mocked(request).mock.calls[2][0].data).toEqual({
       room: sampleRoom,
+      expectedRevision: 0,
     })
   })
 })

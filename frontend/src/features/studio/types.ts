@@ -69,6 +69,8 @@ export type RoomSource = {
 
 export type Project = {
   id: string
+  /** Present only for server snapshots. Local projects have no server revision. */
+  revision?: number
   name: string
   roomType: string
   dimensions: { width: number; depth: number; height: number }

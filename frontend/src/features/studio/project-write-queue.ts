@@ -16,7 +16,10 @@ export class WriteSkippedError extends Error {
   }
 }
 
-export function saveFailureKind(error: unknown): "rejected" | "network" {
+export function saveFailureKind(
+  error: unknown
+): "conflict" | "rejected" | "network" {
+  if (error instanceof ApiError && error.status === 409) return "conflict"
   return error instanceof ApiError &&
     !error.retryable &&
     error.status !== null &&
@@ -53,6 +56,7 @@ export class ProjectWriteQueue {
   private readonly pending: Task[] = []
   private running: Task | null = null
   private isClosed = false
+  private conflict: unknown = null
   private idle: Promise<void> = Promise.resolve()
   private readonly options: Options
 
@@ -73,6 +77,20 @@ export class ProjectWriteQueue {
 
   get busy() {
     return this.running !== null || this.pending.length > 0
+  }
+
+  /** Explicit recovery only: never call this just because a background GET completed. */
+  resumeWith(project: Project) {
+    if (this.closed || this.busy || project.id !== this.projectId)
+      throw new Error("현재 프로젝트의 저장이 끝난 뒤 다시 확인해 주세요.")
+    this.savedProject = project
+    this.conflict = null
+    this.options.onChange?.()
+  }
+
+  suspend(error: unknown) {
+    this.conflict = error
+    this.rejectPending(new WriteSkippedError(error))
   }
 
   saveLayout(furniture: Furniture[]): Promise<Project> {
@@ -127,6 +145,10 @@ export class ProjectWriteQueue {
       task.reject(new WriteCancelledError())
       return task.promise
     }
+    if (this.conflict) {
+      task.reject(this.conflict)
+      return task.promise
+    }
     this.pending.push(task)
     if (!this.running && this.pending.length === 1) {
       this.idle = this.idle.then(() => this.drain())
@@ -142,11 +164,23 @@ export class ProjectWriteQueue {
       this.options.onChange?.()
       try {
         const { project, result } = await task.run(this.savedProject)
+        if (
+          project.id !== this.projectId ||
+          (this.savedProject.revision !== undefined &&
+            (project.revision === undefined ||
+              project.revision < this.savedProject.revision))
+        )
+          throw new ApiError(
+            "프로젝트 버전이 이전으로 돌아가 응답을 적용하지 않았어요.",
+            409,
+            false
+          )
         this.savedProject = project
         this.running = null
         task.resolve(result)
       } catch (error) {
         this.running = null
+        if (saveFailureKind(error) === "conflict") this.conflict = error
         // Later writes would use a stale snapshot, so reject them without sending.
         this.rejectPending(new WriteSkippedError(error))
         task.reject(error)

@@ -59,7 +59,15 @@ export type Notice = {
   action?: "retrySave" | "restoreSaved"
 }
 
-type SaveError = "network" | "rejected"
+type SaveError = "network" | "rejected" | "conflict"
+
+export type ProjectConflict = {
+  base: Project
+  latest?: Project
+  status: "idle" | "loading" | "applying"
+  error: string
+  open: boolean
+}
 
 /** Wait this long without another notice before announcing an autosave. */
 const autosaveNoticeQuietMs = 45_000
@@ -139,8 +147,19 @@ export function useStudioController() {
   const [past, setPast] = useState<Furniture[][]>([])
   const [future, setFuture] = useState<Furniture[][]>([])
   const [dirty, setDirty] = useState(false)
+  const [editorEpoch, setEditorEpoch] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<SaveError | null>(null)
+  const [conflict, setConflictState] = useState<ProjectConflict | null>(null)
+  const conflictRef = useRef<ProjectConflict | null>(null)
+  const recoveryOperationRef = useRef<symbol | null>(null)
+  const pendingRoomRef = useRef<RoomModel | null>(null)
+  const setConflict = useCallback(function setConflict(
+    next: ProjectConflict | null
+  ) {
+    conflictRef.current = next
+    setConflictState(next)
+  }, [])
 
   const queryClient = useQueryClient()
   const createProjectMutation = useMutation(
@@ -198,8 +217,16 @@ export function useStudioController() {
     const queue = queueRef.current
     if (!queue) return
     setSaving(queue.busy)
+    // Carry confirmed metadata forward without replacing edits made while a request was pending.
+    if (queue.saved.revision !== projectRef.current.revision) {
+      const next = { ...projectRef.current, revision: queue.saved.revision }
+      projectRef.current = next
+      setProject(next)
+    }
     setDirty(
       queue.busy ||
+        conflictRef.current !== null ||
+        pendingRoomRef.current !== null ||
         pendingLocalProjectRef.current === queue ||
         transientBaseRef.current !== null ||
         !sameFurniture(projectRef.current.furniture, queue.saved.furniture)
@@ -243,6 +270,8 @@ export function useStudioController() {
       const queue = currentQueue()
       return (
         queue.busy ||
+        conflictRef.current !== null ||
+        pendingRoomRef.current !== null ||
         pendingLocalProjectRef.current === queue ||
         transientBaseRef.current !== null ||
         !sameFurniture(projectRef.current.furniture, queue.saved.furniture)
@@ -285,6 +314,7 @@ export function useStudioController() {
       layoutPromiseRef.current = null
       transientBaseRef.current = null
       setDraft(saved)
+      setEditorEpoch((epoch) => epoch + 1)
       setSelectedId(null)
       setPast([])
       setFuture([])
@@ -293,10 +323,38 @@ export function useStudioController() {
       setCommandReview(null)
       setBusy(null)
       setSaveError(null)
+      setConflict(null)
+      recoveryOperationRef.current = null
+      pendingRoomRef.current = null
       saveFailureRef.current = null
       syncSaveState()
     },
-    [closingFor, makeQueue, setDraft, syncSaveState, setCommandReview]
+    [
+      closingFor,
+      makeQueue,
+      setDraft,
+      syncSaveState,
+      setCommandReview,
+      setConflict,
+    ]
+  )
+
+  const reportConflict = useCallback(
+    function reportConflict(error: unknown) {
+      const queue = queueRef.current
+      if (!queue || queue.closed) return
+      queue.suspend(error)
+      setSaveError("conflict")
+      saveFailureRef.current = null
+      setCommandReview(null)
+      setConflict({ base: queue.saved, status: "idle", error: "", open: true })
+      setDirty(true)
+      setNotice(
+        "서버 내용이 바뀌어 저장을 멈췄어요. 편집한 내용은 화면에 남아 있어요.",
+        "critical"
+      )
+    },
+    [setConflict, setCommandReview, setNotice]
   )
 
   const reportSaveFailure = useCallback(
@@ -307,6 +365,10 @@ export function useStudioController() {
         return
       }
       const kind = saveFailureKind(error)
+      if (kind === "conflict") {
+        reportConflict(error)
+        return
+      }
       const queue = queueRef.current
       if (queue) {
         saveFailureRef.current = {
@@ -326,13 +388,17 @@ export function useStudioController() {
         kind === "rejected" ? "restoreSaved" : "retrySave"
       )
     },
-    [setNotice]
+    [setNotice, reportConflict]
   )
 
   // Server mode autosaves to the server; the local demo autosaves in this browser.
   const persistLayout = useCallback(
     function persistLayout(furniture: Furniture[]) {
       const queue = currentQueue()
+      if (conflictRef.current || recoveryOperationRef.current) {
+        setDirty(true)
+        return Promise.resolve(queue.saved)
+      }
       const promise = queue.saveLayout(furniture)
       if (promise === layoutPromiseRef.current) return promise
       layoutPromiseRef.current = promise
@@ -428,20 +494,31 @@ export function useStudioController() {
     [closeQueue, closingFor, openProject, queryClient]
   )
 
-  useEffect(() => {
-    if (!isServerMode || startedInitialLoadRef.current) return
-    startedInitialLoadRef.current = true
-    void loadServerProject(activeProjectIdRef.current)
-  }, [loadServerProject])
+  useEffect(
+    function loadInitialServerProject() {
+      if (!isServerMode || startedInitialLoadRef.current) return
+      startedInitialLoadRef.current = true
+      void loadServerProject(activeProjectIdRef.current)
+    },
+    [loadServerProject]
+  )
 
-  useEffect(() => {
-    if (!dirty && !saving) return
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener("beforeunload", warn)
-    return () => window.removeEventListener("beforeunload", warn)
-  }, [dirty, saving])
+  useEffect(
+    function warnBeforeLeavingUnsavedProject() {
+      if (!dirty && !saving) return
+      const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+      window.addEventListener("beforeunload", warn)
+      return () => window.removeEventListener("beforeunload", warn)
+    },
+    [dirty, saving]
+  )
 
   function commitFurniture(next: Furniture[]) {
+    if (
+      recoveryOperationRef.current &&
+      conflictRef.current?.status === "applying"
+    )
+      return
     const updated = { ...projectRef.current, furniture: next }
     setPast((history) => [...history.slice(-29), project.furniture])
     setFuture([])
@@ -460,6 +537,11 @@ export function useStudioController() {
     update: Partial<Furniture>,
     focus?: RoomLabel | null
   ) {
+    if (
+      recoveryOperationRef.current &&
+      conflictRef.current?.status === "applying"
+    )
+      return false
     const current = projectRef.current.furniture.find((item) => item.id === id)
     if (!current) return false
     const next = constrainFurniturePose(
@@ -518,6 +600,7 @@ export function useStudioController() {
     update: Partial<Furniture>,
     focus?: RoomLabel | null
   ) {
+    if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(
       (item) => item.id === selectedId
     )
@@ -543,6 +626,7 @@ export function useStudioController() {
   }
 
   function deleteSelected() {
+    if (conflictRef.current?.status === "applying") return
     commitFurniture(project.furniture.filter((item) => item.id !== selectedId))
     setSelectedId(null)
   }
@@ -552,6 +636,7 @@ export function useStudioController() {
     position?: [number, number],
     focus?: RoomLabel | null
   ) {
+    if (conflictRef.current?.status === "applying") return
     const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
@@ -573,6 +658,7 @@ export function useStudioController() {
   }
 
   function undo() {
+    if (conflictRef.current?.status === "applying") return
     const previous = past.at(-1)
     if (!previous) return
     setFuture((history) => [project.furniture, ...history])
@@ -582,6 +668,7 @@ export function useStudioController() {
   }
 
   function redo() {
+    if (conflictRef.current?.status === "applying") return
     const next = future[0]
     if (!next) return
     setPast((history) => [...history, project.furniture])
@@ -591,6 +678,10 @@ export function useStudioController() {
   }
 
   async function handleSave() {
+    if (conflictRef.current) {
+      setConflict({ ...conflictRef.current, open: true })
+      return
+    }
     const queue = currentQueue()
     setBusy("save")
     try {
@@ -656,6 +747,7 @@ export function useStudioController() {
     review?: CommandReview,
     furnitureId?: string
   ) {
+    if (conflictRef.current || recoveryOperationRef.current) return
     if (!text.trim() || busy || commandOperationRef.current) return
     const inputError = chatInputError(text)
     if (inputError) {
@@ -703,6 +795,15 @@ export function useStudioController() {
               sendCommandMutationOptions(queryClient, saved.id),
               { project: saved, message: text, focus, furnitureId }
             )
+        if (
+          commandLayoutKey({ ...saved, furniture: [] }) !==
+          commandLayoutKey({ ...response.project, furniture: [] })
+        )
+          throw new ApiError(
+            "서버의 구조가 바뀌었어요. 최신 내용을 확인해 주세요.",
+            409,
+            false
+          )
         if (response.requiresConfirmation || response.candidates?.length) {
           if (
             response.requiresConfirmation &&
@@ -765,6 +866,10 @@ export function useStudioController() {
       ])
     } catch (error) {
       if (!isCurrent(queue)) return
+      if (saveFailureKind(error) === "conflict") {
+        reportConflict(error)
+        return
+      }
       if (review) {
         const stale =
           error instanceof CommandReviewExpiredError ||
@@ -868,6 +973,7 @@ export function useStudioController() {
   }
 
   async function handleUpload(file?: File) {
+    if (conflictRef.current || recoveryOperationRef.current) return
     if (!file) return
     setNotice("")
     const validationError = validateFloorPlan(file)
@@ -912,6 +1018,11 @@ export function useStudioController() {
               response
             )
         markLocalProjectStored(queue)
+        if (
+          isServerMode &&
+          commandLayoutKey(saved) !== commandLayoutKey(result)
+        )
+          throw new ApiError("업로드 중 서버 배치가 바뀌었어요.", 409, false)
         return { project: result, result }
       })
       if (!isCurrent(queue)) return
@@ -924,7 +1035,20 @@ export function useStudioController() {
       if (isServerMode && uploaded.floorPlan.status === "PROCESSING") {
         for (let attempt = 0; attempt < 10; attempt++) {
           await new Promise((resolve) => window.setTimeout(resolve, 500))
-          resolved = await getProject(uploaded.id)
+          resolved = await queue.run("floor-plan-status", async (saved) => {
+            const latest = await getProject(saved.id)
+            if (latest.id !== saved.id)
+              throw new Error("다른 프로젝트의 응답이에요.")
+            if (
+              latest.revision !== undefined &&
+              saved.revision !== undefined &&
+              latest.revision < saved.revision
+            )
+              throw new Error("이전 버전의 처리 상태는 적용하지 않았어요.")
+            if (commandLayoutKey(latest) !== commandLayoutKey(saved))
+              throw new ApiError("다른 곳에서 배치가 바뀌었어요.", 409, false)
+            return { project: latest, result: latest }
+          })
           if (!isCurrent(queue)) return
           setUploadAttempt((current) =>
             current?.file === file
@@ -948,6 +1072,7 @@ export function useStudioController() {
       )
     } catch (error) {
       if (!isCurrent(queue)) return
+      if (saveFailureKind(error) === "conflict") reportConflict(error)
       const message =
         error instanceof Error
           ? error.message
@@ -958,7 +1083,7 @@ export function useStudioController() {
           : current
       )
     } finally {
-      setBusy(null)
+      if (isCurrent(queue)) setBusy(null)
     }
   }
 
@@ -1024,6 +1149,14 @@ export function useStudioController() {
   }
 
   async function applyRoom(room: RoomModel) {
+    if (conflictRef.current || recoveryOperationRef.current) {
+      if (conflictRef.current?.status !== "applying")
+        pendingRoomRef.current = room
+      if (conflictRef.current)
+        setConflict({ ...conflictRef.current, open: true })
+      return false
+    }
+    pendingRoomRef.current = room
     setNotice("")
     const queue = currentQueue()
     try {
@@ -1044,10 +1177,16 @@ export function useStudioController() {
         return { project: updated, result: updated }
       })
       if (!isCurrent(queue)) return false
+      pendingRoomRef.current = null
+      syncSaveState()
       setNotice("구조를 저장했어요.", "positive")
       return true
     } catch (error) {
       if (!isCurrent(queue)) return false
+      if (saveFailureKind(error) === "conflict") {
+        reportConflict(error)
+        return false
+      }
       setNotice(
         error instanceof Error
           ? error.message
@@ -1070,10 +1209,138 @@ export function useStudioController() {
     setNotice("배치를 JSON 파일로 내보냈어요.")
   }
 
+  const rememberRoomDraft = useCallback(
+    function rememberRoomDraft(room: RoomModel | null) {
+      if (conflictRef.current?.status === "applying") return
+      pendingRoomRef.current = room
+      currentQueue()
+      syncSaveState()
+    },
+    [currentQueue, syncSaveState]
+  )
+
+  async function loadConflictLatest() {
+    const current = conflictRef.current
+    const queue = currentQueue()
+    if (!current || recoveryOperationRef.current || queue.busy) return
+    const operation = Symbol("load-conflict")
+    recoveryOperationRef.current = operation
+    setConflict({ ...current, latest: undefined, status: "loading", error: "" })
+    try {
+      // Preview only. Do not cache or adopt this revision until the user chooses a recovery action.
+      const latest = await getProject(queue.projectId)
+      if (!isCurrent(queue) || recoveryOperationRef.current !== operation)
+        return
+      if (
+        latest.id !== queue.projectId ||
+        (latest.revision ?? -1) < (queue.saved.revision ?? 0)
+      )
+        throw new Error("최신 프로젝트를 확인할 수 없어요. 다시 확인해 주세요.")
+      setConflict({ ...current, latest, status: "idle", error: "" })
+    } catch (error) {
+      if (isCurrent(queue) && recoveryOperationRef.current === operation)
+        setConflict({
+          ...current,
+          latest: undefined,
+          status: "idle",
+          error:
+            error instanceof Error
+              ? error.message
+              : "최신 내용을 불러오지 못했어요.",
+        })
+    } finally {
+      if (recoveryOperationRef.current === operation)
+        recoveryOperationRef.current = null
+    }
+  }
+
+  function discardConflictDraft() {
+    const latest = conflictRef.current?.latest
+    if (!latest || recoveryOperationRef.current || currentQueue().busy) return
+    if (
+      !window.confirm(
+        "화면의 미저장 변경을 버리고 확인한 서버 내용으로 바꿀까요?"
+      )
+    )
+      return
+    void closeQueue()
+    openProject(latest)
+    setNotice("확인한 서버 내용을 불러왔어요.")
+  }
+
+  async function reapplyConflictDraft() {
+    const current = conflictRef.current
+    const queue = currentQueue()
+    if (!current?.latest || recoveryOperationRef.current || queue.busy) return
+    const operation = Symbol("reapply-conflict")
+    const furniture = mergeFurniture(
+      current.base.furniture,
+      current.latest.furniture,
+      projectRef.current.furniture
+    )
+    const room = pendingRoomRef.current
+    recoveryOperationRef.current = operation
+    setConflict({ ...current, status: "applying", error: "" })
+    setDraft({
+      ...projectRef.current,
+      furniture,
+    })
+    queue.resumeWith(current.latest)
+    try {
+      if (room) {
+        await queue.run("recover-room", async (saved) => {
+          const updated = await executeProjectMutation(
+            queryClient,
+            saveRoomMutationOptions(queryClient, saved.id),
+            { project: saved, room }
+          )
+          if (isCurrent(queue)) {
+            pendingRoomRef.current = null
+            setDraft({ ...projectRef.current, room: updated.room })
+          }
+          return { project: updated, result: updated }
+        })
+      }
+      await queue.saveLayout(furniture)
+      if (!isCurrent(queue) || recoveryOperationRef.current !== operation)
+        return
+      setDraft(queue.saved)
+      setPast([])
+      setFuture([])
+      transientBaseRef.current = null
+      setSaveError(null)
+      saveFailureRef.current = null
+      setConflict(null)
+      syncSaveState()
+      setNotice("내 변경을 서버 내용에 적용했어요.", "positive")
+    } catch (error) {
+      if (!isCurrent(queue) || recoveryOperationRef.current !== operation)
+        return
+      // A room write may already have succeeded. Keep that confirmed base and the remaining furniture intent.
+      queue.suspend(new ApiError("복구 결과를 다시 확인해 주세요.", 409, false))
+      setSaveError("conflict")
+      setConflict({
+        base: queue.saved,
+        status: "idle",
+        open: true,
+        error:
+          error instanceof Error
+            ? error.message
+            : "복구하지 못했어요. 최신 내용을 다시 확인해 주세요.",
+      })
+      setDirty(true)
+    } finally {
+      if (recoveryOperationRef.current === operation)
+        recoveryOperationRef.current = null
+    }
+  }
+
   return {
     project,
+    editorEpoch,
     roomBounds,
     applyRoom,
+    rememberRoomDraft,
     projectLoad,
     selected,
     selectedId,
@@ -1092,6 +1359,18 @@ export function useStudioController() {
     uploadAttempt,
     dirty,
     saving,
+    conflict,
+    loadConflictLatest,
+    discardConflictDraft,
+    reapplyConflictDraft,
+    reviewConflict: () => {
+      if (conflictRef.current)
+        setConflict({ ...conflictRef.current, open: true })
+    },
+    dismissConflict: () => {
+      if (conflictRef.current?.status === "idle")
+        setConflict({ ...conflictRef.current, open: false })
+    },
     saveFailed: saveError !== null,
     saveRejected: saveError === "rejected",
     canUndo: past.length > 0,

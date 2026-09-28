@@ -11,6 +11,7 @@ import { CommandReviewDialog } from "@/features/studio/components/CommandReviewD
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
+import { ProjectConflictDialog } from "@/features/studio/components/ProjectConflictDialog"
 import { ShortcutGuide } from "@/features/studio/components/ShortcutGuide"
 import { StructureView } from "@/features/studio/components/StructureView"
 import { SummaryView } from "@/features/studio/components/SummaryView"
@@ -84,7 +85,7 @@ function Studio() {
   const studio = useStudioController()
   const uploadRef = useRef<HTMLInputElement>(null)
   const isMobile = useMediaQuery("(max-width: 820px)")
-  const hasRooms = Boolean(studio.project.room?.rooms.length)
+  const hasRooms = Boolean(studio.project.room?.rooms?.length)
   const [view, setView] = useState<StudioView>(() =>
     hasRooms ? "arrange" : "structure"
   )
@@ -107,8 +108,9 @@ function Studio() {
 
   // Restart the structure editor when the saved structure changes.
   const structureKey = useMemo(
-    () => `${studio.project.id}:${JSON.stringify(studio.project.room ?? null)}`,
-    [studio.project.id, studio.project.room]
+    () =>
+      `${studio.project.id}:${studio.editorEpoch}:${JSON.stringify(studio.project.room ?? null)}`,
+    [studio.project.id, studio.project.room, studio.editorEpoch]
   )
 
   const enterRoom = (index: number) => {
@@ -133,6 +135,8 @@ function Studio() {
         saving={studio.saving}
         saveFailed={studio.saveFailed}
         saveRejected={studio.saveRejected}
+        saveConflict={Boolean(studio.conflict)}
+        onReviewConflict={studio.reviewConflict}
         saveBusy={studio.busy === "save"}
         onViewChange={setView}
         onSave={studio.saveProject}
@@ -160,8 +164,9 @@ function Studio() {
                 key={structureKey}
                 room={studio.project.room}
                 active={view === "structure"}
-                saving={applying}
+                saving={applying || studio.conflict?.status === "applying"}
                 onDirtyChange={setStructureDirty}
+                onDraftChange={studio.rememberRoomDraft}
                 onApply={(nextRoom) => {
                   setApplying(true)
                   void studio.applyRoom(nextRoom).then((saved) => {
@@ -229,6 +234,13 @@ function Studio() {
         onConfirm={studio.confirmCommandReview}
         onChoose={studio.chooseCommandCandidate}
         onRequestAgain={studio.requestCommandAgain}
+      />
+      <ProjectConflictDialog
+        conflict={ready ? studio.conflict : null}
+        onLoad={() => void studio.loadConflictLatest()}
+        onDiscard={studio.discardConflictDraft}
+        onReapply={() => void studio.reapplyConflictDraft()}
+        onDismiss={studio.dismissConflict}
       />
       <ShortcutGuide open={guideOpen} view={view} onOpenChange={setGuideOpen} />
       <FloorPlanDialog

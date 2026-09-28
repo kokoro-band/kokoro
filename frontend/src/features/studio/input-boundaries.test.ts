@@ -15,7 +15,11 @@ const setItem = vi.fn()
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
-  vi.mocked(request).mockResolvedValue(sampleProject)
+  vi.mocked(request).mockImplementation(async (config) =>
+    config.url?.endsWith("/commands")
+      ? { project: { ...sampleProject, revision: 0 } }
+      : { ...sampleProject, revision: 0 }
+  )
   vi.stubGlobal("localStorage", { setItem })
 })
 afterEach(() => {
@@ -33,7 +37,13 @@ describe.each(["server", "local"])("%s input boundaries", (mode) => {
       const action =
         fixture.field === "name"
           ? createProject(value)
-          : sendCommand(structuredClone(sampleProject), value)
+          : sendCommand(
+              {
+                ...structuredClone(sampleProject),
+                ...(mode === "server" ? { revision: 0 } : {}),
+              },
+              value
+            )
       if (fixture.client) await expect(action).resolves.toBeDefined()
       else {
         await expect(action).rejects.toThrow(
@@ -52,6 +62,7 @@ describe.each(["server", "local"])("%s input boundaries", (mode) => {
       const { saveProject } = await import("./project-api")
       const project = {
         ...sampleProject,
+        ...(mode === "server" ? { revision: 0 } : {}),
         furniture: Array.from({ length: count }, (_, index) => ({
           ...sampleProject.furniture[0],
           id: `item-${index}`,

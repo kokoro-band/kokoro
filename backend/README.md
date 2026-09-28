@@ -31,3 +31,15 @@ API 요청과 응답은 [API 계약](../docs/contracts/api.md)에 있습니다. 
 ## 실행 오류 확인
 
 DB 연결 오류가 나면 `docker compose ps`로 PostgreSQL 상태와 `DB_URL`을 확인합니다. 테스트가 Docker를 찾지 못하면 데몬 실행 여부를 확인합니다. 파일 저장 오류는 `FLOOR_PLAN_STORAGE_ROOT` 경로의 쓰기 권한과 공간을 확인합니다. 운영 프로파일은 `COGNITO_ISSUER_URI`를 설정해야 하며 사용자 로그인 화면은 별도 작업입니다.
+
+## 의존성 보안 검사
+
+`pom.xml`은 Tomcat을 11.0.26으로 관리합니다. Spring Boot가 정하는 core와 el 및 websocket 버전을 함께 바꿉니다. Testcontainers가 테스트에서만 사용하는 Commons Compress는 1.28.0으로 관리하며 실행 API에 직접 추가하지 않습니다. 선택 근거와 재감사 범위는 [의존성 감사 기록](../docs/qa/dependency-audit-2026-09-29.md)에 있습니다.
+
+```bash
+./mvnw -Dtest=DependencySecurityTest,TestcontainersArchiveCompatibilityTest test
+```
+
+첫 검사는 실제 로드된 라이브러리가 감사한 버전보다 낮아지거나 Tomcat 구성 요소의 버전이 달라지는 것을 막습니다. 두 번째 검사는 실제 컨테이너에 파일을 복사하고 돌려받아 압축 라이브러리 호환성을 확인합니다. Docker가 필요하며 전체 테스트에서도 실행됩니다. 미래의 취약점을 찾는 검사는 아니므로 의존성을 바꿀 때 공개 보안 공지와 감사 결과를 다시 확인합니다.
+
+Spring Boot나 Testcontainers를 올릴 때는 버전을 정하는 기본 목록을 확인합니다. 이 목록을 BOM이라고 합니다. 기본 목록과 전이 의존성이 검증한 수정 버전을 제공하면 해당 버전 재정의를 제거하고 위 검사와 전체 테스트 및 실행 JAR을 다시 확인합니다. 라이브러리의 주요 버전 계열을 바꾸면 회귀 검사의 허용 계열도 근거를 남기고 갱신합니다.

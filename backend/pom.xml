@@ -20,7 +20,21 @@
     <properties>
         <java.version>17</java.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- #125: remove only after the Boot BOM meets the audited security baseline. -->
+        <tomcat.version>11.0.26</tomcat.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Testcontainers transitively supplies this test-only dependency. -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commons-compress.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>

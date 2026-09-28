@@ -2,7 +2,7 @@
 
 ## 문서 상태
 
-이 문서는 2026년 9월 24일 구현 결과와 이후 확장 기준을 함께 기록합니다. SEED 패키지와 Vite 플러그인을 설치했고 주요 작업 화면의 shadcn 컴포넌트를 SEED로 교체했습니다.
+이 문서는 2026년 9월 25일 구현 결과와 이후 확장 기준을 함께 기록합니다. SEED 패키지와 Vite 플러그인을 설치했고 주요 작업 화면을 SEED 컴포넌트와 CLI 스니펫으로 교체했습니다. 화면 흐름과 타이포그래피 규칙은 [`DESIGN.md`](../../DESIGN.md)를 따릅니다.
 
 ## 결정
 
@@ -24,14 +24,15 @@ SEED는 Apache-2.0으로 공개되어 있습니다. 실제 도입 PR에서는 �
 |---|---|---|
 | 기본 UI | shadcn과 자체 CSS | SEED v2 |
 | 색상 | 소나무색과 모래색 | SEED Primary와 neutral semantic token |
-| 글꼴 | Geist와 Noto Sans KR | 로컬 Pretendard Variable. 실패 시 SEED 기본 시스템 글꼴 |
+| 글꼴 | Geist와 Noto Sans KR | SEED `--seed-font-family`. Windows는 Pretendard Variable 다이내믹 서브셋 |
 | 간격 | 기존 CSS 값 | SEED dimension token |
-| 아이콘 | Lucide와 자체 에셋 | SEED 권장 아이콘과 코코로 브랜드 에셋 |
+| 아이콘 | Lucide와 자체 에셋 | UI 동작은 `@karrotmarket/react-monochrome-icon`. 가구 썸네일만 Lucide 그림 |
+| 타이포그래피 | 화면마다 다른 px 크기 | `Type` 역할 7가지와 SEED textStyle |
 | 3D 장면 | Three.js | 유지. DOM 오버레이만 SEED로 전환 |
 
 ## 적용된 의존성과 설정
 
-현재 `@seed-design/react`와 `@seed-design/css`와 `@seed-design/vite-plugin`과 `pretendard`를 사용합니다. 새 환경에서는 저장소 규칙에 따라 먼저 `vp install`을 실행합니다. 의존성을 다시 구성해야 할 때는 다음 명령을 사용합니다.
+현재 `@seed-design/react`와 `@seed-design/css`와 `@seed-design/vite-plugin`과 `@karrotmarket/react-monochrome-icon`과 `pretendard`를 사용합니다. 새 환경에서는 저장소 규칙에 따라 먼저 `vp install`을 실행합니다. 의존성을 다시 구성해야 할 때는 다음 명령을 사용합니다.
 
 ```bash
 cd frontend
@@ -40,13 +41,11 @@ vp add pretendard
 vp add -D @seed-design/vite-plugin
 ```
 
-기본 CSS는 앱 진입점에서 한 번만 가져옵니다. 현재는 Vite Plus와의 중복 로드를 피하기 위해 base CSS와 실제 사용하는 recipe CSS를 명시적으로 가져옵니다.
+기본 CSS는 `frontend/src/index.css`에서 한 번만 가져옵니다. base CSS와 실제 사용하는 recipe CSS만 명시적으로 가져오며 새 SEED 컴포넌트를 쓰면 해당 recipe를 목록에 추가합니다. 빠뜨린 recipe는 빌드 결과의 `seed-*` 클래스 이름과 `@seed-design/css/recipes` 파일 이름을 비교해 찾을 수 있습니다.
 
-```ts
-import "@seed-design/css/base.css"
-```
+글꼴은 SEED 안내대로 `body`에 `var(--seed-font-family)`를 선언하고 Pretendard 다이내믹 서브셋 CSS를 함께 가져옵니다.
 
-현재 컴포넌트는 `@seed-design/react`에서 직접 가져옵니다. SEED CLI로 소스 컴포넌트를 생성해야 할 때만 `frontend/seed-design`을 사용하며 다음 설정을 추가합니다.
+컴포넌트는 `@seed-design/react`에서 직접 가져오거나 SEED CLI 스니펫을 `frontend/seed-design/ui`에 받아 `seed-design/ui/*`로 가져옵니다. 설정은 다음과 같습니다.
 
 ```json
 {
@@ -56,7 +55,7 @@ import "@seed-design/css/base.css"
 }
 ```
 
-CLI 생성 방식을 사용할 때는 `tsconfig.app.json`에 `seed-design/*`의 path alias와 `seed-design` 디렉터리 include가 필요합니다. 현재 Vite Plus의 `lazyPlugins` 안에서 `seedDesignPlugin({ colorMode: "light-only" })`이 정상 동작하는 것을 확인했습니다.
+`tsconfig.app.json`에는 `seed-design/*` path alias와 `seed-design` include와 `node` 타입이 있고 `vite.config.ts`에는 같은 alias가 있습니다. 스니펫은 생성 파일이므로 fmt와 lint 대상에서 제외합니다. 현재 Vite Plus의 `lazyPlugins` 안에서 `seedDesignPlugin({ colorMode: "light-only" })`이 정상 동작하는 것을 확인했습니다.
 
 1. 라이트 색상 모드 메타데이터가 적용됩니다.
 2. base CSS와 recipe CSS는 한 번만 로드됩니다.
@@ -67,11 +66,23 @@ CLI 생성 방식을 사용할 때는 `tsconfig.app.json`에 `seed-design/*`의 
 기본 선택은 `@seed-design/react`의 공개 컴포넌트를 직접 사용하는 것입니다. SEED CLI로 가져와야 하는 컴포넌트는 `frontend/seed-design/ui`에 두며 이 디렉터리에는 사업 로직을 넣지 않습니다.
 
 ```bash
-pnpm dlx @seed-design/cli@latest add ui:action-button
+npx @seed-design/cli@latest add ui:menu --on-diff overwrite
 ```
 
+현재 받은 스니펫은 action-button, callout, chip-tabs, content-placeholder, list, list-header, loading-indicator, menu, progress-circle, result-section, segmented-control, select, slider, snackbar, tabs, text-field, toggle-button입니다.
+
+### 사용 시 주의
+
+- Snackbar는 선언형으로 그리면 나타나지 않습니다. `SnackbarProvider`와 `useSnackbarAdapter().create()`를 사용합니다.
+- Loading Indicator는 대기 중인 버튼 안에서만 동작합니다. 버튼 밖의 로딩은 Progress Circle과 글을 함께 둡니다.
+- Result Section의 기본 버튼은 `neutralWeak`이므로 `bg.layerDefault` 위에 둡니다.
+- Content Dialog는 `word-break: break-all`을 쓰므로 한글 어절 줄바꿈을 앱에서 되돌립니다.
+- Segmented Control 항목은 최소 86px인 알약 모양이라 툴바에 넣으면 크고 무거워집니다. 툴바와 내비게이션은 ghost Action Button과 `bg.transparentSelected`로 만든 `ToolbarChoice`를 씁니다.
+- Slider의 `onValuesCommit`은 포인터를 뗄 때만 불리므로 키보드 조작은 `onKeyUp`에서 따로 확정합니다.
+- 숨겨 둔 화면 안에서는 `SnackbarAvoidOverlap`을 쓰지 않습니다. 크기가 0으로 재어져 Snackbar 위치가 틀어질 수 있습니다.
+
 - SEED 생성 파일은 임의로 구조를 바꾸지 않습니다.
-- 서비스 맞춤 로직은 `frontend/src/components/kokoro`의 wrapper에 둡니다.
+- 서비스 맞춤 로직은 `frontend/src/components/kokoro`와 feature 컴포넌트에 둡니다.
 - wrapper는 SEED props와 접근성 동작을 그대로 전달합니다.
 - 새 CSS 컴포넌트를 만들기 전에 SEED 컴포넌트 검색 결과를 이슈에 기록합니다.
 

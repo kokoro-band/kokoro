@@ -2,6 +2,7 @@ package com.kokoro.room.project;
 
 import com.kokoro.room.project.ProjectModels.ChatCommandRequest;
 import com.kokoro.room.project.ProjectModels.ChatCommandResponse;
+import com.kokoro.room.project.ProjectModels.ConfirmCommandRequest;
 import com.kokoro.room.project.ProjectModels.CreateProjectRequest;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import com.kokoro.room.project.ProjectModels.FloorPlanJob;
@@ -89,6 +90,14 @@ public class ProjectController {
             @PathVariable String projectId,
             @Valid @RequestBody ChatCommandRequest request
     ) {
-        return projectService.applyCommand(projectId, request.message());
+        return projectService.applyCommand(projectId, request.message(), request.furnitureId());
+    }
+
+    @PostMapping("/{projectId}/layout/commands/confirm")
+    public ChatCommandResponse confirmCommand(
+            @PathVariable String projectId,
+            @Valid @RequestBody ConfirmCommandRequest request
+    ) {
+        return projectService.confirmCommand(projectId, request.proposalId());
     }
 }

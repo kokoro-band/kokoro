@@ -282,7 +282,12 @@ function makeLabelSprite(text: string) {
   const canvas = document.createElement("canvas")
   const context = canvas.getContext("2d")
   const scale = 4
-  const font = `700 ${14 * scale}px "Noto Sans KR Variable", "Malgun Gothic", sans-serif`
+  // DOM과 같은 SEED 글꼴을 쓰고, Type의 label 역할처럼 medium 두께로 표시합니다.
+  const family =
+    typeof document === "undefined"
+      ? "sans-serif"
+      : getComputedStyle(document.body).fontFamily || "sans-serif"
+  const font = `500 ${14 * scale}px ${family}`
   if (!context) return null
   context.font = font
   const padding = 10 * scale

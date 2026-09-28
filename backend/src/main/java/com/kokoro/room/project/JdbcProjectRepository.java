@@ -62,6 +62,41 @@ public class JdbcProjectRepository implements ProjectRepository {
     }
 
     @Override
+    public boolean tryStartFloorPlan(String projectId, String ownerId, FloorPlan floorPlan, Instant updatedAt) {
+        return jdbc.update("""
+                UPDATE projects
+                   SET floor_plan_file_name = ?, floor_plan_size = ?, floor_plan_status = ?,
+                       floor_plan_progress = ?, floor_plan_uploaded_at = ?, floor_plan_job_id = ?,
+                       floor_plan_object_key = ?, floor_plan_error_code = ?, floor_plan_error_message = ?,
+                       floor_plan_retryable = ?, updated_at = ?
+                 WHERE id = ? AND owner_id = ? AND floor_plan_status <> 'PROCESSING'
+                """, floorPlan.fileName(), floorPlan.size(), floorPlan.status().name(), floorPlan.progress(),
+                timestamp(floorPlan.uploadedAt()), floorPlan.jobId(), floorPlan.objectKey(), floorPlan.errorCode(),
+                floorPlan.errorMessage(), floorPlan.retryable(), timestamp(updatedAt), projectId, ownerId) == 1;
+    }
+
+    @Override
+    public boolean updateFloorPlanStatus(String projectId, String jobId, ConversionStatus status, int progress,
+                                         String errorCode, String errorMessage, boolean retryable) {
+        return jdbc.update("""
+                UPDATE projects
+                   SET floor_plan_status = ?, floor_plan_progress = ?, floor_plan_error_code = ?,
+                       floor_plan_error_message = ?, floor_plan_retryable = ?
+                 WHERE id = ? AND floor_plan_job_id = ?
+                """, status.name(), progress, errorCode, errorMessage, retryable, projectId, jobId) == 1;
+    }
+
+    @Override
+    public int failProcessingFloorPlans(String errorCode, String errorMessage) {
+        return jdbc.update("""
+                UPDATE projects
+                   SET floor_plan_status = 'FAILED', floor_plan_error_code = ?,
+                       floor_plan_error_message = ?, floor_plan_retryable = TRUE
+                 WHERE floor_plan_status = 'PROCESSING'
+                """, errorCode, errorMessage);
+    }
+
+    @Override
     public void insert(RenovationProject project) {
         jdbc.update("""
                 INSERT INTO projects (
@@ -152,7 +187,7 @@ public class JdbcProjectRepository implements ProjectRepository {
 
     private RoomModel readRoom(String json) {
         if (json == null || json.isBlank()) return null;
-        return objectMapper.readValue(json, RoomModel.class);
+        return StoredRoomJson.read(objectMapper, json);
     }
 
     private static Timestamp timestamp(Instant value) {

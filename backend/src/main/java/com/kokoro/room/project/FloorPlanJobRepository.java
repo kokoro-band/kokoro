@@ -45,14 +45,23 @@ public class FloorPlanJobRepository {
         return jobs.stream().findFirst();
     }
 
-    public void update(FloorPlanJob job) {
-        jdbc.update("""
+    public boolean update(FloorPlanJob job) {
+        return jdbc.update("""
                 UPDATE floor_plan_jobs
                    SET status = ?, progress = ?, error_code = ?, error_message = ?, retryable = ?,
                        started_at = ?, completed_at = ?
                  WHERE job_id = ? AND project_id = ?
                 """, job.status().name(), job.progress(), job.errorCode(), job.errorMessage(), job.retryable(),
-                timestamp(job.startedAt()), timestamp(job.completedAt()), job.jobId(), job.projectId());
+                timestamp(job.startedAt()), timestamp(job.completedAt()), job.jobId(), job.projectId()) == 1;
+    }
+
+    public int failProcessing(Instant completedAt, String errorCode, String errorMessage) {
+        return jdbc.update("""
+                UPDATE floor_plan_jobs
+                   SET status = 'FAILED', error_code = ?, error_message = ?, retryable = TRUE,
+                       completed_at = ?
+                 WHERE status = 'PROCESSING'
+                """, errorCode, errorMessage, timestamp(completedAt));
     }
 
     public void deleteByProject(String projectId) {

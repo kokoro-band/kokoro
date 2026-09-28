@@ -1,19 +1,18 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios"
 
-const defaultMessage =
-  "서버 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+const defaultMessage = "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요."
 const networkMessage =
-  "서버에 연결할 수 없습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요."
+  "서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."
 export const REQUEST_TIMEOUT_MS = 15_000
 export const UPLOAD_TIMEOUT_MS = 60_000
 const MAX_ERROR_MESSAGE_LENGTH = 200
 
 const statusMessages: Record<number, string> = {
   401: "로그인이 필요한 요청입니다.",
-  403: "이 작업을 수행할 권한이 없습니다.",
-  404: "요청한 프로젝트를 찾을 수 없습니다.",
-  408: "서버 응답이 늦어 요청을 마치지 못했습니다.",
-  429: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  403: "이 작업을 할 수 있는 권한이 없어요.",
+  404: "프로젝트를 찾지 못했어요.",
+  408: "서버 응답이 늦어요. 잠시 후 다시 시도해 주세요.",
+  429: "요청이 많아요. 잠시 후 다시 시도해 주세요.",
 }
 
 export class ApiError extends Error {
@@ -54,7 +53,7 @@ export function normalizeApiError(error: unknown) {
   const message =
     statusMessages[status] ??
     responseMessage(error.response?.data) ??
-    (status >= 500 ? defaultMessage : "요청을 완료할 수 없습니다.")
+    (status >= 500 ? defaultMessage : "요청을 마치지 못했어요.")
   return new ApiError(message, status, retryable, error)
 }
 

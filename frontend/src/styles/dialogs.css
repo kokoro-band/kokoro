@@ -1,0 +1,237 @@
+.new-project-dialog form {
+  display: contents;
+}
+
+/* 도면 파일 */
+.floor-plan-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x4);
+}
+
+.floor-plan-file {
+  display: flex;
+  align-items: center;
+  gap: var(--seed-dimension-x3);
+  padding: var(--seed-dimension-x3);
+  border-radius: var(--seed-radius-r3);
+  background: var(--seed-color-bg-layer-fill);
+}
+
+.floor-plan-file-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--seed-dimension-x10);
+  height: var(--seed-dimension-x10);
+  border-radius: var(--seed-radius-r2);
+  color: var(--seed-color-fg-neutral-muted);
+  background: var(--seed-color-bg-layer-default);
+}
+
+.floor-plan-file-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--seed-dimension-x0_5);
+  min-width: 0;
+  /* 공백 없는 긴 파일 이름도 두 줄 안에서 끊어 보여 줍니다. */
+  overflow-wrap: anywhere;
+}
+
+/* 도면 이미지로 시작 */
+.plan-import .plan-import-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  gap: var(--seed-dimension-x5);
+}
+
+.plan-import-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 22rem;
+  overflow: hidden;
+  border-radius: var(--seed-radius-r3);
+  background: var(--seed-color-bg-layer-fill);
+}
+
+.plan-import-stage canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 50dvh;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.plan-import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--seed-dimension-x2);
+  width: 100%;
+  height: 100%;
+  min-height: 22rem;
+  padding: var(--seed-dimension-x6);
+  color: var(--seed-color-fg-neutral-muted);
+  text-align: center;
+  background: transparent;
+  border: 1px dashed var(--seed-color-stroke-neutral-weak);
+  border-radius: var(--seed-radius-r3);
+  cursor: pointer;
+  transition: background var(--seed-duration-d3)
+    var(--seed-timing-function-easing);
+}
+
+.plan-import-drop:hover {
+  background: var(--seed-color-bg-layer-default-pressed);
+}
+
+.plan-import-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(
+    in srgb,
+    var(--seed-color-bg-layer-default) 72%,
+    transparent
+  );
+}
+
+.plan-import-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x3);
+  min-width: 0;
+}
+
+.plan-import-side > p {
+  margin: 0;
+}
+
+.plan-import-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x1);
+  margin-top: var(--seed-dimension-x2);
+}
+
+.plan-import-guide ul {
+  display: grid;
+  gap: var(--seed-dimension-x1);
+  margin: 0;
+  padding-left: var(--seed-dimension-x5);
+  color: var(--seed-color-fg-neutral-muted);
+}
+
+.plan-import .plan-import-footer {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--seed-dimension-x3);
+}
+
+.plan-import-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-import-actions {
+  display: flex;
+  flex: none;
+  gap: var(--seed-dimension-x2);
+}
+
+@media (max-width: 820px) {
+  .plan-import .plan-import-body {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-import-stage,
+  .plan-import-drop {
+    min-height: 14rem;
+  }
+
+  .plan-import .plan-import-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plan-import-actions {
+    flex-wrap: wrap;
+  }
+
+  .plan-import-actions > .seed-action-button {
+    flex: 1 1 auto;
+  }
+}
+
+/* 단축키 */
+.shortcut-guide .shortcut-guide-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  align-items: start;
+  gap: var(--seed-dimension-x6) var(--seed-dimension-x8);
+  padding-bottom: var(--seed-dimension-x6);
+}
+
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x2);
+  min-width: 0;
+}
+
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x3);
+  min-height: var(--seed-dimension-x8);
+  border-bottom: 1px solid var(--seed-color-stroke-neutral-weak);
+}
+
+.shortcut-row:last-child {
+  border-bottom: none;
+}
+
+.shortcut-row dt {
+  min-width: 0;
+  word-break: keep-all;
+}
+
+.shortcut-keys {
+  display: flex;
+  flex: none;
+  gap: var(--seed-dimension-x1_5);
+  margin: 0;
+}
+
+.shortcut-combo {
+  display: flex;
+  align-items: center;
+  gap: var(--seed-dimension-x1);
+}
+
+.shortcut-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--seed-dimension-x6);
+  height: var(--seed-dimension-x6);
+  padding-inline: var(--seed-dimension-x1_5);
+  background: var(--seed-color-bg-layer-fill);
+  border: 1px solid var(--seed-color-stroke-neutral-weak);
+  border-radius: var(--seed-radius-r1_5);
+}

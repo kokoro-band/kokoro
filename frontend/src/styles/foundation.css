@@ -1,0 +1,371 @@
+/*
+ * 코코로 기본 규칙
+ * - 색과 간격과 모서리와 모션은 SEED 토큰만 사용합니다.
+ * - 글자 크기와 두께는 CSS에서 정하지 않고 Type 컴포넌트의 역할로 정합니다.
+ * - 아래 layout 변수는 화면 골격의 폭이며 간격 토큰이 아닙니다.
+ */
+:root {
+  color-scheme: light;
+  --layout-app-bar: var(--seed-dimension-x14);
+  --layout-toolbar: var(--seed-dimension-x12);
+  --layout-navigator: 18rem;
+  --layout-inspector: 20rem;
+  --layout-content: 56rem;
+  --line: var(--seed-color-stroke-neutral-muted);
+  --z-overlay: 1;
+  --z-overlay-raised: 2;
+  --z-modal: 3;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: var(--seed-font-family);
+  font-synthesis: none;
+  color: var(--seed-color-fg-neutral);
+  background: var(--seed-color-bg-layer-basement);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* 한글은 어절 단위로 줄을 바꿉니다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+body .seed-content-dialog__backdrop,
+body .seed-content-dialog__positioner {
+  --dialog-z-index: var(--z-modal);
+}
+
+body .seed-bottom-sheet__backdrop,
+body .seed-bottom-sheet__positioner {
+  --sheet-z-index: var(--z-modal);
+}
+
+/* SEED 대화상자와 바텀 시트는 글자 단위 줄바꿈을 쓰므로 한글 어절 규칙으로 되돌립니다. */
+body .seed-content-dialog__content,
+body .seed-bottom-sheet__content {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/*
+ * 좁은 화면에서 SEED 대화상자는 화면의 90%만 쓰고 안쪽 여백도 24px이라 쓸 자리가
+ * 줄어듭니다. 바깥 여백은 8px, 안쪽 여백은 16px로 줄입니다.
+ */
+@media (max-width: 767px) {
+  body .seed-content-dialog__content {
+    --content-dialog-default-width: calc(100vw - 2 * var(--seed-dimension-x2));
+    --content-dialog-default-max-width: calc(
+      100vw - 2 * var(--seed-dimension-x2)
+    );
+  }
+
+  body .seed-content-dialog__header,
+  body .seed-content-dialog__footer {
+    padding-inline: var(--seed-dimension-x4);
+  }
+
+  body .seed-content-dialog__header[data-show-close-button] {
+    padding-right: calc(
+      var(--seed-dimension-x4) + 22px + var(--seed-dimension-x1_5)
+    );
+  }
+
+  body .seed-content-dialog__body {
+    --seed-box-padding-x-base: var(--seed-dimension-x4);
+  }
+
+  body .seed-content-dialog__closeButton {
+    right: var(--seed-dimension-x4);
+  }
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--seed-color-stroke-focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: var(--seed-color-fg-neutral-inverted);
+  background: var(--seed-color-bg-brand-solid);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.type-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 패널: 왼쪽 탐색과 오른쪽 속성 영역이 같은 골격을 씁니다. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--seed-color-bg-layer-default);
+}
+
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x0_5);
+  padding: var(--seed-dimension-x4) var(--seed-dimension-x4)
+    var(--seed-dimension-x3);
+}
+
+.panel-header-back {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--seed-dimension-x1);
+  padding-left: var(--seed-dimension-x2);
+}
+
+.panel-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x0_5);
+  min-width: 0;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.panel-intro {
+  margin: 0;
+  padding: 0 var(--seed-dimension-x4) var(--seed-dimension-x2);
+}
+
+.panel-footer {
+  flex: none;
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4);
+  border-top: 1px solid var(--line);
+  background: var(--seed-color-bg-layer-default);
+}
+
+.panel-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x3);
+}
+
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x6) var(--seed-dimension-x4);
+}
+
+.panel-empty > p {
+  margin: 0;
+}
+
+.panel-empty > button {
+  margin-top: var(--seed-dimension-x2);
+}
+
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x3);
+  padding: var(--seed-dimension-x4) var(--seed-dimension-x4)
+    var(--seed-dimension-x5);
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector-section:last-child {
+  border-bottom: 0;
+}
+
+.inspector-section > p {
+  margin: 0;
+}
+
+.inspector-section > .seed-action-button {
+  align-self: flex-start;
+}
+
+.inspector-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x2);
+  min-height: var(--seed-dimension-x8);
+}
+
+.field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--seed-dimension-x3);
+}
+
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x2);
+}
+
+.stat-list {
+  display: grid;
+  gap: var(--seed-dimension-x2);
+  margin: 0;
+}
+
+.stat-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x3);
+}
+
+.stat-list dd {
+  margin: 0;
+  text-align: right;
+}
+
+.toolbar-divider {
+  flex: none;
+  width: 1px;
+  height: var(--seed-dimension-x5);
+  margin: 0 var(--seed-dimension-x1);
+  background: var(--line);
+}
+
+.result-asset {
+  display: grid;
+  place-items: center;
+  width: var(--seed-dimension-x16);
+  height: var(--seed-dimension-x16);
+  border-radius: var(--seed-radius-full);
+  color: var(--seed-color-fg-neutral-muted);
+  background: var(--seed-color-bg-neutral-weak);
+}
+
+.result-asset.is-critical {
+  color: var(--seed-color-fg-critical);
+  background: var(--seed-color-bg-critical-weak);
+}
+
+.furniture-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--seed-dimension-x10);
+  height: var(--seed-dimension-x10);
+  border-radius: var(--seed-radius-r2);
+  /* 제품 색을 옅게 깔고, 그림은 글자색 쪽으로 섞어 밝은 제품도 잘 보이게 합니다. */
+  color: color-mix(
+    in oklab,
+    var(--thumb-color) 62%,
+    var(--seed-color-fg-neutral)
+  );
+  background: color-mix(
+    in oklab,
+    var(--thumb-color) 18%,
+    var(--seed-color-bg-layer-default)
+  );
+}
+
+.furniture-thumb svg {
+  width: var(--seed-dimension-x6);
+  height: var(--seed-dimension-x6);
+}
+
+.furniture-thumb-large {
+  width: var(--seed-dimension-x12);
+  height: var(--seed-dimension-x12);
+  border-radius: var(--seed-radius-r2_5);
+}
+
+.furniture-thumb-large svg {
+  width: var(--seed-dimension-x7);
+  height: var(--seed-dimension-x7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: var(--seed-dimension-x2);
+}
+
+/*
+ * 하나만 고르는 글자 버튼의 공통 상태입니다. SEED ghost Action Button 위에 올립니다.
+ * - 뷰포트 도구(ToolbarChoice): 고른 도구에 SEED 선택 배경을 깔아 "지금 켜진 도구"를 보여 줍니다.
+ * - 앱 내비게이션: 한 단계 위의 이동이므로 배경 없이 굵기만 바꾸고, 배경은 hover에만 씁니다.
+ */
+.seed-action-button.choice-button {
+  --seed-font-weight: var(--seed-font-weight-medium);
+}
+
+.seed-action-button.choice-button:is(
+    [aria-checked="true"],
+    [aria-current="page"]
+  ) {
+  --seed-font-weight: var(--seed-font-weight-bold);
+}
+
+.seed-action-button.choice-button[aria-checked="true"] {
+  background: var(--seed-color-bg-transparent-selected);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seed-action-button.choice-button[aria-checked="true"]:hover {
+    background: var(--seed-color-bg-transparent-selected-pressed);
+  }
+}
+
+.toolbar-choice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--seed-dimension-x0_5);
+}

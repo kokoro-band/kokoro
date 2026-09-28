@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
+import { containsPoint, roomCenter } from "./house-navigation"
 import { upgradeFurnitureModel } from "./furniture-models"
 import { addBox, makeFallbackModel } from "./furniture-fallback"
 import {
@@ -14,7 +15,8 @@ import {
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
-import type { Furniture, RoomModel, ViewMode } from "./types"
+import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
+import { localizeVrEntry } from "./vr-entry"
 import { createVrLocomotion } from "./vr-locomotion"
 
 type Bounds = { width: number; depth: number }
@@ -48,9 +50,12 @@ type Props = {
   selectedId: string | null
   mode: ViewMode
   room?: RoomModel
+  focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => void
   onMoveEnd: () => void
+  /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
+  xrEntryContainer?: RefObject<HTMLElement | null>
 }
 
 function makeFurnitureModel(item: Furniture, bounds: Bounds) {
@@ -66,7 +71,8 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
 function placementAt(
   point: THREE.Vector3,
   bounds: Bounds,
-  room?: RoomModel
+  room?: RoomModel,
+  focusRoom?: RoomLabel | null
 ): [x: number, z: number] | null {
   const margin = 0.2
   const worldX = THREE.MathUtils.clamp(
@@ -80,7 +86,10 @@ function placementAt(
     bounds.depth / 2 - margin
   )
   if (room && !isInsideRoom(room, worldX, worldZ)) return null
-  return [round(worldX + bounds.width / 2), round(worldZ + bounds.depth / 2)]
+  const x = round(worldX + bounds.width / 2)
+  const z = round(worldZ + bounds.depth / 2)
+  if (focusRoom && !containsPoint(focusRoom.polygon, x, z)) return null
+  return [x, z]
 }
 
 function round(value: number) {
@@ -105,9 +114,11 @@ export function RoomScene({
   selectedId,
   mode,
   room,
+  focusRoom,
   onSelect,
   onMove,
   onMoveEnd,
+  xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<SceneRuntime | null>(null)
@@ -137,21 +148,41 @@ export function RoomScene({
 
       const bounds: Bounds = room?.bounds ?? defaultBounds
       const scale = Math.max(bounds.width, bounds.depth) / defaultBounds.width
+      const focusCenter = focusRoom ? roomCenter(focusRoom) : null
+      const focusWidth = focusRoom
+        ? Math.max(...focusRoom.polygon.map(([x]) => x)) -
+          Math.min(...focusRoom.polygon.map(([x]) => x))
+        : bounds.width
+      const focusDepth = focusRoom
+        ? Math.max(...focusRoom.polygon.map(([, z]) => z)) -
+          Math.min(...focusRoom.polygon.map(([, z]) => z))
+        : bounds.depth
+      const focusScale = Math.max(
+        0.85,
+        Math.max(focusWidth, focusDepth, 2) / defaultBounds.width
+      )
+      const centerX = focusCenter ? focusCenter[0] - bounds.width / 2 : 0
+      const centerZ = focusCenter ? focusCenter[1] - bounds.depth / 2 : 0
       const viewportFit =
         host.clientWidth <= 480 ? 1.18 : host.clientWidth <= 820 ? 1.08 : 1
 
       const scene = new THREE.Scene()
       const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
       camera.position.set(
-        mode === "2d" ? 0 : 7 * scale * viewportFit,
-        mode === "2d" ? 12 * scale * viewportFit : 7.5 * scale * viewportFit,
-        mode === "2d" ? 0.01 : 8 * scale * viewportFit
+        centerX + (mode === "2d" ? 0 : 5 * focusScale * viewportFit),
+        mode === "2d"
+          ? 12 * focusScale * viewportFit
+          : 11 * focusScale * viewportFit,
+        centerZ + (mode === "2d" ? 0.01 : 7 * focusScale * viewportFit)
       )
       const controls = new OrbitControls(camera, renderer.domElement)
-      controls.target.set(0, 0.25, 0)
-      controls.enableDamping = true
+      controls.target.set(centerX, 0.25, centerZ)
+      // 움직임을 줄이도록 설정했다면 손을 뗀 뒤 카메라가 미끄러지지 않게 합니다.
+      controls.enableDamping = !window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
       controls.maxPolarAngle = Math.PI / 2.15
-      controls.minDistance = 4 * scale
+      controls.minDistance = Math.max(2, 4 * focusScale)
       controls.maxDistance = 16 * scale
       controls.enableRotate = mode !== "2d"
       controls.update()
@@ -267,7 +298,7 @@ export function RoomScene({
         if (!draggingId) return
         setPointerRay(event)
         if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
-          const placement = placementAt(hitPoint, bounds, room)
+          const placement = placementAt(hitPoint, bounds, room, focusRoom)
           if (!placement) return
           furnitureMoved = true
           onMove(draggingId, ...placement)
@@ -287,6 +318,7 @@ export function RoomScene({
       renderer.domElement.addEventListener("pointercancel", releaseFurniture)
 
       let vrButton: HTMLElement | null = null
+      let stopLocalizingVrEntry: (() => void) | null = null
       let locomotion: ReturnType<typeof createVrLocomotion> | null = null
       let xrSelectedId: string | null = null
       function grabInVr(ray: THREE.Ray) {
@@ -299,7 +331,7 @@ export function RoomScene({
       function placeInVr(ray: THREE.Ray) {
         if (!xrSelectedId) return false
         const placement = ray.intersectPlane(floorPlane, hitPoint)
-          ? placementAt(hitPoint, bounds, room)
+          ? placementAt(hitPoint, bounds, room, focusRoom)
           : null
         if (placement) {
           onMove(xrSelectedId, ...placement)
@@ -311,12 +343,17 @@ export function RoomScene({
       if (mode === "vr") {
         vrButton = VRButton.createButton(renderer)
         vrButton.classList.add("xr-entry")
-        host.appendChild(vrButton)
+        stopLocalizingVrEntry = localizeVrEntry(vrButton)
+        ;(xrEntryContainer?.current ?? host).appendChild(vrButton)
         locomotion = createVrLocomotion({
           renderer,
           scene,
           camera,
-          spawn: room ? roomSpawnPoint(room) : new THREE.Vector3(),
+          spawn: focusCenter
+            ? new THREE.Vector3(centerX, 0, centerZ)
+            : room
+              ? roomSpawnPoint(room)
+              : new THREE.Vector3(),
           isWalkable: room
             ? createWalkableTest(room)
             : (x, z) =>
@@ -366,11 +403,12 @@ export function RoomScene({
         disposeGroup(furnitureGroup)
         renderer.dispose()
         renderer.domElement.remove()
+        stopLocalizingVrEntry?.()
         vrButton?.remove()
         runtimeRef.current = null
       }
     },
-    [mode, room, onMove, onMoveEnd, onSelect]
+    [mode, room, focusRoom, onMove, onMoveEnd, onSelect, xrEntryContainer]
   )
 
   useEffect(
@@ -398,7 +436,7 @@ export function RoomScene({
         )
       })
     },
-    [furniture, selectedId, mode, room]
+    [furniture, selectedId, mode, room, focusRoom, onMove, onMoveEnd, onSelect]
   )
 
   return (

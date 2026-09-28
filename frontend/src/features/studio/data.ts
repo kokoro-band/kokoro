@@ -28,7 +28,7 @@ export const sampleProject: Project = {
       catalogId: "sofa-cloud",
       name: "클라우드 소파",
       category: "소파",
-      x: 4.2,
+      x: 4.5,
       z: 5.6,
       rotation: 0,
       color: "#D8C8B8",
@@ -48,8 +48,8 @@ export const sampleProject: Project = {
       catalogId: "chair-shell",
       name: "셸 체어",
       category: "의자",
-      x: 5.6,
-      z: 3.3,
+      x: 4.5,
+      z: 3.0,
       rotation: 25,
       color: "#4A665A",
     },
@@ -71,6 +71,6 @@ export const initialMessages = [
   {
     id: "welcome",
     role: "assistant" as const,
-    text: "어떤 방을 만들고 싶으세요? 원하는 분위기와 필요한 가구를 알려주시면 함께 배치해 볼게요.",
+    text: "어떤 방을 만들고 싶나요? 원하는 분위기와 필요한 가구를 알려 주면 함께 배치해 볼게요.",
   },
 ]

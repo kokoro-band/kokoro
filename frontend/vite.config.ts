@@ -27,7 +27,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist"],
+    ignorePatterns: ["dist", "seed-design"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -173,6 +173,7 @@ export default defineConfig({
       "package-lock.json",
       "yarn.lock",
       "public/models/",
+      "seed-design/",
     ],
   },
   plugins: lazyPlugins(() => [
@@ -183,6 +184,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "seed-design": fileURLToPath(new URL("./seed-design", import.meta.url)),
     },
   },
 })

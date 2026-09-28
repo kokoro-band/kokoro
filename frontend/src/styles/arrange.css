@@ -1,0 +1,283 @@
+/* 배치: 왼쪽 방과 가구, 가운데 화면, 오른쪽 선택한 가구와 AI 배치 */
+.arrange {
+  display: grid;
+  flex: 1;
+  grid-template-columns: var(--layout-navigator) minmax(0, 1fr) var(
+      --layout-inspector
+    );
+  min-height: 0;
+}
+
+.arrange-navigator {
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.placement-issues,
+.placement-issue-detail {
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4);
+}
+
+.placement-issues {
+  border-bottom: 1px solid var(--line);
+}
+
+.placement-mobile-notice {
+  flex: none;
+  margin: var(--seed-dimension-x2) var(--seed-dimension-x3);
+}
+
+.arrange-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--seed-color-bg-layer-default);
+  border-left: 1px solid var(--line);
+}
+
+.panel-tabs,
+.inspector-tabs {
+  flex: none;
+}
+
+.arrange-inspector .inspector-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* SEED Tabs 레시피는 패널을 flex-basis 100%로 두므로 남은 높이만 쓰도록 되돌립니다. */
+.arrange-inspector .inspector-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.category-tabs {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-overlay);
+  padding: var(--seed-dimension-x3) 0 var(--seed-dimension-x2);
+  background: var(--seed-color-bg-layer-default);
+}
+
+/* SEED Chip Tabs와 Scroll Fog 권장 여백 */
+.category-tabs-list {
+  padding-inline: var(--seed-dimension-x5);
+}
+
+.catalog-list,
+.room-list {
+  padding-bottom: var(--seed-dimension-x3);
+}
+
+/* 선택한 가구 */
+.inspector-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--seed-dimension-x3);
+  padding: var(--seed-dimension-x4);
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector-identity-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--seed-dimension-x0_5);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inspector-footer {
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4)
+    var(--seed-dimension-x6);
+}
+
+.inspector-delete {
+  width: 100%;
+}
+
+.inspector-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x6) var(--seed-dimension-x4);
+}
+
+.inspector-empty > p {
+  margin: 0;
+}
+
+.inspector-tips {
+  display: grid;
+  gap: var(--seed-dimension-x1);
+  margin: var(--seed-dimension-x2) 0 0;
+  padding-left: var(--seed-dimension-x5);
+  color: var(--seed-color-fg-neutral-muted);
+}
+
+/* AI 배치 */
+.assistant {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.assistant-context {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4);
+  border-bottom: 1px solid var(--line);
+}
+
+.assistant-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--seed-dimension-x4);
+  min-height: 0;
+  padding: var(--seed-dimension-x4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.assistant-message > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.assistant-message.is-user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--seed-dimension-x2) var(--seed-dimension-x3);
+  border-radius: var(--seed-radius-r4) var(--seed-radius-r4)
+    var(--seed-radius-r1) var(--seed-radius-r4);
+  background: var(--seed-color-bg-neutral-weak);
+}
+
+.assistant-message.is-assistant {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.assistant .assistant-suggestions {
+  flex: none;
+  min-width: 0;
+  height: auto;
+  padding-bottom: var(--seed-dimension-x3);
+}
+
+/* SEED Scroll Fog 권장 여백 */
+.assistant-suggestions-row {
+  display: flex;
+  gap: var(--seed-dimension-x2);
+  width: max-content;
+  padding-inline: var(--seed-dimension-x5);
+}
+
+.assistant-suggestions-row > * {
+  flex: none;
+}
+
+.assistant-form {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4)
+    var(--seed-dimension-x4);
+  border-top: 1px solid var(--line);
+}
+
+.assistant-form > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.assistant-form textarea {
+  max-height: 8rem;
+}
+
+/* 모바일: 화면을 먼저 보여 주고 도구는 아래에서 꺼냅니다. */
+.arrange-mobile {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.arrange-mobile > .viewport {
+  flex: 1;
+}
+
+.mobile-dock {
+  display: flex;
+  flex: none;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x2) var(--seed-dimension-x3)
+    calc(var(--seed-dimension-x2) + env(safe-area-inset-bottom));
+  overflow-x: auto;
+  background: var(--seed-color-bg-layer-default);
+  border-top: 1px solid var(--line);
+}
+
+.mobile-dock > .seed-action-button {
+  flex: 1 0 auto;
+}
+
+.mobile-sheet {
+  width: 100%;
+}
+
+/*
+ * 시트 안의 패널과 AI 배치는 자기 안쪽 여백을 가지고 있으므로 SEED 시트 본문의
+ * 좌우 여백을 없애 좁은 화면을 넓게 씁니다. SEED 규칙보다 앞서도록 두 클래스로 고릅니다.
+ */
+.seed-bottom-sheet__body.mobile-sheet-body {
+  --seed-box-padding-x: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 env(safe-area-inset-bottom);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.mobile-sheet-body > .panel,
+.mobile-sheet-body > .assistant {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 낮은 화면에서 선택한 가구 시트를 스크롤해도 가구 빼기는 늘 보이게 합니다. */
+.mobile-sheet-body .inspector-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--seed-color-bg-layer-default);
+}
+
+.mobile-sheet-body .panel-header:not(.panel-header-back) {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .arrange {
+    --layout-navigator: 16rem;
+    --layout-inspector: 18rem;
+  }
+}

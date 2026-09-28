@@ -114,6 +114,27 @@ beforeEach(() => {
 })
 
 describe("useStudioController project switching", () => {
+  it("ignores a restore action from an older project's error notice", async () => {
+    const app = await setup()
+    act(() => app.get().addFurniture("sofa-cloud"))
+    await flush()
+    calls("saveProject")[0].reject(new ApiError("거부", 400, false))
+    await flush()
+    const oldNoticeId = app.get().notice!.id
+    act(() => { void app.get().createProject("B") })
+    await flush()
+    calls("createProject")[0].resolve(structuredClone(projectB))
+    await flush()
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    calls("saveProject")[1].reject(new ApiError("거부", 400, false))
+    await flush()
+    const draft = app.get().project.furniture
+    act(() => app.get().restoreSavedProject(oldNoticeId))
+    expect(app.get().project.furniture).toEqual(draft)
+    act(() => app.get().restoreSavedProject(app.get().notice!.id))
+    expect(app.get().project.furniture).toEqual(projectB.furniture)
+  })
   it("does not restore an old snapshot while a newer save is in flight", async () => {
     const app = await setup()
     act(() => app.get().addFurniture("sofa-cloud"))
@@ -139,7 +160,13 @@ describe("useStudioController project switching", () => {
       ...structuredClone(projectA),
       floorPlan: { ...projectA.floorPlan, status: "PROCESSING", progress: 50 },
     }
-    act(() => app.get().uploadFloorPlan(new window.File(["plan"], "plan.png", { type: "image/png" })))
+    act(() =>
+      app
+        .get()
+        .uploadFloorPlan(
+          new window.File(["plan"], "plan.png", { type: "image/png" })
+        )
+    )
     await act(async () => {
       await vi.waitFor(() => expect(calls("uploadPlan")).toHaveLength(1))
     })
@@ -150,13 +177,18 @@ describe("useStudioController project switching", () => {
     })
     const room = { ...structuredClone(projectA.room!), wallHeight: 3.1 }
     let applying!: Promise<boolean>
-    act(() => { applying = app.get().applyRoom(room) })
+    act(() => {
+      applying = app.get().applyRoom(room)
+    })
     await flush()
     expect(calls("saveRoom")).toHaveLength(1)
     calls("saveRoom")[0].resolve({ ...uploaded, room })
     await flush()
     await expect(applying).resolves.toBe(true)
-    calls("getProject")[1].resolve({ ...uploaded, floorPlan: { ...uploaded.floorPlan, status: "READY", progress: 100 } })
+    calls("getProject")[1].resolve({
+      ...uploaded,
+      floorPlan: { ...uploaded.floorPlan, status: "READY", progress: 100 },
+    })
     await flush()
     expect(app.get().project.room).toEqual(room)
     expect(app.get().project.floorPlan.status).toBe("READY")

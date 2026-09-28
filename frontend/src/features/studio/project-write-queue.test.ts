@@ -50,6 +50,18 @@ function fakeServer() {
 }
 
 describe("ProjectWriteQueue", () => {
+  it("does not send later writes after a version conflict even when enqueued after the failure", async () => {
+    const conflict = new ApiError("프로젝트가 변경됐어요", 409, false)
+    const saveLayout = vi.fn().mockRejectedValue(conflict)
+    const command = vi.fn()
+    const queue = new ProjectWriteQueue(base, { saveLayout })
+    await expect(queue.saveLayout([])).rejects.toBe(conflict)
+    await expect(queue.saveLayout([sofa])).rejects.toThrow()
+    await expect(queue.run("command", command)).rejects.toThrow()
+    expect(saveLayout).toHaveBeenCalledTimes(1)
+    expect(command).not.toHaveBeenCalled()
+    expect(queue.saved).toBe(base)
+  })
   it("sends one write at a time in request order", async () => {
     const server = fakeServer()
     const queue = new ProjectWriteQueue(base, {

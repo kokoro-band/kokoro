@@ -3,6 +3,7 @@ import { act, StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { draftAreaPyeong } from "../room-builder"
+import { pngFixture } from "../plan-image-fixtures"
 import { PlanImport } from "./PlanImport"
 
 const cleanups: (() => void)[] = []
@@ -198,6 +199,20 @@ const png = (name = "plan.png") =>
   new File(["png"], name, { type: "image/png" })
 
 describe("PlanImport file recovery with real SEED and analysis", () => {
+  it.each([
+    ["large", pngFixture(4001, 4000), "1600만"],
+    ["fake", new TextEncoder().encode("not a PNG"), "파일"],
+    ["animated", pngFixture(200, 200, true), "정지 이미지"],
+  ])("rejects %s before allocating a decoder and keeps the valid draft", async (_label, bytes, message) => {
+    const ui = setup()
+    await ui.valid()
+    await act(async () => {
+      ui.choose(new File([bytes as Uint8Array<ArrayBuffer>], "other.png", { type: "image/png" }))
+    })
+    expect(ui.images).toHaveLength(1)
+    expect(ui.text()).toContain(message)
+    expect(ui.button("이 배치로 시작").disabled).toBe(false)
+  })
   it.each(["image/png", "image/jpeg", "image/webp"])(
     "accepts %s at the 15MB boundary",
     async (type) => {

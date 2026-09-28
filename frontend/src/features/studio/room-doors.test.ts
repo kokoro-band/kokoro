@@ -47,6 +47,12 @@ function setup() {
 }
 
 describe("operable doors", () => {
+  it("opens a manually operated door toward the floor plan swing side", () => {
+    const { door, advance } = setup()
+    door.manualOpen = true
+    advance()
+    expect(door.hinge.rotation.y).toBeCloseTo((-85 * Math.PI) / 180)
+  })
   it("keeps the current door angle when switching between 2D and 3D", () => {
     const first = buildRoomGroup(room, "3d")
     const firstDoors = first.userData.doors as DoorState[]

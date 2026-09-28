@@ -13,7 +13,12 @@ function setup() {
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera()
   camera.position.set(0, 1.6, 0)
-  const controllers = [new THREE.Group(), new THREE.Group()]
+  type ControllerEvents = THREE.Object3DEventMap &
+    Record<string, { data?: unknown }>
+  const controllers = [
+    new THREE.Group<ControllerEvents>(),
+    new THREE.Group<ControllerEvents>(),
+  ]
   for (const controller of controllers) {
     controller.position.set(0, 1, 0)
     controller.rotation.x = -Math.PI / 4
@@ -30,7 +35,7 @@ function setup() {
   const walkable = vi.fn(() => true)
   const selectStart = vi.fn(() => false)
   const selectEnd = vi.fn(() => false)
-  const locomotion = createVrLocomotion({
+  const options = {
     renderer: { xr } as unknown as THREE.WebGLRenderer,
     scene,
     camera,
@@ -38,7 +43,8 @@ function setup() {
     isWalkable: walkable,
     onSelectStart: selectStart,
     onSelectEnd: selectEnd,
-  })
+  }
+  const locomotion = createVrLocomotion(options)
   let disposed = false
   const dispose = () => {
     if (disposed) return
@@ -62,6 +68,7 @@ function setup() {
   const markers = scene.children.filter((child) => child instanceof THREE.Mesh)
   return {
     ...locomotion,
+    options,
     dispose,
     scene,
     camera,
@@ -110,6 +117,16 @@ describe("VR movement and input lifecycle", () => {
     app.walkable.mockReturnValue(false)
     app.update()
     expect(app.rig.position.equals(before)).toBe(true)
+  })
+
+  it("follows a turned head instead of a fixed world forward axis", () => {
+    const app = setup()
+    app.sources.push({ handedness: "left", gamepad: { axes: [0, 0, 0, -1] } })
+    app.camera.rotation.y = Math.PI / 2
+    app.session(true)
+    app.update()
+    expect(app.rig.position.x).toBeCloseTo(1.84)
+    expect(app.rig.position.z).toBeCloseTo(3)
   })
 
   it("turns once per stick press and keeps the head at the same world position", () => {
@@ -180,6 +197,39 @@ describe("VR movement and input lifecycle", () => {
     expect(app.markers[0].visible).toBe(true)
     app.input(0, "selectend")
     expect(app.selectEnd).not.toHaveBeenCalled()
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+  })
+
+  it.each(["before", "after"])(
+    "recovers when controllers reconnect %s sessionstart",
+    (order) => {
+      const app = setup()
+      app.session(true)
+      app.selectStart.mockReturnValue(true)
+      app.input(0, "selectstart")
+      app.input(0, "disconnected")
+      app.input(1, "disconnected")
+      app.session(false)
+      if (order === "before") app.input(0, "connected")
+      app.session(true)
+      if (order === "after") app.input(0, "connected")
+      app.update()
+      expect(app.markers[0].visible).toBe(true)
+      expect(app.markers[1].visible).toBe(false)
+      app.input(0, "selectstart")
+      app.input(0, "selectend")
+      expect(app.selectEnd).toHaveBeenCalledOnce()
+    }
+  )
+
+  it("does not turn again when the other controller disconnects while the stick stays tilted", () => {
+    const app = setup()
+    app.sources.push({ handedness: "right", gamepad: { axes: [0, 0, 0.8, 0] } })
+    app.session(true)
+    app.update()
+    app.input(0, "disconnected")
+    app.update()
+    expect(app.rig.rotation.y).toBeCloseTo(-Math.PI / 6)
   })
 
   it("clears the held selection on controller disconnection", () => {
@@ -240,5 +290,13 @@ describe("VR movement and input lifecycle", () => {
     expect(app.selectStart).not.toHaveBeenCalled()
     app.session(true)
     expect(app.rig.position.toArray()).toEqual([0, 0, 0])
+    const remounted = createVrLocomotion(app.options)
+    try {
+      expect(
+        app.controllers.every((controller) => controller.children.length === 1)
+      ).toBe(true)
+    } finally {
+      remounted.dispose()
+    }
   })
 })

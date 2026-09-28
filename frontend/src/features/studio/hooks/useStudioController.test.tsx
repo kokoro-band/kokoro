@@ -76,7 +76,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function setup() {
+async function setup(initialProject: Project = projectA) {
   const result: { current?: ReturnType<typeof useStudioController> } = {}
   function Harness() {
     Object.assign(result, { current: useStudioController() })
@@ -100,7 +100,7 @@ async function setup() {
     )
   )
   await flush()
-  calls("getProject")[0].resolve(structuredClone(projectA))
+  calls("getProject")[0].resolve(structuredClone(initialProject))
   await flush()
   return {
     get: () => result.current!,
@@ -114,6 +114,53 @@ beforeEach(() => {
 })
 
 describe("useStudioController project switching", () => {
+  it("serializes wall-constrained drags without losing the latest draft or undo boundaries", async () => {
+    const initial: Project = {
+      ...structuredClone(projectA),
+      dimensions: { width: 6, depth: 6, height: 2.4 },
+      room: {
+        version: 2, unit: "m", wallHeight: 2.4,
+        bounds: { width: 6, depth: 6 },
+        outline: [[0, 0], [6, 0], [6, 6], [0, 6]],
+        walls: [{ id: "divider", a: [3, 0], b: [3, 6], thickness: 0.2 }],
+        openings: [], rooms: [],
+      },
+      furniture: [{ id: "chair", catalogId: "chair-shell", name: "의자", category: "의자", x: 1, z: 2, rotation: 0, color: "#000" }],
+    }
+    const app = await setup(initial)
+    act(() => {
+      app.get().moveFurniture("chair", 5, 2)
+      app.get().moveFurniture("chair", 5, 2)
+      app.get().commitPreview()
+    })
+    await flush()
+    const first = calls("saveProject")[0].arg as Project
+    expect(first.furniture[0].x).toBeCloseTo(2.575, 5)
+    act(() => {
+      app.get().moveFurniture("chair", 5, 3)
+      app.get().commitPreview()
+    })
+    await flush()
+    expect(calls("saveProject")).toHaveLength(1)
+    expect(app.get().project.furniture[0].z).toBe(3)
+    calls("saveProject")[0].resolve(first)
+    await flush()
+    expect(calls("saveProject")).toHaveLength(2)
+    const second = calls("saveProject")[1].arg as Project
+    expect(second.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(second.furniture[0].z).toBe(3)
+    calls("saveProject")[1].resolve(second)
+    await flush()
+    expect(app.get().dirty).toBe(false)
+    act(() => app.get().undo())
+    expect(app.get().project.furniture[0].z).toBe(2)
+    act(() => app.get().undo())
+    expect(app.get().project.furniture[0].x).toBe(1)
+    expect(app.get().canUndo).toBe(false)
+    await flush()
+    calls("saveProject")[2].resolve(calls("saveProject")[2].arg)
+    await flush()
+  })
   it("ignores a restore action from an older project's error notice", async () => {
     const app = await setup()
     act(() => app.get().addFurniture("sofa-cloud"))

@@ -47,17 +47,29 @@ function setup() {
 }
 
 describe("operable doors", () => {
-  it("reapplies the same manual state to rebuilt 2D and 3D door meshes", () => {
-    for (const mode of ["2d", "3d"] as const) {
-      const group = buildRoomGroup(room, mode)
-      const doors = group.userData.doors as DoorState[]
-      setManualDoorStates(doors, { door: true })
-      for (let i = 0; i < 20; i++) animateDoors(doors, null, 1 / 30)
-      expect(doors[0].hinge.rotation.y).toBeCloseTo((85 * Math.PI) / 180)
-      setManualDoorStates(doors, { door: false })
-      for (let i = 0; i < 20; i++) animateDoors(doors, null, 1 / 30)
-      expect(doors[0].hinge.rotation.y).toBe(0)
-    }
+  it("keeps the current door angle when switching between 2D and 3D", () => {
+    const first = buildRoomGroup(room, "3d")
+    const firstDoors = first.userData.doors as DoorState[]
+    setManualDoorStates(firstDoors, { door: true })
+    for (let i = 0; i < 20; i++) animateDoors(firstDoors, null, 1 / 30)
+    const openAngle = firstDoors[0].angle
+
+    const second = buildRoomGroup(room, "2d", new Map([["door", openAngle]]))
+    const secondDoors = second.userData.doors as DoorState[]
+    setManualDoorStates(secondDoors, { door: true })
+    expect(secondDoors[0].hinge.rotation.y).toBeCloseTo(openAngle)
+    animateDoors(secondDoors, null, 1 / 30)
+    expect(secondDoors[0].angle).toBeCloseTo(openAngle)
+
+    setManualDoorStates(secondDoors, { door: false })
+    animateDoors(secondDoors, null, 1 / 30)
+    const closingAngle = secondDoors[0].angle
+    const third = buildRoomGroup(room, "3d", new Map([["door", closingAngle]]))
+    const thirdDoors = third.userData.doors as DoorState[]
+    setManualDoorStates(thirdDoors, { door: false })
+    expect(thirdDoors[0].hinge.rotation.y).toBeCloseTo(closingAngle)
+    animateDoors(thirdDoors, null, 1 / 30)
+    expect(thirdDoors[0].angle).toBeLessThan(closingAngle)
   })
   it("starts closed and animates the actual leaf for manual open and close", () => {
     const { door, advance } = setup()

@@ -58,6 +58,7 @@ type SceneRuntime = {
   bounds: Bounds
   interaction: ReturnType<typeof bindSceneInteraction> | null
   doors: DoorState[]
+  doorHighlights: Map<string, THREE.BoxHelper>
 }
 
 type Props = {
@@ -76,9 +77,17 @@ type Props = {
   ) => boolean
   onMoveEnd: () => void
   doorStates: Record<string, boolean>
+  highlightedDoorId: string | null
   onDoorChange: (id: string, open: boolean) => void
   /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
   xrEntryContainer?: RefObject<HTMLElement | null>
+}
+
+function setDoorHighlight(
+  highlights: Map<string, THREE.BoxHelper>,
+  id: string | null
+) {
+  for (const [doorId, helper] of highlights) helper.visible = doorId === id
 }
 
 function addBox(
@@ -226,11 +235,13 @@ export function RoomScene({
   onMove,
   onMoveEnd,
   doorStates,
+  highlightedDoorId,
   onDoorChange,
   xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<SceneRuntime | null>(null)
+  const doorAnglesRef = useRef(new Map<string, number>())
 
   useEffect(
     function initializeRoomRenderer() {
@@ -319,7 +330,7 @@ export function RoomScene({
 
       let roomGroup: THREE.Group
       if (room) {
-        roomGroup = buildRoomGroup(room, mode)
+        roomGroup = buildRoomGroup(room, mode, doorAnglesRef.current)
       } else {
         roomGroup = new THREE.Group()
         addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], sceneColors.floor)
@@ -364,6 +375,15 @@ export function RoomScene({
       }
       scene.add(roomGroup)
       const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
+      const doorHighlights = new Map<string, THREE.BoxHelper>()
+      for (const door of doors) {
+        const helper = new THREE.BoxHelper(door.local, sceneColors.selection)
+        helper.material.depthTest = false
+        helper.renderOrder = 10
+        helper.visible = false
+        scene.add(helper)
+        doorHighlights.set(door.id, helper)
+      }
 
       const furnitureGroup = new THREE.Group()
       scene.add(furnitureGroup)
@@ -478,6 +498,7 @@ export function RoomScene({
         bounds,
         interaction,
         doors,
+        doorHighlights,
       }
 
       let vrButton: HTMLElement | null = null
@@ -559,10 +580,16 @@ export function RoomScene({
           renderer.xr.isPresenting ? headPosition : null,
           deltaSeconds
         )
+        for (const helper of doorHighlights.values()) {
+          if (helper.visible) helper.update()
+        }
         renderer.render(scene, camera)
       })
 
       return function disposeRoomRenderer() {
+        doorAnglesRef.current = new Map(
+          doors.map((door) => [door.id, door.angle])
+        )
         observer.disconnect()
         renderer.setAnimationLoop(null)
         interaction?.dispose()
@@ -570,6 +597,10 @@ export function RoomScene({
         controls.dispose()
         disposeGroup(roomGroup)
         disposeGroup(furnitureGroup)
+        for (const helper of doorHighlights.values()) {
+          helper.geometry.dispose()
+          helper.material.dispose()
+        }
         renderer.dispose()
         renderer.domElement.remove()
         stopLocalizingVrEntry?.()
@@ -595,6 +626,24 @@ export function RoomScene({
     },
     [
       doorStates,
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
+  )
+
+  useEffect(
+    function synchronizeDoorHighlight() {
+      const highlights = runtimeRef.current?.doorHighlights
+      if (highlights) setDoorHighlight(highlights, highlightedDoorId)
+    },
+    [
+      highlightedDoorId,
       mode,
       room,
       focusRoom,

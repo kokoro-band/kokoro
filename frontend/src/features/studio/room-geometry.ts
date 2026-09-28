@@ -461,7 +461,11 @@ export function roomSpawnPoint(model: RoomModel) {
   )
 }
 
-export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
+export function buildRoomGroup(
+  model: RoomModel,
+  mode: ViewMode,
+  previousDoorAngles?: ReadonlyMap<string, number>
+) {
   const group = new THREE.Group()
   const offsetX = -model.bounds.width / 2
   const offsetZ = -model.bounds.depth / 2
@@ -490,6 +494,12 @@ export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
         doors
       )
     )
+  }
+  for (const door of doors) {
+    const angle = previousDoorAngles?.get(door.id)
+    if (angle === undefined) continue
+    door.angle = angle
+    door.hinge.rotation.y = angle
   }
   group.userData.doors = doors
 

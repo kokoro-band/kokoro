@@ -194,6 +194,68 @@ async function setup() {
 }
 
 describe("save recovery through the real App and SEED UI", () => {
+  it("clears the old manual save busy state after switching to the sample project", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.reject(0)
+    await ui.click("다시 저장", ui.header())
+    await ui.click("검증 A 프로젝트 메뉴")
+    await ui.click("예제 집 열기")
+    await ui.resolve(1)
+    const loading = http.calls.find(
+      (call) => call.config.url === `/projects/${sampleProject.id}`
+    )!
+    expect(loading).toBeDefined()
+    await act(async () =>
+      loading.resolve({
+        ...structuredClone(ui.initial),
+        id: sampleProject.id,
+        name: "예제 검증",
+      })
+    )
+    await settle()
+    expect(ui.header().textContent).toContain("예제 검증")
+    expect(ui.header().textContent).toContain("저장됨")
+    expect(ui.header().textContent).not.toContain("저장 중")
+  })
+  it("does not restore the previous project's failure over a new rejected draft", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.reject(0, new ApiError("A 배치 거절", 400, false))
+    await ui.createB()
+    await ui.click("배치")
+    await ui.click("거실 비어 있어요")
+    await ui.click("셸 체어 거실에 놓기")
+    await ui.reject(1, new ApiError("B 배치 거절", 400, false))
+    await ui.click("되돌리기")
+    expect(ui.header().textContent).toContain("저장된 배치로 되돌리기")
+    expect(
+      document.querySelector(".inspector-identity")?.textContent
+    ).toContain("셸 체어")
+    expect(ui.saves()).toHaveLength(2)
+    await ui.click("저장된 배치로 되돌리기")
+    expect(ui.header().textContent).toContain("저장됨")
+  })
+  it("does not restore an old snapshot while a corrected layout is saving", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.reject(0, new ApiError("배치 거절", 400, false))
+    const input = await ui.type("가로", "2.0")
+    await act(async () => {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    await settle()
+    expect(ui.button("저장된 배치로 되돌리기").disabled).toBe(true)
+    await ui.click("되돌리기")
+    expect(
+      document.querySelector(".inspector-identity")?.textContent
+    ).toContain("셸 체어")
+    await ui.resolve(1)
+    expect(ui.header().textContent).toContain("저장됨")
+    expect(ui.saves()).toHaveLength(2)
+  })
   it("does not unlock project creation when an earlier manual save finishes", async () => {
     const ui = await setup()
     await ui.add()
@@ -206,7 +268,9 @@ describe("save recovery through the real App and SEED UI", () => {
     expect(ui.button("만들기").disabled).toBe(true)
     await ui.resolve(1)
     expect(ui.button("만들기").disabled).toBe(true)
-    expect(http.calls.filter((call) => call.config.url === "/projects")).toHaveLength(1)
+    expect(
+      http.calls.filter((call) => call.config.url === "/projects")
+    ).toHaveLength(1)
   })
   it("shows manual recovery after automatic network retries are exhausted", async () => {
     const ui = await setup()

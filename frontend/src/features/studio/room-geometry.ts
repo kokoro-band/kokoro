@@ -445,7 +445,7 @@ export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
 
   group.add(buildFloor(model.outline, offsetX, offsetZ))
 
-  const doorRest = mode === "vr" ? 0 : doorRestAngle
+  const doorRest = mode === "vr" ? 0 : -doorRestAngle
   const doors: DoorState[] = []
   for (const wall of model.walls) {
     const openings = model.openings.filter(

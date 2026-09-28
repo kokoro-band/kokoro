@@ -62,8 +62,12 @@ public class FloorPlanJobCoordinator {
     private boolean transition(String projectId, String jobId, ConversionStatus status, Integer progress,
                                String errorCode, String errorMessage, boolean retryable,
                                boolean start, boolean complete) {
+        // Every path locks the project before the job, including deletion and restart recovery.
+        RenovationProject project = projectRepository.lockById(projectId).orElse(null);
+        if (project == null || !jobId.equals(project.floorPlan().jobId())
+                || project.floorPlan().status() != ConversionStatus.PROCESSING) return false;
         FloorPlanJob current = jobRepository.findById(projectId, jobId).orElse(null);
-        if (current == null) return false;
+        if (current == null || current.status() != ConversionStatus.PROCESSING) return false;
         int nextProgress = progress == null ? current.progress() : progress;
         Instant now = Instant.now();
         FloorPlanJob updated = new FloorPlanJob(jobId, projectId, current.objectKey(), status, nextProgress,

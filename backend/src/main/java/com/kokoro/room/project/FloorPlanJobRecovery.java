@@ -1,5 +1,7 @@
 package com.kokoro.room.project;
 
+import com.kokoro.room.project.ProjectModels.ConversionStatus;
+import com.kokoro.room.project.ProjectModels.FloorPlanJob;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -28,7 +30,17 @@ public class FloorPlanJobRecovery implements ApplicationRunner {
 
     @Transactional
     public void recover() {
-        projectRepository.failProcessingFloorPlans(ERROR_CODE, ERROR_MESSAGE);
-        jobRepository.failProcessing(Instant.now(), ERROR_CODE, ERROR_MESSAGE);
+        // Do not run independent bulk scans: a new upload between them is not part of this recovery.
+        for (var project : projectRepository.lockProcessing()) {
+            var floorPlan = project.floorPlan();
+            String jobId = floorPlan.jobId();
+            jobRepository.findById(project.id(), jobId)
+                    .filter(job -> job.status() == ConversionStatus.PROCESSING)
+                    .ifPresent(job -> jobRepository.update(new FloorPlanJob(
+                    job.jobId(), job.projectId(), job.objectKey(), ConversionStatus.FAILED, job.progress(),
+                    ERROR_CODE, ERROR_MESSAGE, true, job.createdAt(), job.startedAt(), Instant.now())));
+            projectRepository.updateFloorPlanStatus(project.id(), jobId, ConversionStatus.FAILED,
+                    floorPlan.progress(), ERROR_CODE, ERROR_MESSAGE, true);
+        }
     }
 }

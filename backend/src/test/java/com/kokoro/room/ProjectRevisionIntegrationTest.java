@@ -3,19 +3,24 @@ package com.kokoro.room;
 import com.kokoro.room.project.FloorPlanJobCoordinator;
 import com.kokoro.room.project.FloorPlanJobDispatcher;
 import com.kokoro.room.project.FloorPlanJobRecovery;
+import com.kokoro.room.project.ProjectModels.RoomModel;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -32,10 +37,15 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -53,7 +63,7 @@ class ProjectRevisionIntegrationTest {
     }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
-    @Autowired JdbcTemplate jdbc;
+    @MockitoSpyBean JdbcTemplate jdbc;
     @Autowired FloorPlanJobCoordinator coordinator;
     @Autowired FloorPlanJobRecovery recovery;
     @MockitoBean FloorPlanJobDispatcher dispatcher;
@@ -119,7 +129,7 @@ class ProjectRevisionIntegrationTest {
         assertEquals(List.of(200, 200), statuses);
         JsonNode saved = read(id);
         assertRevision(saved, 2);
-        assertEquals(room(), saved.path("room"));
+        assertEquals(mapper.treeToValue(room(), RoomModel.class), mapper.treeToValue(saved.path("room"), RoomModel.class));
         assertEquals(25.25, saved.path("furniture").get(0).path("rotation").doubleValue());
     }
 
@@ -213,6 +223,125 @@ class ProjectRevisionIntegrationTest {
                 }
             }
         }
+    }
+
+    @Test
+    void recoveryDoesNotFailAnUploadStartedAfterItsLockedSnapshot() throws Exception {
+        String oldId = create();
+        String oldJob = upload(oldId);
+        String newId = create();
+        var executor = Executors.newSingleThreadExecutor();
+        try (var blocker = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            blocker.setAutoCommit(false);
+            try (var statement = blocker.prepareStatement("SELECT id FROM projects WHERE id=? FOR UPDATE")) {
+                statement.setString(1, oldId);
+                statement.executeQuery().close();
+            }
+            int blockerPid;
+            try (var statement = blocker.createStatement(); var rows = statement.executeQuery("SELECT pg_backend_pid()")) {
+                assertTrue(rows.next()); blockerPid = rows.getInt(1);
+            }
+            var recovering = executor.submit(() -> recovery.recover());
+            try {
+                // Wait for an observed database lock, not an arbitrary delay or a retry of the operation.
+                await().atMost(Duration.ofSeconds(10)).until(() -> Boolean.TRUE.equals(jdbc.queryForObject(
+                        "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ?=ANY(pg_blocking_pids(pid)))", Boolean.class, blockerPid)));
+                String newJob = upload(newId);
+                blocker.commit();
+                recovering.get(10, TimeUnit.SECONDS);
+                assertEquals("FAILED", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, oldJob));
+                assertEquals("PROCESSING", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, newJob));
+                assertEquals("PROCESSING", read(newId).path("floorPlan").path("status").asText());
+                assertRevision(read(newId), 1);
+                assertRevision(read(oldId), 2);
+            } finally { blocker.rollback(); }
+        } finally { executor.shutdownNow(); }
+    }
+
+    @Test
+    void legacyProcessingProjectWithoutJobIdCanRecoverAndUploadAgain() throws Exception {
+        String id = create();
+        // V2 introduced nullable job IDs without backfilling older PROCESSING rows.
+        jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING',floor_plan_job_id=NULL WHERE id=?", id);
+        recovery.recover();
+        assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
+        assertRevision(read(id), 1);
+        assertFalse(upload(id).isBlank());
+        assertRevision(read(id), 2);
+    }
+
+    @Test
+    void recoveryDoesNotRewriteTerminalJobHistoryFromInconsistentLegacyProject() throws Exception {
+        String id = create();
+        String job = upload(id);
+        assertTrue(coordinator.markReady(id, job));
+        Map<String, Object> terminal = jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job);
+        jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING' WHERE id=?", id);
+        recovery.recover();
+        assertEquals(terminal, jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job));
+        assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
+        assertRevision(read(id), 3);
+    }
+
+    @Test
+    void databaseFailureRollsBackRevisionAndFurnitureReplacement() throws Exception {
+        String id = create();
+        layout(id, Map.of("furniture", furniture("a")));
+        JsonNode before = read(id);
+        // Simulate a storage failure after UPDATE projects but before the furniture replacement commits.
+        jdbc.execute("CREATE FUNCTION reject_revision_test_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='storage-failure' THEN RAISE EXCEPTION 'test storage failure'; END IF; RETURN NEW; END $$");
+        jdbc.execute("CREATE TRIGGER revision_test_insert BEFORE INSERT ON furniture_items FOR EACH ROW EXECUTE FUNCTION reject_revision_test_insert()");
+        try {
+            try {
+                assertEquals(500, layout(id, Map.of("furniture", furniture("storage-failure"), "expectedRevision", 1)).getResponse().getStatus());
+            } catch (jakarta.servlet.ServletException exception) {
+                assertInstanceOf(org.springframework.dao.DataAccessException.class, exception.getCause());
+            }
+            assertEquals(before, read(id));
+        } finally {
+            jdbc.execute("DROP TRIGGER revision_test_insert ON furniture_items");
+            jdbc.execute("DROP FUNCTION reject_revision_test_insert()");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void readsDoNotMixOldRevisionWithNewFurniture(boolean list) throws Exception {
+        String id = create();
+        layout(id, Map.of("furniture", furniture("a")));
+        var selectedProject = new CountDownLatch(1);
+        var writerFinished = new CountDownLatch(1);
+        var intercepted = new AtomicBoolean();
+        org.mockito.stubbing.Answer<Object> pauseAfterProjectRead = invocation -> {
+            Object rows = invocation.callRealMethod();
+            String sql = invocation.getArgument(0);
+            if (sql.contains("FROM projects") && !sql.contains("FOR UPDATE") && intercepted.compareAndSet(false, true)) {
+                selectedProject.countDown();
+                assertTrue(writerFinished.await(10, TimeUnit.SECONDS));
+            }
+            return rows;
+        };
+        if (list) doAnswer(pauseAfterProjectRead).when(jdbc).query(anyString(), any(RowMapper.class));
+        else doAnswer(pauseAfterProjectRead).when(jdbc).query(anyString(), any(RowMapper.class), eq(id));
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            var reading = executor.submit(() -> json(mvc.perform(get(list ? "/api/projects" : "/api/projects/" + id))
+                    .andExpect(status().isOk()).andReturn()));
+            assertTrue(selectedProject.await(10, TimeUnit.SECONDS));
+            assertEquals(200, layout(id, Map.of("furniture", furniture("b"), "expectedRevision", 1)).getResponse().getStatus());
+            writerFinished.countDown();
+            JsonNode response = reading.get(10, TimeUnit.SECONDS);
+            JsonNode snapshot = response;
+            if (list) {
+                snapshot = null;
+                for (JsonNode project : response) if (project.path("id").asText().equals(id)) snapshot = project;
+                assertNotNull(snapshot);
+            }
+            assertRevision(snapshot, 1);
+            assertEquals("a", snapshot.path("furniture").get(0).path("id").asText());
+            assertRevision(read(id), 2);
+            assertEquals("b", read(id).path("furniture").get(0).path("id").asText());
+        } finally { writerFinished.countDown(); executor.shutdownNow(); }
     }
 
     private List<Integer> race(Callable<Integer> first, Callable<Integer> second) throws Exception {

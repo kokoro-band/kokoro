@@ -59,7 +59,8 @@ describe("configured API URL", () => {
       name: "ApiError",
       status: null,
       retryable: false,
-      message: expect.stringContaining("서버 주소 설정"),
+      message:
+        "서버 주소 설정을 확인해 주세요. HTTPS 주소 또는 같은 출처의 API 경로가 필요해요.",
     })
     expect(api.adapter).not.toHaveBeenCalled()
   })

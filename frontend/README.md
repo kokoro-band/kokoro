@@ -11,6 +11,16 @@ vp dev
 
 기본값은 서버 없이 사용할 수 있는 로컬 데모입니다. `VITE_API_MODE=server`와 `VITE_API_BASE_URL=http://localhost:8080/api`를 설정하면 Spring 서버에 연결됩니다.
 
+### API 주소 설정
+
+`vp dev`에서는 API 주소를 생략하면 `http://localhost:8080/api`를 사용합니다. 명시한 HTTP 주소는 `localhost`와 `127.0.0.1` 및 `[::1]`만 허용합니다. 개발 페이지가 HTTPS이면 HTTP API를 허용하지 않습니다. 다른 기기에서 LAN 서버를 연결할 때는 HTTPS 프록시를 사용하세요.
+
+빌드한 서버 연결 모드는 `VITE_API_BASE_URL`을 명시해야 합니다. `https://api.example.com/api` 같은 HTTPS 주소나 `/api` 같은 루트 상대 경로를 사용합니다. `/api`는 현재 페이지의 출처로 요청하므로 호스팅 서버에 API 프록시가 필요합니다. GitHub Pages 자체는 API 프록시를 제공하지 않으므로 현재 Pages 데모는 `VITE_API_MODE=local`을 유지합니다. 배포 사이트는 HTTPS로 제공하세요.
+
+API 경로는 ASCII 문자와 숫자 및 `._~-` 구분자만 지원합니다. 사용자 정보와 query 및 fragment가 들어간 주소와 역슬래시 및 인코딩된 경로와 `.` 또는 `..` 경로 요소는 거부합니다. query는 API 함수의 Axios `params`로 넘깁니다. 잘못된 설정은 화면을 닫는 대신 요청 시 설정 오류로 표시하며 localhost로 몰래 바꾸거나 자동 재시도하지 않습니다. 주소가 담긴 원문이나 비밀값은 오류 안내에 포함하지 않습니다.
+
+주소와 모드는 빌드 시 JavaScript에 포함됩니다. 환경 변수 변경 후 개발 서버를 다시 시작하거나 배포 파일을 다시 빌드하세요. `VITE_` 환경 변수에는 비밀값을 넣지 않습니다. 이 검사는 처음 전송할 주소를 제한하며 서버 리디렉션의 최종 도착지나 악성 스크립트를 통제하는 보안 경계는 아닙니다.
+
 검증은 아래 명령으로 실행합니다.
 
 ```bash

@@ -154,7 +154,8 @@ class ProjectInputBoundaryTest {
                     var result = mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
                                     .content(mapper.writeValueAsString(Map.of("furniture", List.of(body)))))
                             .andExpect(status().is(accepted ? 200 : 400));
-                    if (accepted) assertEquals(body, read(id).path("furniture").get(0));
+                    if (accepted) assertEquals(mapper.treeToValue(body, FurnitureItem.class),
+                            mapper.treeToValue(read(id).path("furniture").get(0), FurnitureItem.class));
                     else {
                         result.andExpect(jsonPath("$.detail").isString());
                         assertEquals(before, read(id));

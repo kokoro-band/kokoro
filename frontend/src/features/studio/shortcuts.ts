@@ -23,9 +23,9 @@ const arrows = ["arrowup", "arrowdown", "arrowleft", "arrowright"]
 
 export const shortcuts = {
   guide: { keys: ["shift+slash"], label: "단축키 보기", group: "app" },
-  viewStructure: { keys: ["1"], label: "구조 화면", group: "app" },
-  viewArrange: { keys: ["2"], label: "배치 화면", group: "app" },
-  viewSummary: { keys: ["3"], label: "내역 화면", group: "app" },
+  viewStructure: { keys: ["alt+1"], label: "구조 화면", group: "app" },
+  viewArrange: { keys: ["alt+2"], label: "배치 화면", group: "app" },
+  viewSummary: { keys: ["alt+3"], label: "내역 화면", group: "app" },
   save: { keys: ["mod+s"], label: "지금 저장", group: "app" },
   undo: { keys: ["mod+z"], label: "실행 취소", group: "app", repeat: true },
   redo: {
@@ -57,6 +57,9 @@ export const shortcuts = {
   },
 
   toggleDimension: { keys: ["v"], label: "2D와 3D 바꾸기", group: "arrange" },
+  cursorSelect: { keys: ["1"], label: "선택 도구", group: "arrange" },
+  cursorMove: { keys: ["2"], label: "가구 이동 도구", group: "arrange" },
+  cursorPan: { keys: ["3"], label: "화면 이동 도구", group: "arrange" },
   fullscreen: { keys: ["f"], label: "전체 화면", group: "arrange" },
   previousRoom: {
     keys: ["bracketleft"],

@@ -103,7 +103,7 @@ export function FurnitureInspector({
         </div>
         <Type variant="caption" as="p" role="status">
           {adjusted
-            ? `${roomName ?? "집"} 밖으로는 옮길 수 없어서 가장 가까운 안쪽 자리에 두었어요.`
+            ? `${roomName ?? "집"}의 벽이나 경계에 닿아 들어갈 수 있는 위치에 맞췄어요.`
             : "평면도 왼쪽 위 모서리에서 잰 거리예요."}
         </Type>
       </section>

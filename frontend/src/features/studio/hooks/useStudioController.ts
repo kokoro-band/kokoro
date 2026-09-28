@@ -29,8 +29,13 @@ import {
   WriteSkippedError,
 } from "@/features/studio/project-write-queue"
 import { withObjectParticle } from "@/features/studio/format"
+import {
+  constrainFurniturePose,
+  findFurniturePlacement,
+} from "@/features/studio/furniture-motion"
 import type {
   RoomModel,
+  RoomLabel,
   Category,
   ChatMessage,
   Furniture,
@@ -360,23 +365,46 @@ export function useStudioController() {
     setSelectedId(id)
   }, [])
 
-  const previewFurniture = useCallback(
-    function previewFurniture(id: string, update: Partial<Furniture>) {
-      transientBaseRef.current ??= projectRef.current.furniture
-      setDraft({
-        ...projectRef.current,
-        furniture: projectRef.current.furniture.map((item) =>
-          item.id === id ? { ...item, ...update } : item
-        ),
-      })
-      setDirty(true)
-    },
-    [setDraft]
-  )
+  const previewFurniture = useCallback(function previewFurniture(
+    id: string,
+    update: Partial<Furniture>,
+    focus?: RoomLabel | null
+  ) {
+    const current = projectRef.current.furniture.find((item) => item.id === id)
+    if (!current) return false
+    const next = constrainFurniturePose(
+      projectRef.current,
+      current,
+      update,
+      focus
+    )
+    if (
+      next.x === current.x &&
+      next.z === current.z &&
+      next.rotation === current.rotation
+    )
+      return false
+    transientBaseRef.current ??= projectRef.current.furniture
+    const updated = {
+      ...projectRef.current,
+      furniture: projectRef.current.furniture.map((item) =>
+        item.id === id ? next : item
+      ),
+    }
+    projectRef.current = updated
+    setProject(updated)
+    setDirty(true)
+    return true
+  }, [])
 
   const moveFurniture = useCallback(
-    function moveFurniture(id: string, x: number, z: number) {
-      previewFurniture(id, { x, z })
+    function moveFurniture(
+      id: string,
+      x: number,
+      z: number,
+      focus?: RoomLabel | null
+    ) {
+      return previewFurniture(id, { x, z }, focus)
     },
     [previewFurniture]
   )
@@ -396,12 +424,32 @@ export function useStudioController() {
     [persistLayout, syncSaveState]
   )
 
-  function updateSelected(update: Partial<Furniture>) {
+  function updateSelected(
+    update: Partial<Furniture>,
+    focus?: RoomLabel | null
+  ) {
+    const current = projectRef.current.furniture.find(
+      (item) => item.id === selectedId
+    )
+    if (!current) return null
+    const next = constrainFurniturePose(
+      projectRef.current,
+      current,
+      update,
+      focus
+    )
+    if (
+      next.x === current.x &&
+      next.z === current.z &&
+      next.rotation === current.rotation
+    )
+      return current
     commitFurniture(
-      project.furniture.map((item) =>
-        item.id === selectedId ? { ...item, ...update } : item
+      projectRef.current.furniture.map((item) =>
+        item.id === selectedId ? next : item
       )
     )
+    return next
   }
 
   function deleteSelected() {
@@ -409,7 +457,11 @@ export function useStudioController() {
     setSelectedId(null)
   }
 
-  function addFurniture(catalogId: string, position?: [number, number]) {
+  function addFurniture(
+    catalogId: string,
+    position?: [number, number],
+    focus?: RoomLabel | null
+  ) {
     const step = project.furniture.length
     const item = makeFurniture(
       catalogId,
@@ -420,7 +472,12 @@ export function useStudioController() {
         ? round(position[1])
         : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
-    commitFurniture([...project.furniture, item])
+    const placed = findFurniturePlacement(projectRef.current, item, focus)
+    if (!placed) {
+      setNotice("이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.", "critical")
+      return
+    }
+    commitFurniture([...projectRef.current.furniture, placed])
     setSelectedId(item.id)
     setNotice(`${withObjectParticle(item.name)} 놓았어요.`)
   }
@@ -784,8 +841,9 @@ export function useStudioController() {
       setNotice("전체 화면으로 바꾸지 못했어요.", "critical"),
     selectFurniture,
     moveFurniture,
-    previewSelected: (update: Partial<Furniture>) => {
-      if (selectedId) previewFurniture(selectedId, update)
+    previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
+      if (selectedId) return previewFurniture(selectedId, update, focus)
+      return false
     },
     commitPreview,
     setInput,

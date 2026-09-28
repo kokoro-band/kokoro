@@ -4,12 +4,12 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
-import { containsPoint, roomCenter } from "./house-navigation"
+import { roomCenter } from "./house-navigation"
 import { upgradeFurnitureModel } from "./furniture-models"
 import { addBox, makeFallbackModel } from "./furniture-fallback"
 import {
-  isInsideRoom,
   animateDoors,
+  setManualDoorStates,
   buildRoomGroup,
   createWalkableTest,
   roomSpawnPoint,
@@ -18,6 +18,11 @@ import {
 import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
 import { createVrLocomotion } from "./vr-locomotion"
+import {
+  bindSceneInteraction,
+  type CursorTool,
+  type SceneHit,
+} from "./scene-interaction"
 
 type Bounds = { width: number; depth: number }
 
@@ -43,57 +48,59 @@ type SceneRuntime = {
   scene: THREE.Scene
   furnitureGroup: THREE.Group
   bounds: Bounds
+  interaction: ReturnType<typeof bindSceneInteraction> | null
+  doors: DoorState[]
+  doorHighlights: Map<string, THREE.BoxHelper>
 }
 
 type Props = {
   furniture: Furniture[]
   selectedId: string | null
   mode: ViewMode
+  tool: CursorTool
   room?: RoomModel
   focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
-  onMove: (id: string, x: number, z: number) => void
+  onMove: (
+    id: string,
+    x: number,
+    z: number,
+    focus?: RoomLabel | null
+  ) => boolean
   onMoveEnd: () => void
+  doorStates: Record<string, boolean>
+  highlightedDoorId: string | null
+  onDoorChange: (id: string, open: boolean) => void
   /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
   xrEntryContainer?: RefObject<HTMLElement | null>
+}
+
+function setDoorHighlight(
+  highlights: Map<string, THREE.BoxHelper>,
+  id: string | null
+) {
+  for (const [doorId, helper] of highlights) helper.visible = doorId === id
 }
 
 function makeFurnitureModel(item: Furniture, bounds: Bounds) {
   const group = new THREE.Group()
   const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
-  group.add(makeFallbackModel(item, catalogItem))
+  const fallback = makeFallbackModel(item, catalogItem)
+  if (catalogItem) {
+    const box = new THREE.Box3().setFromObject(fallback)
+    const size = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
+    const sx = size.x > 0 ? catalogItem.width / size.x : 1
+    const sz = size.z > 0 ? catalogItem.depth / size.z : 1
+    fallback.scale.set(sx, 1, sz)
+    fallback.position.set(-center.x * sx, 0, -center.z * sz)
+  }
+  group.add(fallback)
   group.userData.furnitureId = item.id
   group.position.set(item.x - bounds.width / 2, 0, item.z - bounds.depth / 2)
-  group.rotation.y = THREE.MathUtils.degToRad(item.rotation)
+  // Stored positive angles use the same X/Z axes as the placement validator.
+  group.rotation.y = -THREE.MathUtils.degToRad(item.rotation)
   return { group, catalogItem }
-}
-
-function placementAt(
-  point: THREE.Vector3,
-  bounds: Bounds,
-  room?: RoomModel,
-  focusRoom?: RoomLabel | null
-): [x: number, z: number] | null {
-  const margin = 0.2
-  const worldX = THREE.MathUtils.clamp(
-    point.x,
-    margin - bounds.width / 2,
-    bounds.width / 2 - margin
-  )
-  const worldZ = THREE.MathUtils.clamp(
-    point.z,
-    margin - bounds.depth / 2,
-    bounds.depth / 2 - margin
-  )
-  if (room && !isInsideRoom(room, worldX, worldZ)) return null
-  const x = round(worldX + bounds.width / 2)
-  const z = round(worldZ + bounds.depth / 2)
-  if (focusRoom && !containsPoint(focusRoom.polygon, x, z)) return null
-  return [x, z]
-}
-
-function round(value: number) {
-  return Math.round(value * 100) / 100
 }
 
 function disposeGroup(group: THREE.Group) {
@@ -113,15 +120,20 @@ export function RoomScene({
   furniture,
   selectedId,
   mode,
+  tool,
   room,
   focusRoom,
   onSelect,
   onMove,
   onMoveEnd,
+  doorStates,
+  highlightedDoorId,
+  onDoorChange,
   xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<SceneRuntime | null>(null)
+  const doorAnglesRef = useRef(new Map<string, number>())
 
   useEffect(
     function initializeRoomRenderer() {
@@ -177,10 +189,15 @@ export function RoomScene({
       )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(centerX, 0.25, centerZ)
-      // 움직임을 줄이도록 설정했다면 손을 뗀 뒤 카메라가 미끄러지지 않게 합니다.
-      controls.enableDamping = !window.matchMedia(
-        "(prefers-reduced-motion: reduce)"
-      ).matches
+      // An editor must stop with the pointer. Inertia must not resume after
+      // changing from furniture editing back to camera movement.
+      controls.enableDamping = false
+      if (mode !== "vr") {
+        controls.mouseButtons.LEFT = THREE.MOUSE.PAN
+        controls.mouseButtons.RIGHT =
+          mode === "2d" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE
+        controls.touches.ONE = THREE.TOUCH.PAN
+      }
       controls.maxPolarAngle = Math.PI / 2.15
       controls.minDistance = Math.max(2, 4 * focusScale)
       controls.maxDistance = 16 * scale
@@ -205,7 +222,7 @@ export function RoomScene({
 
       let roomGroup: THREE.Group
       if (room) {
-        roomGroup = buildRoomGroup(room, mode)
+        roomGroup = buildRoomGroup(room, mode, doorAnglesRef.current)
       } else {
         roomGroup = new THREE.Group()
         addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], sceneColors.floor)
@@ -249,17 +266,24 @@ export function RoomScene({
         roomGroup.add(grid)
       }
       scene.add(roomGroup)
+      const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
+      const doorHighlights = new Map<string, THREE.BoxHelper>()
+      for (const door of doors) {
+        const helper = new THREE.BoxHelper(door.local, sceneColors.selection)
+        helper.material.depthTest = false
+        helper.renderOrder = 10
+        helper.visible = false
+        scene.add(helper)
+        doorHighlights.set(door.id, helper)
+      }
 
       const furnitureGroup = new THREE.Group()
       scene.add(furnitureGroup)
-      runtimeRef.current = { renderer, scene, furnitureGroup, bounds }
 
       const raycaster = new THREE.Raycaster()
       const pointer = new THREE.Vector2()
       const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
       const hitPoint = new THREE.Vector3()
-      let draggingId: string | null = null
-      let furnitureMoved = false
 
       function identifyFurniture(object: THREE.Object3D): string | null {
         let current: THREE.Object3D | null = object
@@ -280,42 +304,94 @@ export function RoomScene({
         raycaster.setFromCamera(pointer, camera)
       }
 
-      function selectFurniture(event: PointerEvent) {
-        if (event.button !== 0) return
-        setPointerRay(event)
-        const hit = raycaster.intersectObjects(furnitureGroup.children, true)[0]
+      function pickScene(): SceneHit | null {
+        // Selection BoxHelpers are not furniture and must not mask a model hit.
+        const hit = raycaster
+          .intersectObjects(
+            [...furnitureGroup.children, ...doors.map((door) => door.local)],
+            true
+          )
+          .find(
+            (entry) =>
+              identifyFurniture(entry.object) || identifyDoor(entry.object)
+          )
+        const doorId = hit ? identifyDoor(hit.object) : null
+        if (doorId) return { kind: "door", id: doorId }
         const id = hit ? identifyFurniture(hit.object) : null
-        if (id) {
-          draggingId = id
-          furnitureMoved = false
-          controls.enabled = false
-          onSelect(id)
-          renderer.domElement.setPointerCapture(event.pointerId)
-        }
+        const model = furnitureGroup.children.find(
+          (entry) => entry.userData.furnitureId === id
+        )
+        return id && model
+          ? {
+              id,
+              center: [model.position.x, model.position.z] as [number, number],
+            }
+          : null
       }
 
-      function moveFurniture(event: PointerEvent) {
-        if (!draggingId) return
+      function identifyDoor(object: THREE.Object3D): string | null {
+        let current: THREE.Object3D | null = object
+        while (current) {
+          if (current.userData.doorId) return current.userData.doorId as string
+          current = current.parent
+        }
+        return null
+      }
+
+      function toggleDoor(id: string) {
+        const door = doors.find((entry) => entry.id === id)
+        if (door)
+          onDoorChange(id, !(door.manualOpen ?? door.openTarget !== null))
+      }
+
+      function pointAt(event: PointerEvent): [number, number] | null {
         setPointerRay(event)
-        if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
-          const placement = placementAt(hitPoint, bounds, room, focusRoom)
-          if (!placement) return
-          furnitureMoved = true
-          onMove(draggingId, ...placement)
-        }
+        return raycaster.ray.intersectPlane(floorPlane, hitPoint)
+          ? [hitPoint.x, hitPoint.z]
+          : null
       }
 
-      function releaseFurniture() {
-        if (draggingId && furnitureMoved) onMoveEnd()
-        draggingId = null
-        furnitureMoved = false
-        controls.enabled = true
+      const interaction =
+        mode === "vr"
+          ? null
+          : bindSceneInteraction({
+              element: renderer.domElement,
+              // The synchronization effect below applies the current tool, including
+              // when a new room renderer is mounted. Tool changes never recreate it.
+              initialTool: "move",
+              pick(event) {
+                setPointerRay(event)
+                return pickScene()
+              },
+              pointAt,
+              onSelect,
+              onToggleDoor: toggleDoor,
+              onMove(id, [x, z]) {
+                return onMove(
+                  id,
+                  x + bounds.width / 2,
+                  z + bounds.depth / 2,
+                  focusRoom
+                )
+              },
+              onCommit: onMoveEnd,
+              setCameraEnabled(enabled) {
+                controls.enabled = enabled
+              },
+              resetCameraGesture() {
+                controls.disconnect()
+                controls.connect(renderer.domElement)
+              },
+            })
+      runtimeRef.current = {
+        renderer,
+        scene,
+        furnitureGroup,
+        bounds,
+        interaction,
+        doors,
+        doorHighlights,
       }
-
-      renderer.domElement.addEventListener("pointerdown", selectFurniture)
-      renderer.domElement.addEventListener("pointermove", moveFurniture)
-      renderer.domElement.addEventListener("pointerup", releaseFurniture)
-      renderer.domElement.addEventListener("pointercancel", releaseFurniture)
 
       let vrButton: HTMLElement | null = null
       let stopLocalizingVrEntry: (() => void) | null = null
@@ -323,18 +399,27 @@ export function RoomScene({
       let xrSelectedId: string | null = null
       function grabInVr(ray: THREE.Ray) {
         raycaster.ray.copy(ray)
-        const hit = raycaster.intersectObjects(furnitureGroup.children, true)[0]
-        xrSelectedId = hit ? identifyFurniture(hit.object) : null
+        const hit = pickScene()
+        if (hit?.kind === "door") {
+          toggleDoor(hit.id)
+          xrSelectedId = null
+          return true
+        }
+        xrSelectedId = hit?.id ?? null
         if (xrSelectedId) onSelect(xrSelectedId)
         return xrSelectedId !== null
       }
       function placeInVr(ray: THREE.Ray) {
         if (!xrSelectedId) return false
-        const placement = ray.intersectPlane(floorPlane, hitPoint)
-          ? placementAt(hitPoint, bounds, room, focusRoom)
-          : null
-        if (placement) {
-          onMove(xrSelectedId, ...placement)
+        if (
+          ray.intersectPlane(floorPlane, hitPoint) &&
+          onMove(
+            xrSelectedId,
+            hitPoint.x + bounds.width / 2,
+            hitPoint.z + bounds.depth / 2,
+            focusRoom
+          )
+        ) {
           onMoveEnd()
         }
         xrSelectedId = null
@@ -355,7 +440,7 @@ export function RoomScene({
               ? roomSpawnPoint(room)
               : new THREE.Vector3(),
           isWalkable: room
-            ? createWalkableTest(room)
+            ? createWalkableTest(room, doors)
             : (x, z) =>
                 Math.abs(x) < bounds.width / 2 &&
                 Math.abs(z) < bounds.depth / 2,
@@ -374,33 +459,40 @@ export function RoomScene({
       observer.observe(host)
       const doorClock = new THREE.Clock()
       const headPosition = new THREE.Vector3()
-      const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
       renderer.setAnimationLoop(function renderRoomFrame() {
         const deltaSeconds = Math.min(doorClock.getDelta(), 0.1)
         if (renderer.xr.isPresenting) {
           locomotion?.update()
           camera.getWorldPosition(headPosition)
-          animateDoors(doors, headPosition, deltaSeconds)
-        } else {
+        } else if (controls.enabled) {
           controls.update()
+        }
+        animateDoors(
+          doors,
+          renderer.xr.isPresenting ? headPosition : null,
+          deltaSeconds
+        )
+        for (const helper of doorHighlights.values()) {
+          if (helper.visible) helper.update()
         }
         renderer.render(scene, camera)
       })
 
       return function disposeRoomRenderer() {
+        doorAnglesRef.current = new Map(
+          doors.map((door) => [door.id, door.angle])
+        )
         observer.disconnect()
         renderer.setAnimationLoop(null)
-        renderer.domElement.removeEventListener("pointerdown", selectFurniture)
-        renderer.domElement.removeEventListener("pointermove", moveFurniture)
-        renderer.domElement.removeEventListener("pointerup", releaseFurniture)
-        renderer.domElement.removeEventListener(
-          "pointercancel",
-          releaseFurniture
-        )
+        interaction?.dispose()
         locomotion?.dispose()
         controls.dispose()
         disposeGroup(roomGroup)
         disposeGroup(furnitureGroup)
+        for (const helper of doorHighlights.values()) {
+          helper.geometry.dispose()
+          helper.material.dispose()
+        }
         renderer.dispose()
         renderer.domElement.remove()
         stopLocalizingVrEntry?.()
@@ -408,7 +500,68 @@ export function RoomScene({
         runtimeRef.current = null
       }
     },
-    [mode, room, focusRoom, onMove, onMoveEnd, onSelect, xrEntryContainer]
+    [
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
+  )
+
+  useEffect(
+    function synchronizeDoorStates() {
+      setManualDoorStates(runtimeRef.current?.doors ?? [], doorStates)
+    },
+    [
+      doorStates,
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
+  )
+
+  useEffect(
+    function synchronizeDoorHighlight() {
+      const highlights = runtimeRef.current?.doorHighlights
+      if (highlights) setDoorHighlight(highlights, highlightedDoorId)
+    },
+    [
+      highlightedDoorId,
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
+  )
+
+  useEffect(
+    function synchronizeCursorTool() {
+      runtimeRef.current?.interaction?.setTool(tool)
+    },
+    [
+      tool,
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
   )
 
   useEffect(
@@ -436,7 +589,18 @@ export function RoomScene({
         )
       })
     },
-    [furniture, selectedId, mode, room, focusRoom, onMove, onMoveEnd, onSelect]
+    [
+      furniture,
+      selectedId,
+      mode,
+      room,
+      focusRoom,
+      onMove,
+      onMoveEnd,
+      onSelect,
+      onDoorChange,
+      xrEntryContainer,
+    ]
   )
 
   return (

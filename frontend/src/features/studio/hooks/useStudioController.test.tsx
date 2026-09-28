@@ -119,13 +119,32 @@ describe("useStudioController project switching", () => {
       ...structuredClone(projectA),
       dimensions: { width: 6, depth: 6, height: 2.4 },
       room: {
-        version: 2, unit: "m", wallHeight: 2.4,
+        version: 2,
+        unit: "m",
+        wallHeight: 2.4,
         bounds: { width: 6, depth: 6 },
-        outline: [[0, 0], [6, 0], [6, 6], [0, 6]],
+        outline: [
+          [0, 0],
+          [6, 0],
+          [6, 6],
+          [0, 6],
+        ],
         walls: [{ id: "divider", a: [3, 0], b: [3, 6], thickness: 0.2 }],
-        openings: [], rooms: [],
+        openings: [],
+        rooms: [],
       },
-      furniture: [{ id: "chair", catalogId: "chair-shell", name: "의자", category: "의자", x: 1, z: 2, rotation: 0, color: "#000" }],
+      furniture: [
+        {
+          id: "chair",
+          catalogId: "chair-shell",
+          name: "의자",
+          category: "의자",
+          x: 1,
+          z: 2,
+          rotation: 0,
+          color: "#000",
+        },
+      ],
     }
     const app = await setup(initial)
     act(() => {

@@ -157,7 +157,7 @@ export function CommandConfirmationDialog({
             )}
             {!isServerMode && (
               <Type variant="caption" as="p">
-                로컬 예제 처리입니다. 서버 검증은 적용되지 않아요.
+                체험용 제안이에요. 적용할 내용을 확인해 주세요.
               </Type>
             )}
           </ContentDialog.Body>

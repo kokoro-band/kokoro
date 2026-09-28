@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
+import { ApiError } from "@/lib/http-client"
 
 import { sampleProject } from "../data"
 import type { Project } from "../types"
@@ -47,6 +48,8 @@ vi.mock("@/features/studio/project-api", async (importOriginal) => ({
   getProject: server.fake("getProject"),
   saveProject: server.fake("saveProject"),
   createProject: server.fake("createProject"),
+  uploadPlan: server.fake("uploadPlan"),
+  saveRoom: server.fake("saveRoom"),
 }))
 
 const projectA: Project = structuredClone(sampleProject)
@@ -67,6 +70,12 @@ async function flush() {
   })
 }
 
+const cleanups: (() => void)[] = []
+afterEach(() => {
+  for (const cleanup of cleanups.splice(0)) cleanup()
+  vi.restoreAllMocks()
+})
+
 async function setup() {
   const result: { current?: ReturnType<typeof useStudioController> } = {}
   function Harness() {
@@ -74,9 +83,18 @@ async function setup() {
     return null
   }
   const root = createRoot(document.createElement("div"))
+  const client = new QueryClient()
+  let mounted = true
+  const unmount = () => {
+    if (!mounted) return
+    act(() => root.unmount())
+    client.clear()
+    mounted = false
+  }
+  cleanups.push(unmount)
   act(() =>
     root.render(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={client}>
         <Harness />
       </QueryClientProvider>
     )
@@ -86,7 +104,7 @@ async function setup() {
   await flush()
   return {
     get: () => result.current!,
-    unmount: () => act(() => root.unmount()),
+    unmount,
   }
 }
 
@@ -96,6 +114,53 @@ beforeEach(() => {
 })
 
 describe("useStudioController project switching", () => {
+  it("does not restore an old snapshot while a newer save is in flight", async () => {
+    const app = await setup()
+    act(() => app.get().addFurniture("sofa-cloud"))
+    await flush()
+    calls("saveProject")[0].reject(new ApiError("거부", 400, false))
+    await flush()
+    expect(app.get().saveRejected).toBe(true)
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    const draft = app.get().project.furniture
+    expect(calls("saveProject")).toHaveLength(2)
+    act(() => app.get().restoreSavedProject())
+    expect(app.get().project.furniture).toEqual(draft)
+    calls("saveProject")[1].resolve(calls("saveProject")[1].arg)
+    await flush()
+    expect(app.get().project.furniture).toEqual(draft)
+    expect(app.get().dirty).toBe(false)
+  })
+
+  it("keeps a newer room when an older upload status read completes", async () => {
+    const app = await setup()
+    const uploaded = {
+      ...structuredClone(projectA),
+      floorPlan: { ...projectA.floorPlan, status: "PROCESSING", progress: 50 },
+    }
+    act(() => app.get().uploadFloorPlan(new window.File(["plan"], "plan.png", { type: "image/png" })))
+    await act(async () => {
+      await vi.waitFor(() => expect(calls("uploadPlan")).toHaveLength(1))
+    })
+    calls("uploadPlan")[0].resolve(uploaded)
+    await flush()
+    await act(async () => {
+      await vi.waitFor(() => expect(calls("getProject")).toHaveLength(2))
+    })
+    const room = { ...structuredClone(projectA.room!), wallHeight: 3.1 }
+    let applying!: Promise<boolean>
+    act(() => { applying = app.get().applyRoom(room) })
+    await flush()
+    expect(calls("saveRoom")).toHaveLength(1)
+    calls("saveRoom")[0].resolve({ ...uploaded, room })
+    await flush()
+    await expect(applying).resolves.toBe(true)
+    calls("getProject")[1].resolve({ ...uploaded, floorPlan: { ...uploaded.floorPlan, status: "READY", progress: 100 } })
+    await flush()
+    expect(app.get().project.room).toEqual(room)
+    expect(app.get().project.floorPlan.status).toBe("READY")
+  })
   it("reloads A only after A's earlier save finishes, even after visiting B", async () => {
     const app = await setup()
     expect(app.get().project.id).toBe(projectA.id)

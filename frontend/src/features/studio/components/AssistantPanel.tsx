@@ -11,8 +11,13 @@ import { ProgressCircle } from "seed-design/ui/progress-circle"
 import { TextField, TextFieldTextarea } from "seed-design/ui/text-field"
 
 import { Type } from "@/components/kokoro/Type"
+import { catalog } from "@/features/studio/data"
 import { isServerMode } from "@/features/studio/project-api"
-import type { ChatMessage } from "@/features/studio/types"
+import type {
+  ChatCommandResponse,
+  ChatMessage,
+  Furniture,
+} from "@/features/studio/types"
 
 const suggestions = [
   "미니멀한 거실로 꾸며줘",
@@ -30,6 +35,8 @@ export function AssistantPanel({
   onSend,
   inputRef,
   autoFocus = false,
+  pendingCommand,
+  furniture,
 }: {
   messages: ChatMessage[]
   input: string
@@ -41,6 +48,8 @@ export function AssistantPanel({
   inputRef?: Ref<HTMLTextAreaElement>
   /** 모바일 시트처럼 패널을 열자마자 입력하게 할 때 */
   autoFocus?: boolean
+  pendingCommand?: ChatCommandResponse | null
+  furniture?: Furniture[]
 }) {
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -96,6 +105,24 @@ export function AssistantPanel({
           <div className="assistant-message is-assistant loading-row">
             <ProgressCircle size="24" />
             <Type variant="description">배치를 고민하고 있어요</Type>
+          </div>
+        )}
+        {pendingCommand && (
+          <div className="assistant-message is-assistant" role="status">
+            <Type variant="label" as="p">
+              확인 대기 중
+            </Type>
+            <Type variant="description" as="p">
+              {pendingCommand.candidates.length
+                ? `대상 선택: ${pendingCommand.candidates.map((candidate) => candidate.name).join(", ")}`
+                : pendingCommand.proposedCommands
+                    .map((command) =>
+                      command.type === "CLEAR"
+                        ? "모든 가구 삭제"
+                        : `${furniture?.find((item) => item.id === command.furnitureId)?.name ?? catalog.find((item) => item.id === command.catalogId)?.name ?? "가구"} ${command.type === "REMOVE" ? "삭제" : command.type === "MOVE" ? "이동" : command.type === "ROTATE" ? "회전" : "추가"}`
+                    )
+                    .join(", ")}
+            </Type>
           </div>
         )}
       </div>

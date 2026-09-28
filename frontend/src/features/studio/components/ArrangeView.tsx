@@ -29,6 +29,7 @@ import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
 
 import { AssistantPanel } from "./AssistantPanel"
+import { CommandConfirmationDialog } from "./CommandConfirmationDialog"
 import { FurnitureInspector } from "./FurnitureInspector"
 import { HouseMap } from "./HouseMap"
 import { RoomNavigator } from "./RoomNavigator"
@@ -310,6 +311,22 @@ export function ArrangeView({
       onSend={send}
       inputRef={assistantInputRef}
       autoFocus={isMobile}
+      pendingCommand={studio.pendingCommand?.response}
+      furniture={studio.project.furniture}
+    />
+  )
+
+  const commandDialog = (
+    <CommandConfirmationDialog
+      response={studio.pendingCommand?.response ?? null}
+      furniture={studio.project.furniture}
+      stale={studio.commandStale}
+      error={studio.confirmationError}
+      confirming={studio.confirmingCommand}
+      onCancel={studio.cancelCommand}
+      onConfirm={studio.confirmPendingCommand}
+      onChoose={studio.chooseCommandTarget}
+      inputRef={assistantInputRef}
     />
   )
 
@@ -430,12 +447,14 @@ export function ArrangeView({
             </BottomSheet.Content>
           </BottomSheet.Positioner>
         </BottomSheet.Root>
+        {commandDialog}
       </div>
     )
   }
 
   return (
     <div className="arrange">
+      {commandDialog}
       <aside
         ref={navigatorRef}
         className="arrange-navigator"

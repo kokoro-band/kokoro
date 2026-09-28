@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { ApiError } from "@/lib/http-client"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/features/studio/project-api"
 import {
   createProjectMutationOptions,
+  confirmCommandMutationOptions,
   executeProjectMutation,
   projectQueryOptions,
   saveProjectMutationOptions,
@@ -31,6 +33,7 @@ import {
 import { withObjectParticle } from "@/features/studio/format"
 import type {
   RoomModel,
+  ChatCommandResponse,
   Category,
   ChatMessage,
   Furniture,
@@ -49,6 +52,14 @@ export type Notice = {
 }
 
 type SaveError = "network" | "rejected"
+
+type PendingCommand = {
+  message: string
+  focus?: Point2[]
+  response: ChatCommandResponse
+  projectId: string
+  revision: number
+}
 
 /** Wait this long without another notice before announcing an autosave. */
 const autosaveNoticeQuietMs = 45_000
@@ -80,6 +91,17 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(
+    null
+  )
+  const [confirmingCommand, setConfirmingCommand] = useState(false)
+  const [confirmationError, setConfirmationError] = useState<string | null>(
+    null
+  )
+  const [confirmationConflict, setConfirmationConflict] = useState(false)
+  const commandInFlightRef = useRef(false)
+  const revisionRef = useRef(0)
+  const [revision, setRevision] = useState(0)
   const [input, setInput] = useState("")
   const [notice, setNoticeState] = useState<Notice | null>(null)
   const noticeIdRef = useRef(0)
@@ -129,6 +151,8 @@ export function useStudioController() {
   const dismissNotice = useCallback(() => setNotice(""), [setNotice])
 
   const setDraft = useCallback(function setDraft(next: Project) {
+    revisionRef.current += 1
+    setRevision(revisionRef.current)
     projectRef.current = next
     setProject(next)
   }, [])
@@ -215,6 +239,9 @@ export function useStudioController() {
 
   const openProject = useCallback(
     function openProject(saved: Project) {
+      setPendingCommand(null)
+      setConfirmationError(null)
+      setConfirmationConflict(false)
       queueRef.current = makeQueue(saved, closingFor(saved.id))
       layoutPromiseRef.current = null
       transientBaseRef.current = null
@@ -305,6 +332,8 @@ export function useStudioController() {
   const loadServerProject = useCallback(
     async function loadServerProject(projectId: string) {
       const navigation = (navigationRef.current += 1)
+      setPendingCommand(null)
+      setConfirmationError(null)
       activeProjectIdRef.current = projectId
       setProjectLoad({ status: "loading", message: "" })
       void closeQueue()
@@ -473,22 +502,39 @@ export function useStudioController() {
     setNotice("마지막으로 저장한 배치로 되돌렸어요.")
   }
 
-  async function handleChat(text: string, focus?: Point2[]) {
-    if (!text.trim() || busy) return
+  async function handleChat(
+    text: string,
+    focus?: Point2[],
+    furnitureId?: string
+  ) {
+    if (!text.trim() || busy || commandInFlightRef.current) return
     const queue = currentQueue()
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", text },
-    ])
+    const baseRevision = revisionRef.current
+    commandInFlightRef.current = true
+    if (!furnitureId)
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "user", text },
+      ])
+    setPendingCommand(null)
+    setConfirmationError(null)
+    setConfirmationConflict(false)
     setInput("")
     setBusy("chat")
     try {
-      const reply = await queue.run("command", async (saved) => {
+      const response = await queue.run("command", async (saved) => {
         const response = await executeProjectMutation(
           queryClient,
           sendCommandMutationOptions(queryClient, saved.id),
-          { project: saved, message: text, focus }
+          { project: saved, message: text, focus, furnitureId }
         )
+        if (
+          response.requiresConfirmation ||
+          response.candidates.length ||
+          !response.appliedActions.length
+        ) {
+          return { project: saved, result: response }
+        }
         const result = isServerMode
           ? response.project
           : await executeProjectMutation(
@@ -501,20 +547,39 @@ export function useStudioController() {
             mergeFurniture(saved.furniture, result.furniture, furniture)
           queue.rebasePendingLayouts(rebase)
           const draft = projectRef.current
-          setPast((history) => [...history.slice(-29), draft.furniture])
-          setFuture([])
-          setDraft({
-            ...draft,
-            furniture: rebase(draft.furniture),
-            updatedAt: result.updatedAt,
-          })
+          const next = rebase(draft.furniture)
+          if (!sameFurniture(draft.furniture, next)) {
+            setPast((history) => [...history.slice(-29), draft.furniture])
+            setFuture([])
+            setDraft({ ...draft, furniture: next, updatedAt: result.updatedAt })
+          }
         }
-        return { project: result, result: response.reply }
+        return { project: result, result: response }
       })
       if (!isCurrent(queue)) return
+      if (response.requiresConfirmation || response.candidates.length) {
+        if (revisionRef.current !== baseRevision) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              text: "배치가 바뀌었어요. 명령을 다시 요청해 주세요.",
+            },
+          ])
+          return
+        }
+        setPendingCommand({
+          message: text,
+          focus,
+          response,
+          projectId: queue.projectId,
+          revision: baseRevision,
+        })
+      }
       setMessages((current) => [
         ...current,
-        { id: crypto.randomUUID(), role: "assistant", text: reply },
+        { id: crypto.randomUUID(), role: "assistant", text: response.reply },
       ])
     } catch (error) {
       if (!isCurrent(queue)) return
@@ -531,7 +596,104 @@ export function useStudioController() {
         },
       ])
     } finally {
+      commandInFlightRef.current = false
       setBusy(null)
+    }
+  }
+
+  function cancelCommand() {
+    if (commandInFlightRef.current) return
+    setPendingCommand(null)
+    setConfirmationError(null)
+    setConfirmationConflict(false)
+  }
+
+  function chooseCommandTarget(furnitureId: string) {
+    const pending = pendingCommand
+    if (
+      !pending ||
+      pending.response.candidates.length === 0 ||
+      confirmationConflict ||
+      pending.projectId !== projectRef.current.id ||
+      pending.revision !== revisionRef.current
+    )
+      return
+    void handleChat(pending.message, pending.focus, furnitureId)
+  }
+
+  async function confirmPendingCommand() {
+    const pending = pendingCommand
+    const proposalId = pending?.response.proposalId
+    if (
+      !pending ||
+      !proposalId ||
+      commandInFlightRef.current ||
+      confirmationConflict ||
+      pending.projectId !== projectRef.current.id ||
+      pending.revision !== revisionRef.current
+    )
+      return
+    const queue = currentQueue()
+    commandInFlightRef.current = true
+    setConfirmingCommand(true)
+    setConfirmationError(null)
+    try {
+      const response = await queue.run("command-confirm", async (saved) => {
+        // A queued edit after preview also makes the proposal stale.
+        if (
+          pending.revision !== revisionRef.current ||
+          queue.projectId !== pending.projectId
+        ) {
+          throw new Error("배치가 바뀌었어요. 명령을 다시 요청해 주세요.")
+        }
+        const response = await executeProjectMutation(
+          queryClient,
+          confirmCommandMutationOptions(queryClient, saved.id),
+          proposalId
+        )
+        if (sameFurniture(saved.furniture, response.project.furniture)) {
+          return { project: response.project, result: response }
+        }
+        const result = isServerMode
+          ? response.project
+          : await executeProjectMutation(
+              queryClient,
+              saveProjectMutationOptions(queryClient, saved.id),
+              response.project
+            )
+        if (isCurrent(queue)) {
+          const draft = projectRef.current
+          const rebase = (furniture: Furniture[]) =>
+            mergeFurniture(saved.furniture, result.furniture, furniture)
+          queue.rebasePendingLayouts(rebase)
+          const next = rebase(draft.furniture)
+          if (!sameFurniture(draft.furniture, next)) {
+            setPast((history) => [...history.slice(-29), draft.furniture])
+            setFuture([])
+            setDraft({ ...draft, furniture: next, updatedAt: result.updatedAt })
+          }
+        }
+        return { project: result, result: response }
+      })
+      if (!isCurrent(queue)) return
+      setPendingCommand(null)
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "assistant", text: response.reply },
+      ])
+    } catch (error) {
+      if (!isCurrent(queue)) return
+      setConfirmationConflict(error instanceof ApiError && error.status === 409)
+      setConfirmationError(
+        error instanceof ApiError && error.status === 409
+          ? "제안이 만료되었거나 배치가 바뀌었어요. 명령을 다시 요청해 주세요."
+          : error instanceof Error
+            ? error.message
+            : "확인하지 못했어요. 다시 시도해 주세요."
+      )
+    } finally {
+      commandInFlightRef.current = false
+      setConfirmingCommand(false)
     }
   }
 
@@ -751,6 +913,15 @@ export function useStudioController() {
     category,
     leftTab,
     messages,
+    pendingCommand,
+    confirmationError,
+    confirmingCommand,
+    commandStale: Boolean(
+      pendingCommand &&
+      (confirmationConflict ||
+        pendingCommand.projectId !== project.id ||
+        pendingCommand.revision !== revision)
+    ),
     input,
     notice,
     busy,
@@ -784,6 +955,9 @@ export function useStudioController() {
     setInput,
     sendMessage: (text: string, focus?: Point2[]) =>
       void handleChat(text, focus),
+    cancelCommand,
+    chooseCommandTarget,
+    confirmPendingCommand,
     updateSelected,
     deleteSelected,
     dismissNotice,

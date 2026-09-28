@@ -4,7 +4,8 @@ import { createRoot } from "react-dom/client"
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { sampleProject } from "../data"
-import type { Project } from "../types"
+import type { ChatCommandResponse, Project } from "../types"
+import { ApiError } from "@/lib/http-client"
 import { useStudioController } from "./useStudioController"
 
 // The client test environment refuses the shared catalog outside frontend/, so install the DOM before React loads.
@@ -47,6 +48,14 @@ vi.mock("@/features/studio/project-api", async (importOriginal) => ({
   getProject: server.fake("getProject"),
   saveProject: server.fake("saveProject"),
   createProject: server.fake("createProject"),
+  sendCommand: (
+    _project: Project,
+    _message: string,
+    _focus?: unknown,
+    furnitureId?: string
+  ) => server.fake("sendCommand")({ furnitureId }),
+  confirmCommand: (_projectId: string, proposalId: string) =>
+    server.fake("confirmCommand")(proposalId),
 }))
 
 const projectA: Project = structuredClone(sampleProject)
@@ -177,6 +186,177 @@ describe("useStudioController project switching", () => {
     await flush()
     expect(app.get().project.id).toBe(projectB.id)
     expect(app.get().projectLoad.status).toBe("ready")
+    app.unmount()
+  })
+})
+
+const clearCommand: ChatCommandResponse["commands"][number] = {
+  type: "CLEAR",
+  catalogId: null,
+  furnitureId: null,
+  x: null,
+  z: null,
+  rotation: null,
+}
+
+function previewResponse(project: Project): ChatCommandResponse {
+  return {
+    reply: "가구를 모두 삭제할까요?",
+    project,
+    appliedActions: [],
+    commands: [clearCommand],
+    requiresConfirmation: true,
+    proposalId: "proposal-1",
+    expiresAt: "2030-01-01T00:00:00Z",
+    proposedCommands: [clearCommand],
+    candidates: [],
+  }
+}
+
+async function previewClear(app: Awaited<ReturnType<typeof setup>>) {
+  act(() => app.get().sendMessage("전부 삭제"))
+  await flush()
+  calls("sendCommand")
+    .at(-1)!
+    .resolve(previewResponse(structuredClone(projectA)))
+  await flush()
+}
+
+describe("command confirmation", () => {
+  it("keeps furniture and undo unchanged before confirmation and after cancel", async () => {
+    const app = await setup()
+    await previewClear(app)
+    expect(app.get().project).toEqual(projectA)
+    expect(app.get().project.furniture).toEqual(projectA.furniture)
+    expect(app.get().canUndo).toBe(false)
+    expect(calls("saveProject")).toHaveLength(0)
+    act(() => app.get().cancelCommand())
+    expect(app.get().pendingCommand).toBeNull()
+    expect(app.get().project).toEqual(projectA)
+    expect(app.get().project.furniture).toEqual(projectA.furniture)
+    expect(app.get().canUndo).toBe(false)
+    expect(calls("confirmCommand")).toHaveLength(0)
+    app.unmount()
+  })
+
+  it("applies once, ignores duplicate clicks, and adds one undo entry", async () => {
+    const app = await setup()
+    await previewClear(app)
+    act(() => {
+      void app.get().confirmPendingCommand()
+      void app.get().confirmPendingCommand()
+    })
+    await flush()
+    expect(calls("confirmCommand")).toHaveLength(1)
+    expect(calls("confirmCommand")[0].arg).toBe("proposal-1")
+    calls("confirmCommand")[0].resolve({
+      ...previewResponse({ ...projectA, furniture: [] }),
+      reply: "삭제했어요.",
+      appliedActions: ["전체 삭제"],
+      requiresConfirmation: false,
+      proposedCommands: [],
+    })
+    await flush()
+    expect(app.get().project.furniture).toEqual([])
+    expect(app.get().canUndo).toBe(true)
+    act(() => app.get().undo())
+    expect(app.get().project.furniture).toEqual(projectA.furniture)
+    app.unmount()
+  })
+
+  it("keeps a proposal for network retry and clears it on 409", async () => {
+    const app = await setup()
+    await previewClear(app)
+    act(() => void app.get().confirmPendingCommand())
+    await flush()
+    calls("confirmCommand")[0].reject(new ApiError("network", null, true))
+    await flush()
+    expect(app.get().pendingCommand?.response.proposalId).toBe("proposal-1")
+    act(() => void app.get().confirmPendingCommand())
+    await flush()
+    expect(calls("confirmCommand")[1].arg).toBe("proposal-1")
+    calls("confirmCommand")[1].reject(new ApiError("expired", 409, false))
+    await flush()
+    expect(app.get().confirmationError).toContain("다시 요청")
+    expect(app.get().project.furniture).toEqual(projectA.furniture)
+    app.unmount()
+  })
+
+  it("syncs an already applied response after a lost confirmation response", async () => {
+    const app = await setup()
+    await previewClear(app)
+    act(() => void app.get().confirmPendingCommand())
+    await flush()
+    calls("confirmCommand")[0].reject(new ApiError("network", null, true))
+    await flush()
+    act(() => void app.get().confirmPendingCommand())
+    await flush()
+    calls("confirmCommand")[1].resolve({
+      ...previewResponse({ ...projectA, furniture: [] }),
+      reply: "이미 처리된 요청입니다.",
+      appliedActions: [],
+      requiresConfirmation: false,
+      proposedCommands: [],
+    })
+    await flush()
+    expect(app.get().project.furniture).toEqual([])
+    expect(app.get().canUndo).toBe(true)
+    expect(app.get().pendingCommand).toBeNull()
+    app.unmount()
+  })
+
+  it("waits for explicit target selection before sending another command", async () => {
+    const app = await setup()
+    act(() => app.get().sendMessage("소파를 옮겨줘"))
+    await flush()
+    calls("sendCommand")[0].resolve({
+      ...previewResponse(projectA),
+      proposalId: null,
+      requiresConfirmation: false,
+      proposedCommands: [],
+      candidates: [{ furnitureId: "sofa-01", name: "클라우드 소파" }],
+    })
+    await flush()
+    expect(calls("sendCommand")).toHaveLength(1)
+    expect(app.get().project.furniture).toEqual(projectA.furniture)
+    expect(app.get().canUndo).toBe(false)
+    act(() => app.get().chooseCommandTarget("sofa-01"))
+    await flush()
+    expect(calls("sendCommand")).toHaveLength(2)
+    expect(calls("sendCommand")[1].arg).toMatchObject({
+      furnitureId: "sofa-01",
+    })
+    calls("sendCommand")[1].resolve({
+      ...previewResponse({
+        ...projectA,
+        furniture: projectA.furniture.map((item) =>
+          item.id === "sofa-01" ? { ...item, x: 3 } : item
+        ),
+      }),
+      reply: "이동했어요.",
+      appliedActions: ["이동"],
+      requiresConfirmation: false,
+      proposalId: null,
+      proposedCommands: [],
+      candidates: [],
+    })
+    await flush()
+    expect(app.get().project.furniture[0].x).toBe(3)
+    expect(app.get().canUndo).toBe(true)
+    app.unmount()
+  })
+
+  it("blocks a proposal after editing and closes it on project switch", async () => {
+    const app = await setup()
+    await previewClear(app)
+    act(() => app.get().addFurniture("sofa-cloud"))
+    expect(app.get().commandStale).toBe(true)
+    act(() => void app.get().confirmPendingCommand())
+    await flush()
+    expect(calls("confirmCommand")).toHaveLength(0)
+    act(() => app.get().openSampleProject())
+    await flush()
+    expect(app.get().pendingCommand).toBeNull()
     app.unmount()
   })
 })

@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/http-client"
 import { sampleProject } from "./data"
 import {
   createProject,
+  confirmCommand,
   getProject,
   saveProject,
   sendCommand,
@@ -13,6 +14,7 @@ import {
 } from "./project-api"
 import {
   createProjectMutationOptions,
+  confirmCommandMutationOptions,
   projectKeys,
   projectQueryOptions,
   saveProjectMutationOptions,
@@ -23,6 +25,7 @@ import {
 
 vi.mock("./project-api", () => ({
   createProject: vi.fn(),
+  confirmCommand: vi.fn(),
   getProject: vi.fn(),
   saveProject: vi.fn(),
   sendCommand: vi.fn(),
@@ -78,6 +81,13 @@ describe("project queries", () => {
     vi.mocked(sendCommand).mockResolvedValue({
       reply: "완료",
       project: updatedProject,
+      appliedActions: ["이동"],
+      commands: [],
+      requiresConfirmation: false,
+      proposalId: null,
+      expiresAt: null,
+      proposedCommands: [],
+      candidates: [],
     })
     const client = queryClient()
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
@@ -120,6 +130,47 @@ describe("project queries", () => {
       .build(client, saveProjectMutationOptions(client, project.id))
     await expect(mutation.execute(project)).rejects.toBe(error)
     expect(client.getQueryData(projectKeys.detail(project.id))).toEqual(project)
+  })
+
+  it("keeps the cache unchanged for previews and updates it after confirmation", async () => {
+    const client = queryClient()
+    client.setQueryData(projectKeys.detail(project.id), project)
+    vi.mocked(sendCommand).mockResolvedValue({
+      reply: "삭제할까요?",
+      project,
+      appliedActions: [],
+      commands: [],
+      requiresConfirmation: true,
+      proposalId: "proposal-1",
+      expiresAt: null,
+      proposedCommands: [],
+      candidates: [],
+    })
+    await client
+      .getMutationCache()
+      .build(client, sendCommandMutationOptions(client, project.id))
+      .execute({ project, message: "전부 삭제" })
+    expect(client.getQueryData(projectKeys.detail(project.id))).toBe(project)
+
+    vi.mocked(confirmCommand).mockResolvedValue({
+      reply: "삭제했어요.",
+      project: updatedProject,
+      appliedActions: ["전체 삭제"],
+      commands: [],
+      requiresConfirmation: false,
+      proposalId: "proposal-1",
+      expiresAt: null,
+      proposedCommands: [],
+      candidates: [],
+    })
+    await client
+      .getMutationCache()
+      .build(client, confirmCommandMutationOptions(client, project.id))
+      .execute("proposal-1")
+    expect(confirmCommand).toHaveBeenCalledWith(project.id, "proposal-1")
+    expect(client.getQueryData(projectKeys.detail(project.id))).toEqual(
+      updatedProject
+    )
   })
 })
 

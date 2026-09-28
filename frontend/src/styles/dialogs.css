@@ -2,6 +2,16 @@
   display: contents;
 }
 
+.command-preview-list {
+  margin: 0;
+  padding-left: var(--seed-dimension-x5);
+}
+
+.command-candidates {
+  display: grid;
+  gap: var(--seed-dimension-x2);
+}
+
 /* 도면 파일 */
 .floor-plan-body {
   display: flex;

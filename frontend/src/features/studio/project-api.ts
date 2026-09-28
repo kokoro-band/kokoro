@@ -5,7 +5,14 @@ import { withObjectParticle } from "./format"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
 import { sampleRoom } from "./sample-room"
-import type { Furniture, Point2, Project, RoomModel } from "./types"
+import type {
+  ChatCommandResponse,
+  Furniture,
+  LayoutCommand,
+  Point2,
+  Project,
+  RoomModel,
+} from "./types"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
@@ -149,13 +156,14 @@ export function makeFurniture(catalogId: string, x = 0, z = 0): Furniture {
 export async function sendCommand(
   project: Project,
   message: string,
-  focus?: Point2[]
-): Promise<{ reply: string; project: Project }> {
+  focus?: Point2[],
+  furnitureId?: string
+): Promise<ChatCommandResponse> {
   if (isServerMode) {
-    return request<{ reply: string; project: Project }>({
+    return request<ChatCommandResponse>({
       url: `${projectPath(project.id)}/layout/commands`,
       method: "POST",
-      data: { message },
+      data: { message, ...(furnitureId ? { furnitureId } : {}) },
     })
   }
 
@@ -186,6 +194,7 @@ export async function sendCommand(
   }
   let furniture = [...project.furniture]
   const actions: string[] = []
+  const commands: LayoutCommand[] = []
   const targets = [
     { word: "소파", id: "sofa-cloud", spot: at(0.27, 0.68) },
     { word: "테이블", id: "table-oak", spot: at(0.55, 0.5) },
@@ -193,9 +202,39 @@ export async function sendCommand(
     { word: "화분", id: "plant-olive", spot: at(0.84, 0.75) },
     { word: "램프", id: "lamp-arc", spot: at(0.16, 0.35) },
   ]
-  if (normalized.includes("비워") || normalized.includes("전부삭제")) {
-    furniture = []
-    actions.push("가구를 모두 비웠어요")
+  if (
+    normalized.includes("비워") ||
+    normalized.includes("전부삭제") ||
+    normalized.includes("전체삭제") ||
+    normalized.includes("모두삭제")
+  ) {
+    const proposedCommands: LayoutCommand[] = [
+      {
+        type: "CLEAR",
+        catalogId: null,
+        furnitureId: null,
+        x: null,
+        z: null,
+        rotation: null,
+      },
+    ]
+    const proposalId = crypto.randomUUID()
+    localProposals.set(proposalId, {
+      projectId: project.id,
+      project: { ...project, furniture: [] },
+      proposedCommands,
+    })
+    return {
+      reply: "가구를 모두 삭제할까요?",
+      appliedActions: [],
+      commands: proposedCommands,
+      requiresConfirmation: true,
+      project,
+      proposalId,
+      expiresAt: null,
+      proposedCommands,
+      candidates: [],
+    }
   } else {
     for (const target of targets) {
       const matches =
@@ -204,11 +243,43 @@ export async function sendCommand(
         (target.word === "테이블" && normalized.includes("책상"))
       if (!matches) continue
       const [x, z] = normalized.includes("창가") ? at(0.72, 0.24) : target.spot
-      const existing = furniture.find(
-        (item) =>
-          item.category ===
-          catalog.find((entry) => entry.id === target.id)?.category
+      const matchesForTarget = furniture.filter(
+        (item) => item.catalogId === target.id
       )
+      if (
+        matchesForTarget.length > 1 &&
+        !furnitureId &&
+        (normalized.includes("옮") || normalized.includes("이동"))
+      ) {
+        return {
+          reply: "어떤 가구를 대상으로 할지 선택해 주세요.",
+          appliedActions: [],
+          commands: [
+            {
+              type: "MOVE",
+              catalogId: target.id,
+              furnitureId: null,
+              x,
+              z,
+              rotation: null,
+            },
+          ],
+          requiresConfirmation: false,
+          project,
+          proposalId: null,
+          expiresAt: null,
+          proposedCommands: [],
+          candidates: matchesForTarget.map(({ id, name }) => ({
+            furnitureId: id,
+            name,
+          })),
+        }
+      }
+      const existing = furnitureId
+        ? matchesForTarget.find((item) => item.id === furnitureId)
+        : matchesForTarget[0]
+      if (furnitureId && !existing)
+        throw new Error("선택한 가구를 찾지 못했어요. 다시 요청해 주세요.")
       if (
         existing &&
         (normalized.includes("옮") || normalized.includes("이동"))
@@ -217,9 +288,26 @@ export async function sendCommand(
           item.id === existing.id ? { ...item, x, z } : item
         )
         actions.push(`${existing.name} 위치를 조정했어요`)
+        commands.push({
+          type: "MOVE",
+          catalogId: target.id,
+          furnitureId: existing.id,
+          x,
+          z,
+          rotation: null,
+        })
       } else {
-        furniture.push(makeFurniture(target.id, x, z))
+        const added = makeFurniture(target.id, x, z)
+        furniture.push(added)
         actions.push(`${withObjectParticle(target.word)} 놓았어요`)
+        commands.push({
+          type: "ADD",
+          catalogId: target.id,
+          furnitureId: added.id,
+          x,
+          z,
+          rotation: null,
+        })
       }
     }
     if (normalized.includes("미니멀") && actions.length === 0) {
@@ -229,6 +317,40 @@ export async function sendCommand(
         makeFurniture("plant-olive", ...at(0.84, 0.76)),
       ]
       actions.push("소파와 테이블과 식물로 간결한 배치를 만들었어요")
+      commands.push({
+        type: "CLEAR",
+        catalogId: null,
+        furnitureId: null,
+        x: null,
+        z: null,
+        rotation: null,
+      })
+      for (const item of furniture)
+        commands.push({
+          type: "ADD",
+          catalogId: item.catalogId,
+          furnitureId: item.id,
+          x: item.x,
+          z: item.z,
+          rotation: null,
+        })
+      const proposalId = crypto.randomUUID()
+      localProposals.set(proposalId, {
+        projectId: project.id,
+        project: { ...project, furniture },
+        proposedCommands: commands,
+      })
+      return {
+        reply: "기존 가구를 비우고 새 배치를 적용할까요?",
+        appliedActions: [],
+        commands,
+        requiresConfirmation: true,
+        project,
+        proposalId,
+        expiresAt: null,
+        proposedCommands: commands,
+        candidates: [],
+      }
     }
   }
   return {
@@ -236,5 +358,48 @@ export async function sendCommand(
       ? `${actions.join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
       : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
     project: { ...project, furniture },
+    appliedActions: actions,
+    commands,
+    requiresConfirmation: false,
+    proposalId: null,
+    expiresAt: null,
+    proposedCommands: [],
+    candidates: [],
+  }
+}
+
+const localProposals = new Map<
+  string,
+  {
+    projectId: string
+    project: Project
+    proposedCommands: LayoutCommand[]
+  }
+>()
+
+export async function confirmCommand(
+  projectId: string,
+  proposalId: string
+): Promise<ChatCommandResponse> {
+  if (isServerMode) {
+    return request<ChatCommandResponse>({
+      url: `${projectPath(projectId)}/layout/commands/confirm`,
+      method: "POST",
+      data: { proposalId },
+    })
+  }
+  const proposal = localProposals.get(proposalId)
+  if (!proposal || proposal.projectId !== projectId)
+    throw new Error("제안을 찾지 못했어요. 다시 요청해 주세요.")
+  return {
+    reply: "배치를 적용했어요.",
+    appliedActions: ["전체 삭제"],
+    commands: proposal.proposedCommands,
+    requiresConfirmation: false,
+    project: proposal.project,
+    proposalId,
+    expiresAt: null,
+    proposedCommands: [],
+    candidates: [],
   }
 }

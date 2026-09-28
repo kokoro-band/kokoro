@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/http-client"
 
 import {
   createProject,
+  confirmCommand,
   getProject,
   saveProject,
   saveRoom,
@@ -119,11 +120,28 @@ export function sendCommandMutationOptions(
       project,
       message,
       focus,
+      furnitureId,
     }: {
       project: Project
       message: string
       focus?: Point2[]
-    }) => sendCommand(project, message, focus),
+      furnitureId?: string
+    }) => sendCommand(project, message, focus, furnitureId),
+    retry: false,
+    onSuccess: (response) => {
+      if (response.appliedActions.length)
+        cacheProject(queryClient, response.project)
+    },
+  })
+}
+
+export function confirmCommandMutationOptions(
+  queryClient: QueryClient,
+  projectId: string
+) {
+  return mutationOptions({
+    mutationKey: projectKeys.command(projectId),
+    mutationFn: (proposalId: string) => confirmCommand(projectId, proposalId),
     retry: false,
     onSuccess: (response) => cacheProject(queryClient, response.project),
   })

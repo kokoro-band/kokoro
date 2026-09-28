@@ -59,8 +59,14 @@ describe("project API paths", () => {
   })
 
   it("uses validated project paths for every project request", async () => {
-    const { getProject, saveProject, saveRoom, sendCommand, uploadPlan } =
-      await import("./project-api")
+    const {
+      getProject,
+      saveProject,
+      saveRoom,
+      sendCommand,
+      confirmCommand,
+      uploadPlan,
+    } = await import("./project-api")
     const project = structuredClone(sampleProject)
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
 
@@ -69,6 +75,7 @@ describe("project API paths", () => {
     await saveRoom(project, sampleRoom)
     await uploadPlan(project, file)
     await sendCommand(project, "소파를 옮겨줘")
+    await confirmCommand(project.id, "server-proposal")
 
     expect(vi.mocked(request).mock.calls.map(([config]) => config.url)).toEqual(
       [
@@ -77,11 +84,61 @@ describe("project API paths", () => {
         "/projects/living-room-01/room",
         "/projects/living-room-01/floor-plan",
         "/projects/living-room-01/layout/commands",
+        "/projects/living-room-01/layout/commands/confirm",
       ]
     )
     expect(vi.mocked(request).mock.calls[3][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
     expect(vi.mocked(request).mock.calls[2][0].data).toEqual({
       room: sampleRoom,
     })
+    expect(vi.mocked(request).mock.calls[5][0].data).toEqual({
+      proposalId: "server-proposal",
+    })
+  })
+
+  it("previews local clear without writing and confirms the same proposal", async () => {
+    vi.stubEnv("VITE_API_MODE", "local")
+    const storage = new Map<string, string>()
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    })
+    try {
+      const { sendCommand, confirmCommand } = await import("./project-api")
+      const project = structuredClone(sampleProject)
+      const preview = await sendCommand(project, "가구 전부 삭제")
+      expect(preview.requiresConfirmation).toBe(true)
+      expect(preview.proposedCommands).toMatchObject([{ type: "CLEAR" }])
+      expect(preview.project).toEqual(project)
+      expect(storage.size).toBe(0)
+      const applied = await confirmCommand(project.id, preview.proposalId!)
+      expect(applied.project.furniture).toEqual([])
+      expect(storage.size).toBe(0)
+      expect(
+        (await confirmCommand(project.id, preview.proposalId!)).project
+      ).toEqual(applied.project)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("asks for a target when two local pieces match", async () => {
+    vi.stubEnv("VITE_API_MODE", "local")
+    const { sendCommand } = await import("./project-api")
+    const project = structuredClone(sampleProject)
+    project.furniture.push({ ...project.furniture[0], id: "sofa-02", x: 2 })
+    const preview = await sendCommand(project, "소파를 옮겨줘")
+    expect(
+      preview.candidates.map((candidate) => candidate.furnitureId)
+    ).toEqual(["sofa-01", "sofa-02"])
+    expect(preview.project).toEqual(project)
+    const applied = await sendCommand(
+      project,
+      "소파를 옮겨줘",
+      undefined,
+      "sofa-02"
+    )
+    expect(applied.project.furniture[0]).toEqual(project.furniture[0])
+    expect(applied.project.furniture[1].x).not.toBe(2)
   })
 })

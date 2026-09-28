@@ -1,0 +1,40 @@
+{
+  "strings": [
+    { "id": "id-limit", "field": "id", "unit": "a", "repeat": 100, "accepted": true },
+    { "id": "id-over", "field": "id", "unit": "a", "repeat": 101, "accepted": false },
+    { "id": "id-unicode-limit", "field": "id", "unit": "🪑", "repeat": 50, "accepted": true },
+    { "id": "id-unicode-over", "field": "id", "unit": "🪑", "repeat": 51, "accepted": false },
+    { "id": "reserved-id", "field": "id", "unit": "__proto__", "repeat": 1, "accepted": false },
+    { "id": "blank-id", "field": "id", "unit": "\ufeff", "repeat": 1, "accepted": false },
+    { "id": "null-byte-id", "field": "id", "unit": "id\u0000", "repeat": 1, "accepted": false },
+    { "id": "name-limit", "field": "name", "unit": "가", "repeat": 200, "accepted": true },
+    { "id": "name-over", "field": "name", "unit": "가", "repeat": 201, "accepted": false },
+    { "id": "name-unicode-limit", "field": "name", "unit": "🪑", "repeat": 100, "accepted": true },
+    { "id": "name-unicode-over", "field": "name", "unit": "🪑", "repeat": 101, "accepted": false },
+    { "id": "blank-name", "field": "name", "unit": "\u00a0", "repeat": 2, "accepted": false },
+    { "id": "null-byte-name", "field": "name", "unit": "가구\u0000", "repeat": 1, "accepted": false },
+    { "id": "color-limit", "field": "color", "unit": "a", "repeat": 20, "accepted": true },
+    { "id": "color-over", "field": "color", "unit": "a", "repeat": 21, "accepted": false },
+    { "id": "blank-color", "field": "color", "unit": " ", "repeat": 1, "accepted": false },
+    { "id": "null-byte-color", "field": "color", "unit": "red\u0000", "repeat": 1, "accepted": false },
+    { "id": "invalid-category", "field": "category", "unit": "unknown", "repeat": 1, "accepted": false },
+    { "id": "catalog-id-over", "field": "catalogId", "unit": "a", "repeat": 101, "accepted": false }
+  ],
+  "numbers": [
+    { "id": "outside-draft", "field": "x", "value": -20, "accepted": true },
+    { "id": "position-max", "field": "x", "value": 9007199254740991, "accepted": true },
+    { "id": "position-min", "field": "z", "value": -9007199254740991, "accepted": true },
+    { "id": "position-over", "field": "x", "value": 9007199254740992, "accepted": false },
+    { "id": "position-under", "field": "z", "value": -9007199254740992, "accepted": false }
+  ],
+  "dimensions": [
+    { "field": "width", "value": 0.5, "accepted": true },
+    { "field": "width", "value": 200, "accepted": true },
+    { "field": "width", "value": 0.49, "accepted": false },
+    { "field": "depth", "value": 200.01, "accepted": false },
+    { "field": "height", "value": 0.5, "accepted": true },
+    { "field": "height", "value": 20, "accepted": true },
+    { "field": "height", "value": 20.01, "accepted": false },
+    { "field": "height", "value": -1, "accepted": false }
+  ]
+}

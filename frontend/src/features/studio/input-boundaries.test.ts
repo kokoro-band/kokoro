@@ -55,3 +55,13 @@ it.each(fixtures.strings.filter(({ field }) => field !== "message"))("stored pro
   if (fixture.client) expect(parse()).toMatchObject({ [fixture.field]: value })
   else expect(parse).toThrow()
 })
+
+it("rejects a local command that would add furniture 201 without mutating the source", async () => {
+  vi.stubEnv("VITE_API_MODE", "local")
+  const { sendCommand } = await import("./project-api")
+  const project = { ...sampleProject, furniture: Array.from({ length: 200 }, (_, index) => ({ ...sampleProject.furniture[2], id: `item-${index}` })) }
+  const before = structuredClone(project)
+  await expect(sendCommand(project, "소파를 놓아줘")).rejects.toThrow("200")
+  expect(project).toEqual(before)
+  expect(localStorage.setItem).not.toHaveBeenCalled()
+})

@@ -1,3 +1,4 @@
+import process from "node:process"
 import { fileURLToPath } from "node:url"
 
 import tailwindcss from "@tailwindcss/vite"
@@ -7,6 +8,7 @@ import { defineConfig, lazyPlugins } from "vite-plus"
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || "/",
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
     categories: {

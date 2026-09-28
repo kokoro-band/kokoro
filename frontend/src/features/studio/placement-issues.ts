@@ -6,7 +6,7 @@ export type PlacementIssue = {
   reason: string
 }
 
-type Box = {
+export type Box = {
   center: Point2
   x: Point2
   z: Point2
@@ -22,7 +22,7 @@ const subtract = (a: Point2, b: Point2): Point2 => [a[0] - b[0], a[1] - b[1]]
 const cross = (a: Point2, b: Point2, c: Point2) =>
   (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
-function footprint(item: Furniture): Box | null {
+export function footprint(item: Furniture): Box | null {
   const size = catalog.find((entry) => entry.id === item.catalogId)
   if (!size || ![item.x, item.z, item.rotation].every(Number.isFinite))
     return null
@@ -36,7 +36,7 @@ function footprint(item: Furniture): Box | null {
   }
 }
 
-function wallBox(wall: Wall): Box {
+export function wallBox(wall: Wall): Box {
   const [dx, dz] = subtract(wall.b, wall.a)
   const length = Math.hypot(dx, dz)
   const x: Point2 = length ? [dx / length, dz / length] : [1, 0]
@@ -49,7 +49,7 @@ function wallBox(wall: Wall): Box {
   }
 }
 
-function overlaps(a: Box, b: Box) {
+export function overlaps(a: Box, b: Box) {
   const radius = (box: Box, axis: Point2) =>
     Math.abs(dot(box.x, axis)) * box.width +
     Math.abs(dot(box.z, axis)) * box.depth
@@ -85,7 +85,7 @@ function contains(polygon: Point2[], point: Point2) {
   return inside
 }
 
-function insideRoom(polygon: Point2[], box: Box) {
+export function insideRoom(polygon: Point2[], box: Box) {
   const corners: Point2[] = [
     [-1, -1],
     [1, -1],

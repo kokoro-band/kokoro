@@ -1,7 +1,7 @@
 import * as THREE from "three"
 import { describe, expect, it } from "vite-plus/test"
 
-import { buildRoomGroup, type DoorState } from "./room-geometry"
+import { animateDoors, buildRoomGroup, type DoorState } from "./room-geometry"
 import type { RoomModel, ViewMode } from "./types"
 
 function roomWithDoor(a: [number, number], b: [number, number]): RoomModel {
@@ -34,8 +34,12 @@ function roomWithDoor(a: [number, number], b: [number, number]): RoomModel {
 
 function leafSide(model: RoomModel, mode: ViewMode) {
   const group = buildRoomGroup(model, mode)
-  group.updateMatrixWorld(true)
   const door = (group.userData.doors as DoorState[])[0]
+  if (mode !== "vr") {
+    door.manualOpen = true
+    animateDoors([door], null, 1)
+  }
+  group.updateMatrixWorld(true)
   const leaf = door.hinge.getWorldPosition(new THREE.Vector3())
   const tip = door.hinge.children[0].getWorldPosition(new THREE.Vector3())
   const wall = model.walls[0]
@@ -47,7 +51,7 @@ function leafSide(model: RoomModel, mode: ViewMode) {
   return (tip.x - leaf.x) * planSide.x + (tip.z - leaf.z) * planSide.z
 }
 
-describe("door rest pose", () => {
+describe("manual door swing direction", () => {
   it("opens to the same side the structure editor draws the swing", () => {
     expect(leafSide(roomWithDoor([0, 2], [4, 2]), "3d")).toBeGreaterThan(0)
   })

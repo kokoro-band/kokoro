@@ -16,7 +16,6 @@ const colors = {
 
 const planViewWallHeight = 0.35
 const frameSize = 0.05
-const doorRestAngle = THREE.MathUtils.degToRad(35)
 const doorOpenAngle = THREE.MathUtils.degToRad(85)
 const doorOpenDistance = 1.3
 const doorCloseDistance = 2.6
@@ -24,12 +23,14 @@ const doorSwingSpeed = 4
 const walkerRadius = 0.25
 
 export type DoorState = {
+  id: string
   local: THREE.Group
   hinge: THREE.Group
   center: THREE.Vector3
   restAngle: number
   angle: number
   openTarget: number | null
+  manualOpen: boolean | null
 }
 
 type WallPiece = {
@@ -207,11 +208,13 @@ function buildWall(
       glass.position.set(width / 2, opening.bottom + openingHeight / 2, 0)
       local.add(glass)
     } else {
+      local.userData.doorId = opening.id
       const hinge = new THREE.Group()
       hinge.position.set(frameSize, 0, 0)
       hinge.rotation.y = doorRest
       local.add(hinge)
       doors.push({
+        id: opening.id,
         local,
         hinge,
         center: frame.pointAt(
@@ -223,6 +226,7 @@ function buildWall(
         restAngle: doorRest,
         angle: doorRest,
         openTarget: null,
+        manualOpen: null,
       })
       const leafWidth = width - frameSize * 2
       const leaf = new THREE.Mesh(
@@ -352,7 +356,7 @@ export function isInsideRoom(model: RoomModel, worldX: number, worldZ: number) {
   )
 }
 
-export function createWalkableTest(model: RoomModel) {
+export function createWalkableTest(model: RoomModel, doors: DoorState[] = []) {
   const offsetX = -model.bounds.width / 2
   const offsetZ = -model.bounds.depth / 2
   const walls = model.walls.map((wall) => {
@@ -365,7 +369,11 @@ export function createWalkableTest(model: RoomModel) {
       .filter(
         (opening) => opening.wallId === wall.id && opening.type === "door"
       )
-      .map((opening) => [opening.from - 0.05, opening.to + 0.05] as const)
+      .map((opening) => ({
+        id: opening.id,
+        from: opening.from + frameSize + walkerRadius,
+        to: opening.to - frameSize - walkerRadius,
+      }))
     return {
       ax: ax + offsetX,
       az: az + offsetZ,
@@ -392,7 +400,11 @@ export function createWalkableTest(model: RoomModel) {
       if (Math.hypot(x - nearestX, z - nearestZ) >= wall.blockDistance) continue
       const along = t * wall.length
       const inDoor = wall.doorSpans.some(
-        ([from, to]) => along >= from && along <= to
+        ({ id, from, to }) =>
+          along >= from &&
+          along <= to &&
+          Math.abs(doors.find((door) => door.id === id)?.angle ?? 0) >=
+            Math.PI * 0.45
       )
       if (!inDoor) return false
     }
@@ -402,20 +414,33 @@ export function createWalkableTest(model: RoomModel) {
 
 const doorLocalPoint = new THREE.Vector3()
 
+export function setManualDoorStates(
+  doors: DoorState[],
+  states: Record<string, boolean>
+) {
+  for (const door of doors) door.manualOpen = states[door.id] ?? null
+}
+
 export function animateDoors(
   doors: DoorState[],
-  person: THREE.Vector3,
+  person: THREE.Vector3 | null,
   deltaSeconds: number
 ) {
   for (const door of doors) {
-    const distance = Math.hypot(
-      person.x - door.center.x,
-      person.z - door.center.z
-    )
-    if (door.openTarget === null && distance < doorOpenDistance) {
-      door.local.worldToLocal(doorLocalPoint.copy(person))
-      door.openTarget = doorLocalPoint.z > 0 ? doorOpenAngle : -doorOpenAngle
-    } else if (door.openTarget !== null && distance > doorCloseDistance) {
+    if (door.manualOpen !== null) {
+      door.openTarget = door.manualOpen ? -doorOpenAngle : null
+    } else if (person) {
+      const distance = Math.hypot(
+        person.x - door.center.x,
+        person.z - door.center.z
+      )
+      if (door.openTarget === null && distance < doorOpenDistance) {
+        door.local.worldToLocal(doorLocalPoint.copy(person))
+        door.openTarget = doorLocalPoint.z > 0 ? doorOpenAngle : -doorOpenAngle
+      } else if (door.openTarget !== null && distance > doorCloseDistance) {
+        door.openTarget = null
+      }
+    } else {
       door.openTarget = null
     }
     const target = door.openTarget ?? door.restAngle
@@ -434,7 +459,11 @@ export function roomSpawnPoint(model: RoomModel) {
   )
 }
 
-export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
+export function buildRoomGroup(
+  model: RoomModel,
+  mode: ViewMode,
+  previousDoorAngles?: ReadonlyMap<string, number>
+) {
   const group = new THREE.Group()
   const offsetX = -model.bounds.width / 2
   const offsetZ = -model.bounds.depth / 2
@@ -445,7 +474,7 @@ export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
 
   group.add(buildFloor(model.outline, offsetX, offsetZ))
 
-  const doorRest = mode === "vr" ? 0 : -doorRestAngle
+  const doorRest = 0
   const doors: DoorState[] = []
   for (const wall of model.walls) {
     const openings = model.openings.filter(
@@ -463,6 +492,12 @@ export function buildRoomGroup(model: RoomModel, mode: ViewMode) {
         doors
       )
     )
+  }
+  for (const door of doors) {
+    const angle = previousDoorAngles?.get(door.id)
+    if (angle === undefined) continue
+    door.angle = angle
+    door.hinge.rotation.y = angle
   }
   group.userData.doors = doors
 

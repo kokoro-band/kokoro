@@ -3,7 +3,7 @@ import { act, StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { draftAreaPyeong } from "../room-builder"
-import { pngFixture } from "../plan-image-fixtures"
+import { jpegFixture, pngFixture, webpFixture } from "../plan-image-fixtures"
 import { PlanImport } from "./PlanImport"
 
 const cleanups: (() => void)[] = []
@@ -15,14 +15,49 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-// Only browser decoding and drawing are substituted. Room analysis stays real.
-function setup() {
+// Browser file-read scheduling, decoding and drawing are controlled. Header validation and analysis stay real.
+function setup(manualReads = false) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  const readers: ControlledReader[] = []
+  class ControlledReader {
+    result: ArrayBuffer | null = null
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    onabort: (() => void) | null = null
+    file: Blob | null = null
+    aborted = false
+    constructor() {
+      readers.push(this)
+    }
+    readAsArrayBuffer(file: Blob) {
+      this.file = file
+      if (!manualReads) void this.finish()
+    }
+    async finish() {
+      const bytes = await this.file!.arrayBuffer()
+      this.complete(bytes)
+    }
+    complete(bytes: ArrayBuffer) {
+      this.result = bytes
+      this.onload?.()
+    }
+    abort = vi.fn(() => {
+      this.aborted = true
+      this.onabort?.()
+    })
+  }
+  vi.stubGlobal("FileReader", ControlledReader)
   const images: ControlledImage[] = []
   class ControlledImage {
     width = 200
     height = 200
+    get naturalWidth() {
+      return this.width
+    }
+    get naturalHeight() {
+      return this.height
+    }
     src = ""
     room = true
     onload: (() => void) | null = null
@@ -32,9 +67,9 @@ function setup() {
     }
   }
   vi.stubGlobal("Image", ControlledImage)
-  vi.spyOn(URL, "createObjectURL").mockImplementation(
-    () => `blob:plan-${images.length}`
-  )
+  const createUrl = vi
+    .spyOn(URL, "createObjectURL")
+    .mockImplementation(() => `blob:plan-${images.length}`)
   const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
   const sources = new WeakMap<HTMLCanvasElement, ControlledImage>()
   const readPixels = vi.fn(
@@ -133,10 +168,16 @@ function setup() {
       input.dispatchEvent(new Event("change", { bubbles: true }))
     })
   }
-  const decode = async (index = images.length - 1, room = true) => {
+  const flushMetadata = async () => {
+    await act(async () => {})
+  }
+  const decode = async (index?: number, room = true) => {
+    await flushMetadata()
     await act(async () => {
-      images[index].room = room
-      images[index].onload?.()
+      const target = images[index ?? images.length - 1]
+      expect(target, document.body.textContent ?? "decoder").toBeDefined()
+      target.room = room
+      target.onload?.()
     })
   }
   const analyze = async () => {
@@ -146,26 +187,30 @@ function setup() {
   }
   return {
     images,
+    readers,
     imported,
     blank,
     closed,
     revoke,
+    createUrl,
     readPixels,
     button,
     choose,
+    flushMetadata,
     decode,
     analyze,
     unmount,
     click: (name: string) => act(() => button(name).click()),
     text: () => document.body.textContent ?? "",
     async valid() {
-      choose(new File(["png"], "plan.png", { type: "image/png" }))
+      choose(png())
       await decode()
       await analyze()
       expect(button("이 배치로 시작").disabled).toBe(false)
     },
-    async failDecode(index = images.length - 1) {
-      await act(async () => images[index].onerror?.())
+    async failDecode(index?: number) {
+      await flushMetadata()
+      await act(async () => images[index ?? images.length - 1].onerror?.())
     },
     area(value: string) {
       const input = document.querySelector<HTMLInputElement>(
@@ -196,28 +241,128 @@ function setup() {
 }
 
 const png = (name = "plan.png") =>
-  new File(["png"], name, { type: "image/png" })
+  new File([pngFixture()], name, { type: "image/png" })
 
 describe("PlanImport file recovery with real SEED and analysis", () => {
+  it("does not draw or analyze unexpected oversized decoded dimensions", async () => {
+    const ui = setup()
+    ui.choose(png())
+    await ui.flushMetadata()
+    ui.images[0].width = 4001
+    ui.images[0].height = 4000
+    await ui.decode()
+    await ui.analyze()
+    expect(ui.readPixels).not.toHaveBeenCalled()
+    expect(document.querySelector("canvas")).toBeNull()
+    expect(ui.text()).toContain("이미지를 읽지 못했어요")
+    expect(ui.revoke).toHaveBeenCalledOnce()
+  })
+  it("cancels the previous header read even when the new file is immediately rejected", async () => {
+    const ui = setup(true)
+    ui.choose(png("old.png"))
+    ui.choose(new File(["pdf"], "bad.pdf", { type: "application/pdf" }))
+    expect(ui.readers[0].abort).toHaveBeenCalledOnce()
+    await act(async () => {
+      await ui.readers[0].finish()
+    })
+    expect(ui.images).toHaveLength(0)
+    expect(ui.text()).toContain("PNG, JPG, WebP 이미지만")
+  })
+  it("ignores a resolved header when closing before its continuation", async () => {
+    const ui = setup(true)
+    ui.choose(png())
+    act(() => {
+      ui.readers[0].complete(pngFixture().buffer)
+      ui.click("닫기")
+    })
+    await ui.flushMetadata()
+    expect(ui.images).toHaveLength(0)
+    expect(ui.closed).toHaveBeenCalledOnce()
+  })
+  it("ignores a resolved header when a newer file is selected before its continuation", async () => {
+    const ui = setup(true)
+    ui.choose(png("old.png"))
+    act(() => {
+      ui.readers[0].complete(pngFixture().buffer)
+      ui.choose(png("new.png"))
+    })
+    await ui.flushMetadata()
+    expect(ui.images).toHaveLength(0)
+    await act(async () => {
+      await ui.readers[1].finish()
+    })
+    await ui.decode()
+    await ui.analyze()
+    expect(ui.images).toHaveLength(1)
+    expect(ui.button("이 배치로 시작").disabled).toBe(false)
+  })
+  it("aborts an unfinished header read on unmount without creating image URLs", async () => {
+    const ui = setup(true)
+    ui.choose(png())
+    ui.unmount()
+    await act(async () => {
+      await ui.readers[0].finish()
+    })
+    expect(ui.readers[0].abort).toHaveBeenCalledOnce()
+    expect(ui.createUrl).not.toHaveBeenCalled()
+  })
+  it("shows a safe file read error and can retry", async () => {
+    const ui = setup(true)
+    ui.choose(png())
+    await act(async () => {
+      ui.readers[0].onerror?.()
+    })
+    expect(ui.text()).toContain("파일을 읽지 못했어요")
+    expect(ui.images).toHaveLength(0)
+    ui.choose(png())
+    await act(async () => {
+      await ui.readers[1].finish()
+    })
+    await ui.decode()
+    await ui.analyze()
+    expect(ui.button("이 배치로 시작").disabled).toBe(false)
+  })
+  it("keeps an existing analysis running when a new header is invalid", async () => {
+    const ui = setup()
+    ui.choose(png())
+    await ui.decode()
+    ui.choose(new File(["text"], "bad.png", { type: "image/png" }))
+    await ui.flushMetadata()
+    await ui.analyze()
+    expect(ui.button("이 배치로 시작").disabled).toBe(false)
+    expect(ui.images).toHaveLength(1)
+  })
   it.each([
     ["large", pngFixture(4001, 4000), "1600만"],
     ["fake", new TextEncoder().encode("not a PNG"), "파일"],
     ["animated", pngFixture(200, 200, true), "정지 이미지"],
-  ])("rejects %s before allocating a decoder and keeps the valid draft", async (_label, bytes, message) => {
-    const ui = setup()
-    await ui.valid()
-    await act(async () => {
-      ui.choose(new File([bytes as Uint8Array<ArrayBuffer>], "other.png", { type: "image/png" }))
-    })
-    expect(ui.images).toHaveLength(1)
-    expect(ui.text()).toContain(message)
-    expect(ui.button("이 배치로 시작").disabled).toBe(false)
-  })
+  ])(
+    "rejects %s before allocating a decoder and keeps the valid draft",
+    async (_label, bytes, message) => {
+      const ui = setup()
+      await ui.valid()
+      ui.choose(
+        new File([bytes as Uint8Array<ArrayBuffer>], "other.png", {
+          type: "image/png",
+        })
+      )
+      await ui.flushMetadata()
+      expect(ui.images).toHaveLength(1)
+      expect(ui.text()).toContain(message)
+      expect(ui.button("이 배치로 시작").disabled).toBe(false)
+    }
+  )
   it.each(["image/png", "image/jpeg", "image/webp"])(
-    "accepts %s at the 15MB boundary",
+    "accepts %s at the declared 15MiB boundary",
     async (type) => {
       const ui = setup()
-      const file = new File(["image"], "plan", { type })
+      const fixture =
+        type === "image/png"
+          ? pngFixture()
+          : type === "image/jpeg"
+            ? jpegFixture()
+            : webpFixture()
+      const file = new File([fixture], `plan.${type.split("/")[1]}`, { type })
       Object.defineProperty(file, "size", { value: 15 * 1024 * 1024 })
       ui.choose(file)
       await ui.decode()
@@ -228,6 +373,7 @@ describe("PlanImport file recovery with real SEED and analysis", () => {
   it("ignores an already resolved image promise when a new file arrives before its continuation", async () => {
     const ui = setup()
     ui.choose(png("old.png"))
+    await ui.flushMetadata()
     await act(async () => {
       ui.images[0].room = false
       ui.images[0].onload?.()
@@ -241,6 +387,7 @@ describe("PlanImport file recovery with real SEED and analysis", () => {
   it("releases the image URL immediately when closing during decoding", async () => {
     const ui = setup()
     ui.choose(png())
+    await ui.flushMetadata()
     ui.click("닫기")
     expect(ui.revoke).toHaveBeenCalledOnce()
     expect(ui.images[0].src).toBe("")
@@ -315,7 +462,7 @@ describe("PlanImport file recovery with real SEED and analysis", () => {
         Object.defineProperty(file, "size", { value: 15 * 1024 * 1024 + 1 })
       ui.choose(file)
       expect(ui.text()).toContain(
-        invalid === "type" ? "PNG, JPG, WebP 이미지만" : "15MB 이하"
+        invalid === "type" ? "PNG, JPG, WebP 이미지만" : "15MiB 이하"
       )
       expect(ui.button("이 배치로 시작").disabled).toBe(false)
       ui.click("이 배치로 시작")
@@ -353,6 +500,7 @@ describe("PlanImport file recovery with real SEED and analysis", () => {
     async (outcome) => {
       const ui = setup()
       ui.drop(png("old.png"))
+      await ui.flushMetadata()
       ui.drop(png("new.png"))
       await ui.decode(1)
       await ui.analyze()
@@ -418,6 +566,7 @@ describe("PlanImport file recovery with real SEED and analysis", () => {
   it("does not analyze an image that finishes decoding after unmount", async () => {
     const ui = setup()
     ui.choose(png())
+    await ui.flushMetadata()
     ui.unmount()
     await ui.decode()
     await ui.analyze()

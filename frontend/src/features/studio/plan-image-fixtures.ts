@@ -1,6 +1,8 @@
 // Metadata-only synthetic fixtures. Pixel decoding is separately checked in the browser.
 export function joinBytes(...parts: Uint8Array[]) {
-  const bytes = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0))
+  const bytes = new Uint8Array(
+    parts.reduce((sum, part) => sum + part.length, 0)
+  )
   let offset = 0
   for (const part of parts) {
     bytes.set(part, offset)
@@ -34,9 +36,34 @@ export function pngFixture(width = 200, height = 200, animated = false) {
 
 export function jpegFixture(width = 200, height = 200, progressive = false) {
   return new Uint8Array([
-    255, 216, 255, progressive ? 194 : 192, 0, 11, 8,
-    height >> 8, height & 255, width >> 8, width & 255, 1, 1, 17, 0,
-    255, 218, 0, 8, 1, 1, 0, 0, 63, 0, 1, 255, 217,
+    255,
+    216,
+    255,
+    progressive ? 194 : 192,
+    0,
+    11,
+    8,
+    height >> 8,
+    height & 255,
+    width >> 8,
+    width & 255,
+    1,
+    1,
+    17,
+    0,
+    255,
+    218,
+    0,
+    8,
+    1,
+    1,
+    0,
+    0,
+    63,
+    0,
+    1,
+    255,
+    217,
   ])
 }
 
@@ -60,7 +87,11 @@ export function webpFixture(width = 200, height = 200, kind = "VP8 ") {
   const frame = new Uint8Array(kind === "VP8L" ? 5 : 10)
   if (kind === "VP8L") {
     frame[0] = 47
-    new DataView(frame.buffer).setUint32(1, (width - 1) + ((height - 1) * 16384), true)
+    new DataView(frame.buffer).setUint32(
+      1,
+      width - 1 + (height - 1) * 16384,
+      true
+    )
   } else {
     frame.set([0, 0, 0, 157, 1, 42])
     new DataView(frame.buffer).setUint16(6, width, true)
@@ -69,12 +100,20 @@ export function webpFixture(width = 200, height = 200, kind = "VP8 ") {
   return webpContainer(webpChunk(kind, frame))
 }
 
-export function webpExtended(width = 200, height = 200, flags = 0, frameWidth = width) {
+export function webpExtended(
+  width = 200,
+  height = 200,
+  flags = 0,
+  frameWidth = width
+) {
   const header = new Uint8Array(10)
   header[0] = flags
   for (let byte = 0; byte < 3; byte++) {
     header[4 + byte] = ((width - 1) >>> (byte * 8)) & 255
     header[7 + byte] = ((height - 1) >>> (byte * 8)) & 255
   }
-  return webpContainer(webpChunk("VP8X", header), webpFixture(frameWidth, height).slice(12))
+  return webpContainer(
+    webpChunk("VP8X", header),
+    webpFixture(frameWidth, height).slice(12)
+  )
 }

@@ -22,6 +22,11 @@ import {
   type PlanWarning,
 } from "@/features/studio/floor-plan"
 import { clampArea, type RoomDraft } from "@/features/studio/room-builder"
+import {
+  checkPlanImageSize,
+  PlanImageError,
+  validatePlanImage,
+} from "@/features/studio/plan-image"
 
 import { MeterField } from "./MeterField"
 
@@ -96,6 +101,7 @@ function loadImage(file: File, signal: AbortSignal): Promise<Source> {
     image.onload = () => {
       cleanup()
       try {
+        checkPlanImageSize(image.naturalWidth, image.naturalHeight)
         const ratio = Math.min(1, maxSide / Math.max(image.width, image.height))
         const width = Math.max(1, Math.round(image.width * ratio))
         const height = Math.max(1, Math.round(image.height * ratio))
@@ -159,10 +165,13 @@ export function PlanImport({
     timer: null,
     controller: null,
   })
+  const validationRef = useRef<AbortController | null>(null)
 
   useEffect(function manageImportLifetime() {
     const work = workRef.current
     return function cancelPendingImport() {
+      validationRef.current?.abort()
+      validationRef.current = null
       cancelImportWork(work)
     }
   }, [])
@@ -265,14 +274,37 @@ export function PlanImport({
 
   async function chooseFile(file: File | undefined) {
     if (!file) return
+    validationRef.current?.abort()
+    validationRef.current = null
     if (!acceptedTypes.includes(file.type)) {
       setError("PNG, JPG, WebP 이미지만 읽을 수 있어요.")
       return
     }
     if (file.size > maxBytes) {
-      setError("15MB 이하의 이미지를 골라 주세요.")
+      setError("15MiB 이하의 이미지를 골라 주세요.")
       return
     }
+    // A pending decode is not a committed preview. Do not let its continuation
+    // start analysis after the user has selected a replacement.
+    if (workRef.current.controller) {
+      cancelImportWork(workRef.current)
+      setStatus("empty")
+    }
+    const validation = new AbortController()
+    validationRef.current = validation
+    setError("")
+    try {
+      await validatePlanImage(file, validation.signal)
+    } catch (error) {
+      if (validationRef.current !== validation || validation.signal.aborted)
+        return
+      validationRef.current = null
+      setError(error instanceof PlanImageError ? error.message : imageReadError)
+      return
+    }
+    if (validationRef.current !== validation || validation.signal.aborted)
+      return
+    validationRef.current = null
     const work = workRef.current
     cancelImportWork(work)
     const generation = work.generation
@@ -364,6 +396,8 @@ export function PlanImport({
       size="large"
       onOpenChange={(open) => {
         if (!open) {
+          validationRef.current?.abort()
+          validationRef.current = null
           cancelImportWork(workRef.current)
           onClose()
         }
@@ -411,7 +445,9 @@ export function PlanImport({
                       ? "도면을 불러오고 있어요"
                       : "도면 이미지를 고르거나 여기에 끌어다 놓으세요"}
                   </Type>
-                  <Type variant="caption">PNG, JPG, WebP · 15MB 이하</Type>
+                  <Type variant="caption">
+                    PNG, JPG, WebP 정지 이미지. 15MiB 이하. 1600만 픽셀 이하.
+                  </Type>
                 </button>
               )}
               {busy && source && (

@@ -7,6 +7,7 @@ import {
 
 import { AppBar, type StudioView } from "@/features/studio/components/AppBar"
 import { ArrangeView } from "@/features/studio/components/ArrangeView"
+import { CommandReviewDialog } from "@/features/studio/components/CommandReviewDialog"
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
@@ -220,6 +221,14 @@ function Studio() {
           if (created) resetNavigation("structure")
           return created
         }}
+      />
+      <CommandReviewDialog
+        review={ready ? studio.commandReview : null}
+        project={studio.project}
+        onCancel={studio.cancelCommandReview}
+        onConfirm={studio.confirmCommandReview}
+        onChoose={studio.chooseCommandCandidate}
+        onRequestAgain={studio.requestCommandAgain}
       />
       <ShortcutGuide open={guideOpen} view={view} onOpenChange={setGuideOpen} />
       <FloorPlanDialog

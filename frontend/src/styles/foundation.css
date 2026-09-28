@@ -99,6 +99,23 @@ select {
   font: inherit;
 }
 
+.command-review-body,
+.command-review-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x3);
+  overflow-wrap: anywhere;
+}
+
+.command-review-list {
+  padding-inline-start: var(--seed-dimension-x5);
+}
+
+.command-review-candidates button {
+  white-space: normal;
+  height: auto;
+}
+
 :focus-visible {
   outline: 2px solid var(--seed-color-stroke-focus-ring);
   outline-offset: 2px;

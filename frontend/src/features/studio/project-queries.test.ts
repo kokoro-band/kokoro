@@ -78,6 +78,13 @@ describe("project queries", () => {
     vi.mocked(sendCommand).mockResolvedValue({
       reply: "완료",
       project: updatedProject,
+      appliedActions: ["완료"],
+      commands: [],
+      requiresConfirmation: false,
+      proposalId: null,
+      expiresAt: null,
+      proposedCommands: [],
+      candidates: [],
     })
     const client = queryClient()
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })

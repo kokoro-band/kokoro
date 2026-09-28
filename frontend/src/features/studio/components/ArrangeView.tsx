@@ -235,7 +235,11 @@ export function ArrangeView({
     if (isMobile) setSheet("selection")
   }
 
-  const send = (text: string) => studio.sendMessage(text, room?.polygon)
+  const send = (text: string) => {
+    // SEED returns focus to this input when the command review closes.
+    assistantInputRef.current?.focus()
+    studio.sendMessage(text, room?.polygon)
+  }
 
   const navigator = (
     <RoomNavigator

@@ -12,6 +12,7 @@ import com.kokoro.room.project.ProjectModels.LayoutCandidate;
 import com.kokoro.room.project.ProjectModels.LayoutCommand;
 import com.kokoro.room.project.ProjectModels.LayoutProposal;
 import com.kokoro.room.floorplan.FloorPlanStorage;
+import com.kokoro.room.floorplan.FloorPlanUploadValidator;
 import com.kokoro.room.security.CurrentUser;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import com.kokoro.room.project.ProjectModels.RoomBounds;
@@ -32,10 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 
 @Service
 public class ProjectService {
-    private static final long MAX_FLOOR_PLAN_BYTES = 15L * 1024 * 1024;
     private static final Duration PROPOSAL_TTL = Duration.ofMinutes(5);
     private final ProjectRepository projectRepository;
     private final FloorPlanStorage floorPlanStorage;
@@ -124,18 +125,18 @@ public class ProjectService {
 
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {
         RenovationProject project = find(id);
-        if (file.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "도면 파일이 비어 있습니다.");
-        if (file.getSize() > MAX_FLOOR_PLAN_BYTES) throw new ResponseStatusException(BAD_REQUEST, "도면은 15MB 이하여야 합니다.");
-
-        String contentType = file.getContentType() == null ? "" : file.getContentType();
-        if (!List.of("application/pdf", "image/png", "image/jpeg").contains(contentType)) {
-            throw new ResponseStatusException(BAD_REQUEST, "PDF, PNG, JPG 도면만 업로드할 수 있습니다.");
-        }
         if (project.floorPlan().status() == ConversionStatus.PROCESSING && project.floorPlan().jobId() != null) {
             throw new ResponseStatusException(CONFLICT, "현재 도면 변환 작업이 진행 중입니다.");
         }
 
-        FloorPlanStorage.StoredFloorPlan stored = floorPlanStorage.store(id, file);
+        FloorPlanStorage.StoredFloorPlan stored;
+        try {
+            MultipartFile validated = FloorPlanUploadValidator.validate(file);
+            stored = floorPlanStorage.store(id, validated);
+        } catch (IOException exception) {
+            throw new ResponseStatusException(INTERNAL_SERVER_ERROR,
+                    "도면 파일을 읽거나 저장하지 못했습니다. 다시 시도해 주세요.", exception);
+        }
         String jobId = UUID.randomUUID().toString();
         RenovationProject updated;
         try {

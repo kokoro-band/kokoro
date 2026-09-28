@@ -66,6 +66,7 @@ class FloorPlanUploadValidationTest {
                 Arguments.of("empty", file("plan.pdf", "application/pdf", new byte[0]), 400),
                 Arguments.of("renamed text", file("plan.pdf", "application/pdf", "hello".getBytes()), 415),
                 Arguments.of("extension mismatch", file("plan.png", "application/pdf", PDF), 415),
+                Arguments.of("no extension", file("pdf", "application/pdf", PDF), 415),
                 Arguments.of("signature mismatch", file("plan.jpg", "image/jpeg", image("png")), 415),
                 Arguments.of("missing MIME", file("plan.pdf", null, PDF), 415),
                 Arguments.of("unsupported", file("plan.webp", "image/webp", PDF), 415),
@@ -76,7 +77,10 @@ class FloorPlanUploadValidationTest {
                 Arguments.of("control", file("plan\n.pdf", "application/pdf", PDF), 400),
                 Arguments.of("missing name", file("", "application/pdf", PDF), 400),
                 Arguments.of("PNG header only", file("plan.png", "image/png", new byte[]{(byte)137,80,78,71,13,10,26,10}), 415),
+                Arguments.of("JPEG header only", file("plan.jpg", "image/jpeg", new byte[]{(byte)255,(byte)216,(byte)255}), 415),
+                Arguments.of("zero width", file("plan.png", "image/png", pngDimensions(0, 3)), 415),
                 Arguments.of("too many pixels", file("plan.png", "image/png", pngDimensions(4001, 4000)), 413),
+                Arguments.of("JPEG pixel limit", file("plan.jpg", "image/jpeg", jpegDimensions(5000, 4000)), 413),
                 Arguments.of("pixel integer overflow", file("plan.png", "image/png", pngDimensions(65536, 65536)), 413)
         );
     }
@@ -108,6 +112,24 @@ class FloorPlanUploadValidationTest {
     }
 
     @Test
+    void storageFailurePreservesProjectAndHidesInternalPath() throws Exception {
+        String id = createProject();
+        String before = mvc.perform(get("/api/projects/{id}", id)).andReturn().getResponse().getContentAsString();
+        // A pre-existing file blocks creation of this project's storage directory.
+        Path blocker = storage.resolve(id);
+        Files.writeString(blocker, "preserve existing file");
+        String response = mvc.perform(multipart("/api/projects/{id}/floor-plan", id)
+                        .file(file("plan.pdf", "application/pdf", PDF)))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.detail").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(response).doesNotContain(storage.toString(), "FileSystemException");
+        String after = mvc.perform(get("/api/projects/{id}", id)).andReturn().getResponse().getContentAsString();
+        assertThat(mapper.readTree(after)).isEqualTo(mapper.readTree(before));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM floor_plan_jobs WHERE project_id = ?", Integer.class, id)).isZero();
+        assertThat(Files.readString(blocker)).isEqualTo("preserve existing file");
+    }
+
+    @Test
     void storesExactlyTheValidatedBytesAndActualLength() throws Exception {
         var changing = new MockMultipartFile("file", "plan.pdf", "application/pdf", PDF) {
             private int reads;
@@ -133,6 +155,7 @@ class FloorPlanUploadValidationTest {
                 Arguments.of(file("plan.jpeg", "image/jpeg", image("jpeg"))),
                 Arguments.of(file("plan.jpg", "image/jpeg", image("jpeg"))),
                 Arguments.of(file("가".repeat(251) + ".pdf", "application/pdf", PDF)),
+                Arguments.of(file("🌱".repeat(251) + ".pdf", "application/pdf", PDF)),
                 Arguments.of(file("plan.pdf", "application/pdf", Arrays.copyOf(PDF, MAX_BYTES))),
                 // Header dimensions are validated without allocating the declared pixel buffer.
                 Arguments.of(file("plan.png", "image/png", pngDimensions(4000, 4000)))
@@ -198,5 +221,16 @@ class FloorPlanUploadValidationTest {
         crc.update(png, 12, 17);
         ByteBuffer.wrap(png).putInt(29, (int) crc.getValue());
         return png;
+    }
+
+    private static byte[] jpegDimensions(int width, int height) throws IOException {
+        byte[] jpeg = image("jpeg");
+        for (int i = 0; i < jpeg.length - 8; i++) {
+            if ((jpeg[i] & 255) == 255 && (jpeg[i + 1] & 255) == 192) {
+                ByteBuffer.wrap(jpeg).putShort(i + 5, (short) height).putShort(i + 7, (short) width);
+                return jpeg;
+            }
+        }
+        throw new AssertionError("JPEG fixture has no SOF0 dimensions");
     }
 }

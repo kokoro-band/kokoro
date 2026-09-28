@@ -55,6 +55,13 @@ class FloorPlanMultipartLimitTest {
         assertThat(mapper.readTree(rejected.body()).path("detail").asString()).contains("15MiB");
         assertThat(rejected.body()).doesNotContain(storage.toString(), "Exception", "stackTrace");
         assertThat(Files.exists(storage.resolve(rejectedId))).isFalse();
+
+        // Exercises the whole-request limit independently of the per-file limit.
+        String requestLimitId = createProject();
+        var requestLimit = upload(requestLimitId, 16 * 1024 * 1024);
+        assertThat(requestLimit.statusCode()).isEqualTo(413);
+        assertThat(mapper.readTree(requestLimit.body()).path("detail").asString()).contains("15MiB");
+        assertThat(Files.exists(storage.resolve(requestLimitId))).isFalse();
     }
 
     private String createProject() throws Exception {

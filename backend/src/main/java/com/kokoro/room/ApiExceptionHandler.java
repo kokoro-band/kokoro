@@ -8,6 +8,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ProblemDetail uploadTooLarge() {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(413), "도면은 15MiB 이하여야 합니다.");
+    }
+
     @ExceptionHandler(com.kokoro.room.project.InvalidRoomException.class)
     public ProblemDetail invalidRoom(com.kokoro.room.project.InvalidRoomException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), exception.getMessage());

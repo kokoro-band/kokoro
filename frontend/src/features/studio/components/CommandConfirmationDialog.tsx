@@ -3,7 +3,6 @@ import { ActionButton, ContentDialog, ResponsivePair } from "@seed-design/react"
 
 import { Type } from "@/components/kokoro/Type"
 import { catalog } from "@/features/studio/data"
-import { isServerMode } from "@/features/studio/project-api"
 import type {
   ChatCommandResponse,
   Furniture,
@@ -155,11 +154,9 @@ export function CommandConfirmationDialog({
                 ))}
               </ul>
             )}
-            {!isServerMode && (
-              <Type variant="caption" as="p">
-                체험용 제안이에요. 적용할 내용을 확인해 주세요.
-              </Type>
-            )}
+            <Type variant="caption" as="p">
+              적용할 내용을 확인해 주세요.
+            </Type>
           </ContentDialog.Body>
           <ContentDialog.Footer>
             <ResponsivePair gap="x2">

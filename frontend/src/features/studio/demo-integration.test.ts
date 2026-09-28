@@ -16,14 +16,26 @@ describe("main demo integration", () => {
     expect(shortcuts.viewSummary.keys).toEqual(["alt+3"])
   })
 
-  it.each(["/", "/kokoro/"])("loads catalog models under the %s deployment base", async (base) => {
-    vi.stubEnv("BASE_URL", base)
-    const load = vi.spyOn(GLTFLoader.prototype, "load").mockImplementation((_url, onLoad) => {
-      const scene = new THREE.Group()
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)))
-      queueMicrotask(() => onLoad({ scene } as Parameters<typeof onLoad>[0]))
-    })
-    await loadFurnitureModel("/models/base-contract.glb")
-    expect(load).toHaveBeenCalledWith(base + "models/base-contract.glb", expect.any(Function), undefined, expect.any(Function))
-  })
+  it.each(["/", "/kokoro/"])(
+    "loads catalog models under the %s deployment base",
+    async (base) => {
+      vi.stubEnv("BASE_URL", base)
+      const load = vi
+        .spyOn(GLTFLoader.prototype, "load")
+        .mockImplementation((_url, onLoad) => {
+          const scene = new THREE.Group()
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)))
+          queueMicrotask(() =>
+            onLoad({ scene } as Parameters<typeof onLoad>[0])
+          )
+        })
+      await loadFurnitureModel("/models/base-contract.glb")
+      expect(load).toHaveBeenCalledWith(
+        base + "models/base-contract.glb",
+        expect.any(Function),
+        undefined,
+        expect.any(Function)
+      )
+    }
+  )
 })

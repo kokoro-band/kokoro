@@ -79,6 +79,8 @@ VITE_API_MODE=server VITE_API_BASE_URL=http://localhost:8080/api vp dev
 
 ## 검증
 
+공개 데모의 배포 방법과 지원 범위는 [GitHub Pages 데모 안내](docs/github-pages-demo.md)를 참고합니다. main 통합 전까지 공개 화면은 기존 데모 커밋을 사용합니다.
+
 ```bash
 cd frontend
 vp check

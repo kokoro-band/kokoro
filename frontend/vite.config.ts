@@ -21,6 +21,14 @@ parseFurnitureCatalog(
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
+  test: {
+    server: {
+      deps: {
+        // SEED recipes import CSS which must pass through Vite in DOM tests.
+        inline: [/@seed-design\//],
+      },
+    },
+  },
   server: {
     fs: {
       allow: [

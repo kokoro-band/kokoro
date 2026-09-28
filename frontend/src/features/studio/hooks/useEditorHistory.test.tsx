@@ -1,5 +1,11 @@
 // @vitest-environment happy-dom
-import { act, createRef, StrictMode, useImperativeHandle, type Ref } from "react"
+import {
+  act,
+  createRef,
+  StrictMode,
+  useImperativeHandle,
+  type Ref,
+} from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { useEditorHistory } from "./useEditorHistory"
@@ -20,12 +26,41 @@ function setup() {
     return null
   }
   const root = createRoot(document.createElement("div"))
-  act(() => root.render(<StrictMode><Harness handle={ref} /></StrictMode>))
+  act(() =>
+    root.render(
+      <StrictMode>
+        <Harness handle={ref} />
+      </StrictMode>
+    )
+  )
   cleanups.push(() => act(() => root.unmount()))
   return () => ref.current!
 }
 
 describe("editor undo and redo", () => {
+  it("groups real tagged edits in one React batch", () => {
+    const history = setup()
+    act(() => {
+      history().set(() => 1, "width")
+      history().set(() => 2, "width")
+    })
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+    expect(history().canUndo).toBe(false)
+    act(() => history().redo())
+    expect(history().present).toBe(2)
+  })
+  it("preserves redo through a tagged no-op after undo", () => {
+    const history = setup()
+    act(() => history().set(() => 1, "width"))
+    act(() => history().undo())
+    act(() => history().set((value) => value, "width"))
+    expect(history().canRedo).toBe(true)
+    act(() => history().set(() => 2, "width"))
+    expect(history().canRedo).toBe(false)
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+  })
   it("does not let a tagged no-op consume the first undo boundary", () => {
     const history = setup()
     act(() => {

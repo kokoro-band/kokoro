@@ -25,16 +25,7 @@ public class FurniturePlacementValidator {
      * Width in meters kept clear on each side of a door opening, in front of the door.
      */
     private static final double DOOR_CLEARANCE = 0.8;
-    private static final Map<String, FurnitureSize> CATALOG = Map.of(
-            "sofa-cloud", new FurnitureSize(2.2, 0.92),
-            "sofa-moss", new FurnitureSize(2.1, 0.95),
-            "table-oak", new FurnitureSize(1.25, 0.7),
-            "table-white", new FurnitureSize(1.0, 1.0),
-            "chair-shell", new FurnitureSize(0.65, 0.65),
-            "chair-sand", new FurnitureSize(0.65, 0.65),
-            "plant-olive", new FurnitureSize(0.55, 0.55),
-            "lamp-arc", new FurnitureSize(0.5, 0.5)
-    );
+    private static final Map<String, FurnitureCatalog.Size> CATALOG = FurnitureCatalog.load();
 
     /**
      * Coordinates are meters with the origin at the top-left of the room bounding box.
@@ -98,7 +89,7 @@ public class FurniturePlacementValidator {
     }
 
     private OrientedBox box(FurnitureItem item) {
-        FurnitureSize size = CATALOG.get(item.catalogId());
+        FurnitureCatalog.Size size = CATALOG.get(item.catalogId());
         if (size == null) throw invalid("지원하지 않는 가구입니다: " + item.catalogId());
         if (!Double.isFinite(item.x()) || !Double.isFinite(item.z())) {
             throw invalid("가구 위치 값이 올바르지 않습니다.");
@@ -290,7 +281,6 @@ public class FurniturePlacementValidator {
                 List.of(first.id(), second.id()), null, null);
     }
 
-    private record FurnitureSize(double width, double depth) {}
     private record Axis(double x, double z) {}
     private record OrientedBox(double centerX, double centerZ, Axis axisX, Axis axisZ,
                                double halfWidth, double halfDepth) {}

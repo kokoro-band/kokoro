@@ -14,6 +14,10 @@ import type {
   RoomModel,
 } from "./types"
 import { commandLayoutKey, CommandReviewExpiredError } from "./command-review"
+import {
+  maxStoredProjectLength,
+  parseStoredProject,
+} from "./project-validation"
 
 const storageKey = "kokoro-remodel-project-v1"
 const activeProjectStorageKey = "kokoro-active-server-project-v1"
@@ -28,17 +32,50 @@ function projectPath(projectId: string) {
 }
 
 export function readSavedProject(): Project {
+  return readSavedProjectWithRecovery().project
+}
+
+export function readSavedProjectWithRecovery(): {
+  project: Project
+  recovery: "corrupt" | "unavailable" | null
+} {
+  let raw: string | null
   try {
-    const raw = localStorage.getItem(storageKey)
-    if (raw) {
-      const saved = JSON.parse(raw) as Project
-      if (saved.id && Array.isArray(saved.furniture) && saved.dimensions)
-        return saved
-    }
+    raw = localStorage.getItem(storageKey)
   } catch {
-    // 손상된 기기 저장소는 샘플 프로젝트로 복구합니다.
+    return { project: structuredClone(sampleProject), recovery: "unavailable" }
   }
-  return structuredClone(sampleProject)
+  if (raw === null)
+    return { project: structuredClone(sampleProject), recovery: null }
+  try {
+    if (raw.length > maxStoredProjectLength)
+      throw new Error("Project too large")
+    return { project: parseStoredProject(JSON.parse(raw)), recovery: null }
+  } catch {
+    // Never erase or overwrite the original just because loading it failed.
+    return { project: structuredClone(sampleProject), recovery: "corrupt" }
+  }
+}
+
+function persistProject(project: Project): Project {
+  const validated = parseStoredProject(project)
+  const raw = JSON.stringify(validated)
+  if (raw.length > maxStoredProjectLength)
+    throw new Error(
+      "프로젝트가 너무 커서 기기에 저장하지 못했어요. 항목 수를 줄여 주세요."
+    )
+  try {
+    localStorage.setItem(storageKey, raw)
+  } catch (cause) {
+    const quota = cause instanceof Error && cause.name === "QuotaExceededError"
+    throw new Error(
+      quota
+        ? "기기의 저장 공간이 부족해 저장하지 못했어요. 편집 내용은 화면에 남아 있어요. 공간을 확보한 뒤 다시 저장해 주세요."
+        : "기기 저장소에 저장하지 못했어요. 편집 내용은 화면에 남아 있어요. 브라우저 저장 권한을 확인한 뒤 다시 저장해 주세요.",
+      { cause }
+    )
+  }
+  return validated
 }
 
 export function readActiveProjectId(): string | null {
@@ -70,8 +107,7 @@ export async function saveProject(project: Project): Promise<Project> {
       data: { furniture: project.furniture },
     })
   }
-  localStorage.setItem(storageKey, JSON.stringify(updated))
-  return updated
+  return persistProject(updated)
 }
 
 export async function saveRoom(
@@ -86,8 +122,7 @@ export async function saveRoom(
       data: { room },
     })
   }
-  localStorage.setItem(storageKey, JSON.stringify(updated))
-  return updated
+  return persistProject(updated)
 }
 
 export async function uploadPlan(

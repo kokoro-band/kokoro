@@ -50,6 +50,8 @@ import type {
   ViewMode,
 } from "@/features/studio/types"
 
+import { chatInputError, projectNameError } from "../input-limits"
+
 export type Notice = {
   id: number
   text: string
@@ -655,6 +657,11 @@ export function useStudioController() {
     furnitureId?: string
   ) {
     if (!text.trim() || busy || commandOperationRef.current) return
+    const inputError = chatInputError(text)
+    if (inputError) {
+      setNotice(inputError, "critical")
+      return
+    }
     if (!review && commandReviewRef.current) return
     const queue = currentQueue()
     if (queue.closed) return
@@ -963,6 +970,11 @@ export function useStudioController() {
   async function handleCreate(name: string) {
     const trimmedName = name.trim()
     if (!trimmedName) return false
+    const inputError = projectNameError(trimmedName)
+    if (inputError) {
+      setNotice(inputError, "critical")
+      return false
+    }
     if (!confirmLeave()) return false
     const navigation = navigationRef.current
     setBusy("create")

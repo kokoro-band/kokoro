@@ -1,4 +1,5 @@
 import type { Furniture, Point2, Project, RoomModel } from "./types"
+import { maxFurnitureCount, projectNameError } from "./input-limits"
 
 // This is the browser persistence boundary, not collision or full polygon validation.
 export const maxStoredProjectLength = 1024 * 1024
@@ -20,15 +21,7 @@ function text(value: unknown, max: number, empty = false): string {
   return value
 }
 function projectName(value: unknown): string {
-  check(typeof value === "string" && value.trim().length > 0)
-  let count = 0
-  // The SEED name field counts user-perceived characters, not UTF-16 units.
-  for (const _segment of new Intl.Segmenter("ko", {
-    granularity: "grapheme",
-  }).segment(value)) {
-    count += 1
-    check(count <= 80)
-  }
+  check(typeof value === "string" && projectNameError(value) === null)
   return value
 }
 function number(
@@ -177,25 +170,27 @@ export function parseStoredProject(value: unknown): Project {
   const dimensions = record(project.dimensions)
   const plan = record(project.floorPlan)
   const ids = new Set<string>()
-  const furniture: Furniture[] = list(project.furniture, 200).map((value) => {
-    const item = record(value)
-    return {
-      id: id(item.id, ids),
-      catalogId: id(item.catalogId),
-      name: text(item.name, 256),
-      category: choice(item.category, [
-        "소파",
-        "테이블",
-        "의자",
-        "장식",
-      ] as const),
-      // Valid out-of-room furniture stays available to the existing repair UI.
-      x: number(item.x),
-      z: number(item.z),
-      rotation: number(item.rotation),
-      color: text(item.color, 64),
+  const furniture: Furniture[] = list(project.furniture, maxFurnitureCount).map(
+    (value) => {
+      const item = record(value)
+      return {
+        id: id(item.id, ids),
+        catalogId: id(item.catalogId),
+        name: text(item.name, 256),
+        category: choice(item.category, [
+          "소파",
+          "테이블",
+          "의자",
+          "장식",
+        ] as const),
+        // Valid out-of-room furniture stays available to the existing repair UI.
+        x: number(item.x),
+        z: number(item.z),
+        rotation: number(item.rotation),
+        color: text(item.color, 64),
+      }
     }
-  })
+  )
   const size = number(plan.size, 0)
   check(Number.isSafeInteger(size))
   return {

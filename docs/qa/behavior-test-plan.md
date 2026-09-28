@@ -197,6 +197,22 @@ RED 커밋 `ad9ece5`에서 `./mvnw test -Dtest=FloorPlanUploadValidationTest,Flo
 
 최종 `vp check`와 39개 파일의 `vp test` 477개 및 `vp run build`가 통과했습니다. 기존 큰 번들 경고는 남아 있습니다. 독립 리뷰에서 초기 파서와 화면 검사 51개도 통과했습니다. 이후 제안받은 JPEG 절단과 디코딩 후 크기 방어 검사를 보강했습니다. 백엔드는 변경하지 않았고 로컬 Maven 검사는 재실행하지 않았습니다. 서버 입력 제한과 API 주소 검증 및 의존성 감사는 #22에 남습니다. 실제 Spring 연결 E2E는 #11에 남으며 선행 #119의 병합과 배포도 별도입니다.
 
+## 후속 실행 기록: 입력 길이와 가구 수
+
+#122는 #22에서 프로젝트 이름과 채팅 길이 및 가구 수 검증을 분리한 작업입니다. 이름의 브라우저 80글자 정책과 서버 원문 1024 UTF-16 단위 상한은 서로 다른 정책입니다. 이모지와 결합 문자를 두 환경이 항상 같게 세지 못한다는 독립 리뷰를 반영했습니다. 공통 경계 예제와 차이는 `docs/contracts/api.md` 및 `fixtures/input-boundaries.json`에 기록했습니다.
+
+RED 커밋 `920917d`에서 `vp test src/features/studio/input-boundaries.test.ts src/features/studio/hooks/useStudioController.test.tsx`는 54개 중 21개가 실패했습니다. 초과 입력을 전송하거나 채팅 초안을 비우는 동작 및 로컬 저장의 긴 결합 문자 허용을 확인했습니다. `./mvnw -Dtest=ProjectInputBoundaryTest test`는 20개 중 11개가 실패하고 3개가 DB 길이 오류를 일으켰습니다. 가구 201개 저장 허용과 채팅 제한 누락 및 정상 이모지 이름의 DB 저장 실패가 원인이었습니다. 컴파일이나 설치 실패가 아닙니다.
+
+추가 RED 커밋 `cf82eaf`에서 `vp test src/features/studio/components/InputLimits.test.tsx src/features/studio/input-boundaries.test.ts`는 49개 중 3개가 실패했습니다. 실제 SEED 입력 컴포넌트의 제한 누락과 로컬 명령의 201번째 가구 추가를 검사했습니다. 수정 후 관련 3개 파일의 58개 검사가 모두 통과했고 독립 리뷰에서도 같은 결과를 확인했습니다.
+
+독립 리뷰에서 별도 열린 #80의 `V6__project_revision.sql`과 번호가 중복되는 점을 발견했습니다. 새 이름 컬럼 변경은 `V7__widen_project_name.sql`로 분리했습니다. 배포 전에는 #80을 포함해 전체 migration 순서를 통합 검증해야 합니다. V7을 먼저 적용한 DB에 나중에 V6 파일을 추가하는 것은 이 PR의 검증 범위가 아닙니다. 이름 변경은 기존 값을 삭제하거나 축약하지 않습니다.
+
+최종 `vp check`는 경고 없이 통과했고 `vp test`는 41개 파일의 528개 검사를 통과했습니다. `vp run build`도 통과했으며 기존 큰 번들 경고는 남습니다. 번호 변경 뒤 `./mvnw clean test`와 `./mvnw package`는 각각 PostgreSQL 기반 검사를 포함한 93개 테스트를 통과했습니다. 삭제한 이전 빌드 산출물이 검증에 섞이지 않도록 clean을 실행했습니다.
+
+실제 브라우저의 별도 포트에서 초과 채팅의 오류와 전송 비활성화 및 Enter 후 입력 보존을 확인했습니다. 이모지 500개가 UTF-16 1000단위로 안내되고 전송 버튼이 활성화되는 것도 확인했습니다. 가족 이모지 80개로 로컬 프로젝트를 생성하고 새로고침 후 동일 이름이 복원됐습니다. 콘솔 오류는 없었으며 기존 SEED 레이블 안내와 Three.js Clock 경고는 남습니다. 자동화 도구의 입력값 설정으로 제한을 우회한 초과값도 검사한 것이며 모바일 IME나 모든 브라우저의 붙여넣기 동작을 검증한 것은 아닙니다.
+
+실제 브라우저와 Spring을 연결한 E2E는 #11에 남습니다. API 주소와 의존성 감사는 #22에 남습니다. JSON 전송 총량과 요청 속도 제한은 #10의 후속 범위이며 가구 문자열과 기타 수치 경계도 별도 보완이 필요합니다. PR의 테스트 통과는 main 병합과 배포 및 실제 헤드셋 검증을 뜻하지 않습니다.
+
 ## 앞으로 PR에 남길 내용
 
 새 기능과 버그 수정은 실패하는 기대 동작부터 작성합니다. `RED: 명령과 실패 이유` 및 `GREEN: 같은 명령의 통과 결과`를 PR 검증 항목에 적습니다. 이후 관련 회귀 검사와 `vp check`와 `vp test`와 `vp run build`를 실행합니다. 백엔드 변경은 `./mvnw test`와 `./mvnw package`를 실행합니다.

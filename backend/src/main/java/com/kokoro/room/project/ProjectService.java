@@ -97,6 +97,8 @@ public class ProjectService {
 
     @Transactional
     public RenovationProject create(CreateProjectRequest request) {
+        ProjectInputLimits.name(request.name());
+        ProjectInputLimits.roomType(request.roomType());
         String id = UUID.randomUUID().toString();
         RenovationProject project = new RenovationProject(
                 id,
@@ -182,6 +184,7 @@ public class ProjectService {
     @Transactional
     public ChatCommandResponse applyCommand(String id, String message, String furnitureId) {
         RenovationProject project = find(id);
+        ProjectInputLimits.message(message);
         LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message, bounds(project));
         if (interpretation.requiresConfirmation()) {
             Instant now = Instant.now();

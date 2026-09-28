@@ -13,6 +13,7 @@ import { TextField, TextFieldTextarea } from "seed-design/ui/text-field"
 import { Type } from "@/components/kokoro/Type"
 import { isServerMode } from "@/features/studio/project-api"
 import type { ChatMessage } from "@/features/studio/types"
+import { chatInputError, maxChatLength } from "../input-limits"
 
 const suggestions = [
   "미니멀한 거실로 꾸며줘",
@@ -43,15 +44,19 @@ export function AssistantPanel({
   autoFocus?: boolean
 }) {
   const logRef = useRef<HTMLDivElement>(null)
+  const error = chatInputError(input)
 
-  useEffect(() => {
-    const log = logRef.current
-    if (log) log.scrollTop = log.scrollHeight
-  }, [messages.length, chatBusy])
+  useEffect(
+    function scrollToLatestMessage() {
+      const log = logRef.current
+      if (log) log.scrollTop = log.scrollHeight
+    },
+    [messages.length, chatBusy]
+  )
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onSend(input)
+    if (!busy && !error) onSend(input)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -61,7 +66,7 @@ export function AssistantPanel({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault()
-      onSend(input)
+      if (!busy && !error) onSend(input)
     }
   }
 
@@ -122,11 +127,15 @@ export function AssistantPanel({
         <TextField
           size="medium"
           value={input}
+          invalid={Boolean(input && error)}
+          errorMessage={input ? error : undefined}
+          description={`${input.length} / ${maxChatLength}자. 이모지는 여러 자로 계산될 수 있어요.`}
           onValueChange={({ value }) => onInputChange(value)}
         >
           <TextFieldTextarea
             ref={inputRef}
             aria-label="가구 배치 요청"
+            maxLength={maxChatLength}
             placeholder="예: 소파 옆에 화분을 놓아줘"
             autoresize
             autoFocus={autoFocus}
@@ -139,7 +148,7 @@ export function AssistantPanel({
           size="medium"
           layout="iconOnly"
           aria-label="요청 보내기"
-          disabled={!input.trim() || busy}
+          disabled={Boolean(error) || busy}
         >
           <Icon svg={<IconPaperplaneTiltedFill />} size="x5" />
         </ActionButton>

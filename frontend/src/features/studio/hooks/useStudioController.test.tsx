@@ -128,13 +128,17 @@ describe("useStudioController project switching", () => {
     expect(app.get().project).toEqual(project)
     expect(app.get().busy).toBeNull()
     expect(calls("sendCommand")).toHaveLength(0)
-    expect(app.get().notice).toMatchObject({ text: expect.stringContaining("1000") })
+    expect(app.get().notice).toMatchObject({
+      text: expect.stringContaining("1000"),
+    })
   })
 
   it("rejects an invalid name before starting project navigation", async () => {
     const app = await setup()
     const project = app.get().project
-    act(() => { void app.get().createProject("가".repeat(81)) })
+    act(() => {
+      void app.get().createProject("가".repeat(81))
+    })
     await flush()
     expect(calls("createProject")).toHaveLength(0)
     expect(app.get().project).toEqual(project)

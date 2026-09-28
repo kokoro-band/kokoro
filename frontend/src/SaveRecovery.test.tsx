@@ -194,6 +194,20 @@ async function setup() {
 }
 
 describe("save recovery through the real App and SEED UI", () => {
+  it("does not unlock project creation when an earlier manual save finishes", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.reject(0)
+    await ui.click("다시 저장", ui.header())
+    await ui.click("검증 A 프로젝트 메뉴")
+    await ui.click("새 프로젝트")
+    await ui.type("프로젝트 이름", "검증 B")
+    await ui.click("만들기")
+    expect(ui.button("만들기").disabled).toBe(true)
+    await ui.resolve(1)
+    expect(ui.button("만들기").disabled).toBe(true)
+    expect(http.calls.filter((call) => call.config.url === "/projects")).toHaveLength(1)
+  })
   it("shows manual recovery after automatic network retries are exhausted", async () => {
     const ui = await setup()
     await ui.add()

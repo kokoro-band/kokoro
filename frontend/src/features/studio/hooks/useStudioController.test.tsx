@@ -50,6 +50,7 @@ vi.mock("@/features/studio/project-api", async (importOriginal) => ({
   createProject: server.fake("createProject"),
   uploadPlan: server.fake("uploadPlan"),
   saveRoom: server.fake("saveRoom"),
+  sendCommand: server.fake("sendCommand"),
 }))
 
 const projectA: Project = structuredClone(sampleProject)
@@ -114,6 +115,32 @@ beforeEach(() => {
 })
 
 describe("useStudioController project switching", () => {
+  it("keeps the chat draft and history when a request exceeds the input limit", async () => {
+    const app = await setup()
+    const input = "가".repeat(1001)
+    act(() => app.get().setInput(input))
+    const messages = app.get().messages
+    const project = app.get().project
+    act(() => app.get().sendMessage(input))
+    await flush()
+    expect(app.get().input).toBe(input)
+    expect(app.get().messages).toEqual(messages)
+    expect(app.get().project).toEqual(project)
+    expect(app.get().busy).toBeNull()
+    expect(calls("sendCommand")).toHaveLength(0)
+    expect(app.get().notice).toMatchObject({ text: expect.stringContaining("1000") })
+  })
+
+  it("rejects an invalid name before starting project navigation", async () => {
+    const app = await setup()
+    const project = app.get().project
+    act(() => { void app.get().createProject("가".repeat(81)) })
+    await flush()
+    expect(calls("createProject")).toHaveLength(0)
+    expect(app.get().project).toEqual(project)
+    expect(app.get().busy).toBeNull()
+  })
+
   it("serializes wall-constrained drags without losing the latest draft or undo boundaries", async () => {
     const initial: Project = {
       ...structuredClone(projectA),

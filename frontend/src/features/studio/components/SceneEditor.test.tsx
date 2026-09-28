@@ -130,8 +130,7 @@ async function setup() {
   const states = (): Record<string, boolean> =>
     JSON.parse(scene().dataset.doors!)
   const tool = () => scene().dataset.tool
-  const menu = () =>
-    document.querySelector<HTMLElement>('[role="menu"]')
+  const menu = () => document.querySelector<HTMLElement>('[role="menu"]')
   const items = () => [
     ...(menu()?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
   ]
@@ -308,5 +307,52 @@ describe("scene tools wired to actual keyboard controls", () => {
     await key(document.activeElement as HTMLElement, " ", "Space")
     expect(app.states()[app.doors[0].id]).toBe(false)
     expect(app.undo).not.toHaveBeenCalled()
+  })
+  it("opens and closes all doors through keyboard-reachable bulk items", async () => {
+    const app = await setup()
+    const trigger = app.button("문 열고 닫기")
+    trigger.focus()
+    await key(trigger, "ArrowDown", "ArrowDown")
+    await vi.waitFor(() =>
+      expect(app.menu()?.contains(document.activeElement)).toBe(true)
+    )
+    async function reach(label: string) {
+      for (let i = 0; i < app.items().length + 2; i++) {
+        if (document.activeElement?.textContent?.trim() === label) return
+        await key(
+          document.activeElement as HTMLElement,
+          "ArrowDown",
+          "ArrowDown"
+        )
+      }
+      throw new Error(`키보드로 ${label}에 도달하지 못했습니다`)
+    }
+    await reach("모두 열기")
+    await key(document.activeElement as HTMLElement, "Enter", "Enter")
+    expect(app.doors.every((door) => app.states()[door.id] === true)).toBe(true)
+    expect(
+      app
+        .items()
+        .find((item) => item.textContent?.trim() === "모두 열기")
+        ?.getAttribute("aria-disabled")
+    ).toBe("true")
+    expect(trigger.getAttribute("aria-expanded")).toBe("true")
+    await reach("모두 닫기")
+    await key(document.activeElement as HTMLElement, " ", "Space")
+    expect(app.doors.every((door) => app.states()[door.id] === false)).toBe(
+      true
+    )
+    expect(
+      app
+        .items()
+        .find((item) => item.textContent?.trim() === "모두 닫기")
+        ?.getAttribute("aria-disabled")
+    ).toBe("true")
+    expect(app.undo).not.toHaveBeenCalled()
+    expect(app.redo).not.toHaveBeenCalled()
+    await key(document.activeElement as HTMLElement, "Escape", "Escape")
+    await vi.waitFor(() =>
+      expect(document.activeElement === trigger).toBe(true)
+    )
   })
 })

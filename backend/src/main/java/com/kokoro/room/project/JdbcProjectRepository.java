@@ -149,7 +149,7 @@ public class JdbcProjectRepository implements ProjectRepository {
                 """, (rs, rowNum) -> new FurnitureItem(
                 rs.getString("id"), rs.getString("catalog_id"), rs.getString("name"),
                 rs.getString("category"), rs.getDouble("x"), rs.getDouble("z"),
-                rs.getInt("rotation"), rs.getString("color")), project.id());
+                rs.getDouble("rotation"), rs.getString("color")), project.id());
         project.furniture().clear();
         project.furniture().addAll(furniture);
         return project;

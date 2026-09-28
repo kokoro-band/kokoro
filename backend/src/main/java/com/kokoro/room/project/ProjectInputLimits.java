@@ -57,7 +57,8 @@ public final class ProjectInputLimits {
             if (!between(item.x(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE)
                     || !between(item.z(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE))
                 throw new ResponseStatusException(BAD_REQUEST, "가구 위치는 브라우저에서 처리할 수 있는 유한한 숫자여야 합니다.");
-            if (item.rotation() == null) throw new ResponseStatusException(BAD_REQUEST, "가구 회전 값이 필요합니다.");
+            if (!between(item.rotation(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE))
+                throw new ResponseStatusException(BAD_REQUEST, "가구 회전은 브라우저에서 처리할 수 있는 유한한 숫자여야 합니다.");
         }
     }
 

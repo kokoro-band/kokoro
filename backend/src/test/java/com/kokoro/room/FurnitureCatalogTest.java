@@ -28,14 +28,14 @@ class FurnitureCatalogTest {
                 "plant-olive", new Size(0.55, 0.55), "lamp-arc", new Size(0.5, 0.5)));
         var validator = new FurniturePlacementValidator();
         catalog.forEach((id, size) -> {
-            var boundary = new FurnitureItem(id, id, id, "의자", size.width() / 2, size.depth() / 2, 0, "#000000");
+            var boundary = new FurnitureItem(id, id, id, "의자", size.width() / 2, size.depth() / 2, 0.0, "#000000");
             validator.validate(new Dimensions(10, 10, 2.4), null, List.of(boundary));
-            var outside = new FurnitureItem(id, id, id, "의자", size.width() / 2 - 0.01, size.depth() / 2, 0, "#000000");
+            var outside = new FurnitureItem(id, id, id, "의자", size.width() / 2 - 0.01, size.depth() / 2, 0.0, "#000000");
             assertThatThrownBy(() -> validator.validate(new Dimensions(10, 10, 2.4), null, List.of(outside)))
                     .hasMessageContaining("방 경계");
         });
         assertThatThrownBy(() -> validator.validate(new Dimensions(10, 10, 2.4), null,
-                List.of(new FurnitureItem("unknown", "unknown", "unknown", "의자", 2.0, 2.0, 0, "#000000"))))
+                List.of(new FurnitureItem("unknown", "unknown", "unknown", "의자", 2.0, 2.0, 0.0, "#000000"))))
                 .hasMessageContaining("지원하지 않는 가구");
     }
 

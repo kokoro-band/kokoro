@@ -81,7 +81,7 @@ class FurnitureCommandTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("OUTSIDE_ROOM"));
         mockMvc.perform(get("/api/projects/{id}", id))
-                .andExpect(jsonPath("$.furniture[0].rotation").value(0))
+                .andExpect(jsonPath("$.furniture[0].rotation").value(0.0))
                 .andExpect(jsonPath("$.furniture[0].x").value(20));
     }
 

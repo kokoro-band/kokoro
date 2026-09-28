@@ -115,7 +115,7 @@ public final class ProjectModels {
             @NotBlank String category,
             @NotNull Double x,
             @NotNull Double z,
-            @NotNull Integer rotation,
+            @NotNull Double rotation,
             @NotBlank String color
     ) {}
 

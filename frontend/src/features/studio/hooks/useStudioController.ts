@@ -215,6 +215,7 @@ export function useStudioController() {
 
   const openProject = useCallback(
     function openProject(saved: Project) {
+      noticeIdRef.current += 1
       queueRef.current = makeQueue(saved, closingFor(saved.id))
       layoutPromiseRef.current = null
       transientBaseRef.current = null
@@ -459,8 +460,12 @@ export function useStudioController() {
     }
   }
 
-  function restoreSaved() {
-    const saved = currentQueue().saved
+  function restoreSaved(noticeId?: number) {
+    if (noticeId !== undefined && noticeId !== noticeIdRef.current) return
+    const queue = currentQueue()
+    // Snackbar actions can outlive the failure and bypass the disabled toolbar.
+    if (queue.busy || saveError !== "rejected") return
+    const saved = queue.saved
     const current = projectRef.current
     transientBaseRef.current = null
     setPast((history) => [...history.slice(-29), current.furniture])
@@ -538,7 +543,9 @@ export function useStudioController() {
   function applyFloorPlanResult(resolved: Project) {
     setDraft({
       ...projectRef.current,
-      room: resolved.room,
+      // Server upload status is not a room revision or an analysis result.
+      // Only the local demo supplies a sample room as part of its upload flow.
+      ...(!isServerMode ? { room: resolved.room } : {}),
       floorPlan: resolved.floorPlan,
       updatedAt: resolved.updatedAt,
     })

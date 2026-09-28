@@ -38,35 +38,41 @@ function NoticeSnackbar({
   notice: Notice | null
   onShown: () => void
   onRetrySave: () => void
-  onRestoreSaved: () => void
+  onRestoreSaved: (noticeId: number) => void
 }) {
   const adapter = useSnackbarAdapter()
   const retryRef = useRef(onRetrySave)
   const restoreRef = useRef(onRestoreSaved)
-  useEffect(() => {
-    retryRef.current = onRetrySave
-    restoreRef.current = onRestoreSaved
-  }, [onRetrySave, onRestoreSaved])
-  useEffect(() => {
-    if (!notice) return
-    adapter.create({
-      render: () => (
-        <Snackbar
-          variant={notice.tone}
-          message={notice.text}
-          {...(notice.action === "retrySave"
-            ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
-            : notice.action === "restoreSaved"
-              ? {
-                  actionLabel: "되돌리기",
-                  onAction: () => restoreRef.current(),
-                }
-              : {})}
-        />
-      ),
-    })
-    onShown()
-  }, [adapter, notice, onShown])
+  useEffect(
+    function synchronizeNoticeActions() {
+      retryRef.current = onRetrySave
+      restoreRef.current = onRestoreSaved
+    },
+    [onRetrySave, onRestoreSaved]
+  )
+  useEffect(
+    function enqueueNoticeSnackbar() {
+      if (!notice) return
+      adapter.create({
+        render: () => (
+          <Snackbar
+            variant={notice.tone}
+            message={notice.text}
+            {...(notice.action === "retrySave"
+              ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
+              : notice.action === "restoreSaved"
+                ? {
+                    actionLabel: "되돌리기",
+                    onAction: () => restoreRef.current(notice.id),
+                  }
+                : {})}
+          />
+        ),
+      })
+      onShown()
+    },
+    [adapter, notice, onShown]
+  )
   return null
 }
 
@@ -126,7 +132,7 @@ function Studio() {
         saveBusy={studio.busy === "save"}
         onViewChange={setView}
         onSave={studio.saveProject}
-        onRestoreSaved={studio.restoreSavedProject}
+        onRestoreSaved={() => studio.restoreSavedProject()}
         onCreateProject={() => setNewProjectOpen(true)}
         onOpenSample={() => {
           studio.openSampleProject()

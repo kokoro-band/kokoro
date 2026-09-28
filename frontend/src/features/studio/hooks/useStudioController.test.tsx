@@ -121,7 +121,9 @@ describe("useStudioController project switching", () => {
     calls("saveProject")[0].reject(new ApiError("거부", 400, false))
     await flush()
     const oldNoticeId = app.get().notice!.id
-    act(() => { void app.get().createProject("B") })
+    act(() => {
+      void app.get().createProject("B")
+    })
     await flush()
     calls("createProject")[0].resolve(structuredClone(projectB))
     await flush()

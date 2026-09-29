@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -115,8 +116,12 @@ public class ProjectService {
     @Transactional
     public void delete(String id) throws IOException {
         RenovationProject project = find(id);
+        LinkedHashSet<String> objectKeys = new LinkedHashSet<>(floorPlanJobRepository.findObjectKeysByProject(id));
         if (project.floorPlan().objectKey() != null) {
-            floorPlanStorage.delete(project.floorPlan().objectKey());
+            objectKeys.add(project.floorPlan().objectKey());
+        }
+        for (String objectKey : objectKeys) {
+            floorPlanStorage.delete(objectKey);
         }
         floorPlanJobRepository.deleteByProject(id);
         projectRepository.delete(id);

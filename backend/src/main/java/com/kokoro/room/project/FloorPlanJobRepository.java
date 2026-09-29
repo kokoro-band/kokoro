@@ -64,6 +64,14 @@ public class FloorPlanJobRepository {
                 """, errorCode, errorMessage, timestamp(completedAt));
     }
 
+    public List<String> findObjectKeysByProject(String projectId) {
+        return jdbc.queryForList("""
+                SELECT object_key FROM floor_plan_jobs
+                 WHERE project_id = ? AND object_key IS NOT NULL
+                 ORDER BY created_at, job_id
+                """, String.class, projectId);
+    }
+
     public void deleteByProject(String projectId) {
         jdbc.update("DELETE FROM floor_plan_jobs WHERE project_id = ?", projectId);
     }

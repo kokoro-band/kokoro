@@ -146,6 +146,24 @@ class FloorPlanJobStabilityTest {
                 || countRegularFiles(storage.resolve(projectId)) == 0);
     }
 
+    @Test
+    void deleteProjectRemovesAllUploadedFloorPlanFiles() throws Exception {
+        String projectId = createProject("도면 교체 삭제");
+        String firstJobId = jobId(upload(projectId, "first.pdf"));
+        processor.process(projectId, firstJobId);
+        String secondJobId = jobId(upload(projectId, "second.pdf"));
+
+        assertEquals(2, countRegularFiles(storage.resolve(projectId)));
+
+        mvc.perform(delete("/api/projects/{id}", projectId)).andExpect(status().isNoContent());
+        processor.process(projectId, firstJobId);
+        processor.process(projectId, secondJobId);
+
+        mvc.perform(get("/api/projects/{id}", projectId)).andExpect(status().isNotFound());
+        assertTrue(Files.notExists(storage.resolve(projectId))
+                || countRegularFiles(storage.resolve(projectId)) == 0);
+    }
+
     private String createProject(String name) throws Exception {
         String response = mvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)

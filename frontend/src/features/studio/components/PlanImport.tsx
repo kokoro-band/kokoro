@@ -41,6 +41,21 @@ type Status = "empty" | "loading" | "ready" | "analyzing" | "found" | "failed"
 const maxSide = 1200
 const maxBytes = 15 * 1024 * 1024
 const acceptedTypes = ["image/png", "image/jpeg", "image/webp"]
+const imageReadError = "이미지를 읽지 못했어요. 다른 파일을 골라 주세요."
+
+type ImportWork = {
+  generation: number
+  timer: number | null
+  controller: AbortController | null
+}
+
+function cancelImportWork(work: ImportWork) {
+  work.generation += 1
+  if (work.timer !== null) window.clearTimeout(work.timer)
+  work.timer = null
+  work.controller?.abort()
+  work.controller = null
+}
 
 const warningText: Record<PlanWarning, { title: string; description: string }> =
   {
@@ -63,32 +78,45 @@ function cssColor(name: string, fallback: string) {
   return value || fallback
 }
 
-function loadImage(file: File): Promise<Source> {
+function loadImage(file: File, signal: AbortSignal): Promise<Source> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
-    image.onload = () => {
+    function cleanup() {
+      image.onload = null
+      image.onerror = null
+      signal.removeEventListener("abort", abort)
       URL.revokeObjectURL(url)
-      const ratio = Math.min(1, maxSide / Math.max(image.width, image.height))
-      const width = Math.max(1, Math.round(image.width * ratio))
-      const height = Math.max(1, Math.round(image.height * ratio))
-      const canvas = document.createElement("canvas")
-      canvas.width = width
-      canvas.height = height
-      const context = canvas.getContext("2d")
-      if (!context) {
-        reject(new Error("이미지를 읽지 못했어요. 다른 파일을 골라 주세요."))
-        return
+    }
+    function abort() {
+      cleanup()
+      image.src = ""
+      reject(new DOMException("Image load cancelled", "AbortError"))
+    }
+    image.onload = () => {
+      cleanup()
+      try {
+        const ratio = Math.min(1, maxSide / Math.max(image.width, image.height))
+        const width = Math.max(1, Math.round(image.width * ratio))
+        const height = Math.max(1, Math.round(image.height * ratio))
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext("2d")
+        if (!context) throw new Error(imageReadError)
+        context.fillStyle = "#fff"
+        context.fillRect(0, 0, width, height)
+        context.drawImage(image, 0, 0, width, height)
+        resolve({ canvas, width, height, name: file.name })
+      } catch {
+        reject(new Error(imageReadError))
       }
-      context.fillStyle = "#fff"
-      context.fillRect(0, 0, width, height)
-      context.drawImage(image, 0, 0, width, height)
-      resolve({ canvas, width, height, name: file.name })
     }
     image.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("이미지를 읽지 못했어요. 다른 파일을 골라 주세요."))
+      cleanup()
+      reject(new Error(imageReadError))
     }
+    signal.addEventListener("abort", abort, { once: true })
     image.src = url
   })
 }
@@ -125,99 +153,118 @@ export function PlanImport({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const dragRef = useRef<{ x: number; y: number } | null>(null)
+  const areaRef = useRef(initialArea)
+  const workRef = useRef<ImportWork>({
+    generation: 0,
+    timer: null,
+    controller: null,
+  })
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !source) return
-    canvas.width = source.width
-    canvas.height = source.height
-    const context = canvas.getContext("2d")
-    if (!context) return
-    context.drawImage(source.canvas, 0, 0)
-    const brand = cssColor("--seed-color-stroke-brand-solid", "#ff6f0f")
-    const brandWeak = cssColor("--seed-color-bg-brand-weak", "#fff5f0")
-    const scrim = cssColor("--seed-color-bg-overlay", "rgba(0,0,0,0.5)")
-    const ink = cssColor("--seed-color-fg-neutral", "#1a1c20")
-
-    if (crop) {
-      context.fillStyle = scrim
-      context.fillRect(0, 0, source.width, crop.y)
-      context.fillRect(
-        0,
-        crop.y + crop.height,
-        source.width,
-        source.height - crop.y - crop.height
-      )
-      context.fillRect(0, crop.y, crop.x, crop.height)
-      context.fillRect(
-        crop.x + crop.width,
-        crop.y,
-        source.width - crop.x - crop.width,
-        crop.height
-      )
-      context.strokeStyle = brand
-      context.lineWidth = 2
-      context.strokeRect(crop.x, crop.y, crop.width, crop.height)
+  useEffect(function manageImportLifetime() {
+    const work = workRef.current
+    return function cancelPendingImport() {
+      cancelImportWork(work)
     }
+  }, [])
 
-    if (found) {
-      context.lineWidth = 2
-      context.font = `700 14px ${getComputedStyle(document.body).fontFamily}`
-      found.analysis.regions.forEach((region, index) => {
-        const x = found.crop.x + region.rect.x
-        const y = found.crop.y + region.rect.y
-        context.globalAlpha = 0.6
-        context.fillStyle = brandWeak
-        context.fillRect(x, y, region.rect.width, region.rect.height)
-        context.globalAlpha = 1
+  useEffect(
+    function drawPlanPreview() {
+      const canvas = canvasRef.current
+      if (!canvas || !source) return
+      canvas.width = source.width
+      canvas.height = source.height
+      const context = canvas.getContext("2d")
+      if (!context) return
+      context.drawImage(source.canvas, 0, 0)
+      const brand = cssColor("--seed-color-stroke-brand-solid", "#ff6f0f")
+      const brandWeak = cssColor("--seed-color-bg-brand-weak", "#fff5f0")
+      const scrim = cssColor("--seed-color-bg-overlay", "rgba(0,0,0,0.5)")
+      const ink = cssColor("--seed-color-fg-neutral", "#1a1c20")
+
+      if (crop) {
+        context.fillStyle = scrim
+        context.fillRect(0, 0, source.width, crop.y)
+        context.fillRect(
+          0,
+          crop.y + crop.height,
+          source.width,
+          source.height - crop.y - crop.height
+        )
+        context.fillRect(0, crop.y, crop.x, crop.height)
+        context.fillRect(
+          crop.x + crop.width,
+          crop.y,
+          source.width - crop.x - crop.width,
+          crop.height
+        )
         context.strokeStyle = brand
-        context.strokeRect(x, y, region.rect.width, region.rect.height)
-        context.fillStyle = ink
-        context.fillText(String(index + 1), x + 6, y + 18)
-      })
-    }
-  }, [source, crop, found])
+        context.lineWidth = 2
+        context.strokeRect(crop.x, crop.y, crop.width, crop.height)
+      }
+
+      if (found) {
+        context.lineWidth = 2
+        context.font = `700 14px ${getComputedStyle(document.body).fontFamily}`
+        found.analysis.regions.forEach((region, index) => {
+          const x = found.crop.x + region.rect.x
+          const y = found.crop.y + region.rect.y
+          context.globalAlpha = 0.6
+          context.fillStyle = brandWeak
+          context.fillRect(x, y, region.rect.width, region.rect.height)
+          context.globalAlpha = 1
+          context.strokeStyle = brand
+          context.strokeRect(x, y, region.rect.width, region.rect.height)
+          context.fillStyle = ink
+          context.fillText(String(index + 1), x + 6, y + 18)
+        })
+      }
+    },
+    [source, crop, found]
+  )
 
   function findRooms(target: Source, region: Crop, areaPyeong: number) {
+    const work = workRef.current
+    cancelImportWork(work)
+    const generation = work.generation
     setStatus("analyzing")
     setError("")
     setFound(null)
-    window.setTimeout(() => {
-      const pixels = pixelsOf(target, region)
-      if (!pixels) {
-        setStatus("failed")
-        setError("이미지를 읽지 못했어요. 다른 파일을 골라 주세요.")
-        return
-      }
-      const { gray, alpha } = toGrayscale(
-        pixels.data,
-        region.width,
-        region.height
-      )
-      const analysis = analyzeFloorPlan(
-        gray,
-        alpha,
-        region.width,
-        region.height
-      )
-      const draft = planToDraft(analysis, areaPyeong)
-      if (!draft.rooms.length) {
-        setStatus("failed")
-        setError(
-          "방을 찾지 못했어요. 도면 부분만 끌어서 고른 뒤 다시 찾아 보세요."
+    work.timer = window.setTimeout(() => {
+      work.timer = null
+      if (generation !== work.generation) return
+      try {
+        const pixels = pixelsOf(target, region)
+        if (!pixels) throw new Error(imageReadError)
+        const { gray, alpha } = toGrayscale(
+          pixels.data,
+          region.width,
+          region.height
         )
-        return
+        const analysis = analyzeFloorPlan(
+          gray,
+          alpha,
+          region.width,
+          region.height
+        )
+        const draft = planToDraft(analysis, areaPyeong)
+        if (!draft.rooms.length) {
+          setStatus("failed")
+          setError(
+            "방을 찾지 못했어요. 도면 부분만 끌어서 고른 뒤 다시 찾아 보세요."
+          )
+          return
+        }
+        setFound({ draft, analysis, crop: region })
+        setStatus("found")
+      } catch {
+        setStatus("failed")
+        setError(imageReadError)
       }
-      setFound({ draft, analysis, crop: region })
-      setStatus("found")
     }, 30)
   }
 
   async function chooseFile(file: File | undefined) {
     if (!file) return
-    setError("")
-    setFound(null)
-    setCrop(null)
     if (!acceptedTypes.includes(file.type)) {
       setError("PNG, JPG, WebP 이미지만 읽을 수 있어요.")
       return
@@ -226,23 +273,34 @@ export function PlanImport({
       setError("15MB 이하의 이미지를 골라 주세요.")
       return
     }
+    const work = workRef.current
+    cancelImportWork(work)
+    const generation = work.generation
+    const controller = new AbortController()
+    work.controller = controller
+    dragRef.current = null
+    setError("")
+    setFound(null)
+    setCrop(null)
+    setSource(null)
+    setWarnings([])
     setStatus("loading")
     try {
-      const next = await loadImage(file)
+      const next = await loadImage(file, controller.signal)
+      if (generation !== work.generation) return
+      work.controller = null
       const pixels = pixelsOf(next, fullCrop(next))
       setWarnings(
         pixels ? diagnosePlan(pixels.data, next.width, next.height) : []
       )
       setSource(next)
-      findRooms(next, fullCrop(next), area)
-    } catch (reason) {
+      findRooms(next, fullCrop(next), clampArea(areaRef.current))
+    } catch {
+      if (generation !== work.generation) return
+      work.controller = null
       setSource(null)
       setStatus("empty")
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "이미지를 읽지 못했어요. 다른 파일을 골라 주세요."
-      )
+      setError(imageReadError)
     }
   }
 
@@ -305,7 +363,10 @@ export function PlanImport({
       open
       size="large"
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open) {
+          cancelImportWork(workRef.current)
+          onClose()
+        }
       }}
     >
       <ContentDialog.Backdrop />
@@ -392,10 +453,13 @@ export function PlanImport({
                 step={1}
                 suffix="평"
                 onCommit={(next) => {
+                  areaRef.current = next
                   setArea(next)
-                  if (found) {
+                  if (source && status !== "loading") {
+                    cancelImportWork(workRef.current)
                     setFound(null)
                     setStatus("ready")
+                    setError("")
                   }
                 }}
               />

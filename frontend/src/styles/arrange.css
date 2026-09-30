@@ -70,6 +70,10 @@
   padding-inline: var(--seed-dimension-x5);
 }
 
+.catalog-search {
+  padding: var(--seed-dimension-x2) var(--seed-dimension-x5);
+}
+
 .catalog-list,
 .room-list {
   padding-bottom: var(--seed-dimension-x3);

@@ -120,7 +120,7 @@ it("gives mobile confirmation sole modal ownership and restores the assistant on
     '[role="dialog"].seed-content-dialog__content'
   )
   expect(dialog?.textContent).toContain("배치 변경 확인")
-  expect(document.querySelector(".mobile-sheet[data-open]")).toBeNull()
+  expect(document.querySelector('.mobile-sheet[aria-modal="true"]')).toBeNull()
   expect(app.saved().furniture).toEqual(app.initial.furniture)
   await app.click("취소", dialog!)
   await vi.waitFor(() => {

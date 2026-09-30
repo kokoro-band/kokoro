@@ -67,18 +67,26 @@ async function closeSheet(page: Page, narrow: boolean) {
       .locator(".mobile-sheet")
       .getByRole("button", { name: "닫기", exact: true })
       .click()
-    await expect(page.locator(".mobile-sheet[data-open]")).toHaveCount(0)
+    // The closing sheet still owns modal focus until its exit animation ends.
+    await expect(page.locator(".mobile-sheet")).toHaveCount(0)
+    await expect(page.locator('[aria-modal="true"]')).toHaveCount(0)
   }
 }
 async function changedPixels(canvas: Locator, before: Buffer) {
   expect((await stableCanvas(canvas)).equals(before)).toBe(false)
 }
 async function stableCanvas(canvas: Locator) {
-  let previous = await canvas.screenshot()
+  // A locator screenshot includes DOM overlays above the canvas. Compare the
+  // rendered room only, not transient save notices or the floating toolbar.
+  const options = {
+    style:
+      ".viewport-overlay, .seed-snackbar__root { visibility: hidden !important; }",
+  }
+  let previous = await canvas.screenshot(options)
   let equalFrames = 0
   await expect
     .poll(async () => {
-      const current = await canvas.screenshot()
+      const current = await canvas.screenshot(options)
       equalFrames = current.equals(previous) ? equalFrames + 1 : 0
       previous = current
       return equalFrames
@@ -193,11 +201,16 @@ suite(
     await page.getByRole("radio", { name: "문", exact: true }).click()
     await clickPlan(page, 3, 2)
     await expect(page.locator(".plan-opening")).toHaveCount(3)
+    const divided = await saveStructure(page, saved)
+    expect(divided.room!.rooms).toHaveLength(2)
+    expect(divided.room!.openings).toHaveLength(3)
+    await reloadProject(page, divided)
+    await page.getByRole("button", { name: "구조", exact: true }).click()
     await page.getByRole("radio", { name: "합치기", exact: true }).click()
     await clickPlan(page, 3, 0.5)
     await expect(page.locator(".plan-room")).toHaveCount(1)
     await expect(page.locator(".plan-opening")).toHaveCount(2)
-    const merged = await saveStructure(page, saved)
+    const merged = await saveStructure(page, divided)
     expect(merged.room!.openings).toEqual(saved.room!.openings)
     await reloadProject(page, merged)
   }

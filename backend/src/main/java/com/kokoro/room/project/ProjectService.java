@@ -307,7 +307,7 @@ public class ProjectService {
             case ROTATE -> {
                 FurnitureItem target = command.target();
                 next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
-                        target.category(), target.x(), target.z(), original.rotation(), target.color()));
+                        target.category(), target.x(), target.z(), original.rotation().doubleValue(), target.color()));
                 actions.add(target.name() + " 회전");
             }
             case CLEAR -> { /* CLEAR only ever reaches the confirm flow. */ }
@@ -361,7 +361,7 @@ public class ProjectService {
     }
 
     private static FurnitureItem furniture(String id, String catalogId, String name, String category,
-                                           double x, double z, int rotation, String color) {
+                                           double x, double z, double rotation, String color) {
         return new FurnitureItem(id, catalogId, name, category, x, z, rotation, color);
     }
 

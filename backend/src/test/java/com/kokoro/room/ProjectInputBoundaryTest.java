@@ -126,14 +126,14 @@ class ProjectInputBoundaryTest {
     @Test
     void countIsCheckedBeforeCatalogOrGeometryInBothEntryPoints() {
         var invalidItems = IntStream.range(0, 201).mapToObj(i -> new FurnitureItem(
-                "item-" + i, "missing-catalog", "의자", "의자", 1.0, 1.0, 0, "#000000")).toList();
+                "item-" + i, "missing-catalog", "의자", "의자", 1.0, 1.0, 0.0, "#000000")).toList();
         assertTrue(assertThrows(ResponseStatusException.class, () -> validator.validateData(invalidItems)).getReason().contains("200"));
         assertTrue(assertThrows(ResponseStatusException.class, () -> validator.validate(new Dimensions(6, 5, 2.4), null, invalidItems)).getReason().contains("200"));
     }
 
     private List<FurnitureItem> furniture(int count) {
         return IntStream.range(0, count).mapToObj(i -> new FurnitureItem(
-                "item-" + i, "chair-shell", "의자", "의자", 1.0, 1.0, 0, "#000000")).toList();
+                "item-" + i, "chair-shell", "의자", "의자", 1.0, 1.0, 0.0, "#000000")).toList();
     }
 
     @TestFactory

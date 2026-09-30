@@ -1,0 +1,19 @@
+{
+  "accepted": [0, 0.1, 0.5, 4.5, 25.25, -25.25, 720.5, -1080.125, 2147483648.5, 9007199254740991, -9007199254740991],
+  "rejected": [null, 9007199254740992, -9007199254740992],
+  "motion": {
+    "room": {
+      "version": 2,
+      "unit": "m",
+      "wallHeight": 2.4,
+      "bounds": { "width": 6, "depth": 6 },
+      "outline": [[0, 0], [6, 0], [6, 6], [0, 6]],
+      "walls": [{ "id": "west", "a": [0, 0], "b": [0, 6], "thickness": 0.2 }],
+      "openings": [],
+      "rooms": []
+    },
+    "item": { "id": "chair", "catalogId": "chair-shell", "name": "의자", "category": "의자", "x": 0.45, "z": 2, "rotation": 0, "color": "#000000" },
+    "requestedRotation": 90,
+    "resultRotation": 4.5
+  }
+}

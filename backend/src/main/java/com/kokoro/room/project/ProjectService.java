@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -42,6 +44,7 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final FloorPlanStorage floorPlanStorage;
     private final FloorPlanJobRepository floorPlanJobRepository;
+    private final FloorPlanFileCleanup floorPlanFileCleanup;
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
     private final FloorPlanJobCoordinator floorPlanJobCoordinator;
     private final FurniturePlacementValidator furniturePlacementValidator;
@@ -55,7 +58,8 @@ public class ProjectService {
                           FloorPlanJobCoordinator floorPlanJobCoordinator,
                           FurniturePlacementValidator furniturePlacementValidator,
                           CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter,
-                          RoomModelValidator roomModelValidator, LayoutProposalRepository layoutProposalRepository) {
+                          RoomModelValidator roomModelValidator, LayoutProposalRepository layoutProposalRepository,
+                          FloorPlanFileCleanup floorPlanFileCleanup) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
@@ -66,6 +70,7 @@ public class ProjectService {
         this.layoutCommandInterpreter = layoutCommandInterpreter;
         this.roomModelValidator = roomModelValidator;
         this.layoutProposalRepository = layoutProposalRepository;
+        this.floorPlanFileCleanup = floorPlanFileCleanup;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -117,18 +122,23 @@ public class ProjectService {
         return project;
     }
 
-    @Transactional(rollbackFor = IOException.class)
-    public void delete(String id) throws IOException {
+    @Transactional
+    public void delete(String id) {
         RenovationProject project = lock(id, null);
         LinkedHashSet<String> objectKeys = new LinkedHashSet<>(floorPlanJobRepository.findObjectKeysByProject(id));
         if (project.floorPlan().objectKey() != null) {
             objectKeys.add(project.floorPlan().objectKey());
         }
-        for (String objectKey : objectKeys) {
-            floorPlanStorage.delete(objectKey);
-        }
+        // Files are recorded here and removed after commit; a storage failure must not undo the delete.
+        floorPlanFileCleanup.enqueue(id, objectKeys);
         floorPlanJobRepository.deleteByProject(id);
         projectRepository.delete(id);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                floorPlanFileCleanup.drain();
+            }
+        });
     }
 
     public RenovationProject uploadFloorPlan(String id, MultipartFile file) throws IOException {

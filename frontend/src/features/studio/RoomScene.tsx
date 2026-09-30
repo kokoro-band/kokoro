@@ -18,6 +18,7 @@ import {
 import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
 import { createVrLocomotion } from "./vr-locomotion"
+import { bindSceneInteraction, type CursorTool } from "./scene-interaction"
 
 type Bounds = { width: number; depth: number }
 
@@ -43,12 +44,14 @@ type SceneRuntime = {
   scene: THREE.Scene
   furnitureGroup: THREE.Group
   bounds: Bounds
+  interaction: ReturnType<typeof bindSceneInteraction> | null
 }
 
 type Props = {
   furniture: Furniture[]
   selectedId: string | null
   mode: ViewMode
+  tool: CursorTool
   room?: RoomModel
   focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
@@ -113,6 +116,7 @@ export function RoomScene({
   furniture,
   selectedId,
   mode,
+  tool,
   room,
   focusRoom,
   onSelect,
@@ -177,10 +181,15 @@ export function RoomScene({
       )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(centerX, 0.25, centerZ)
-      // 움직임을 줄이도록 설정했다면 손을 뗀 뒤 카메라가 미끄러지지 않게 합니다.
-      controls.enableDamping = !window.matchMedia(
-        "(prefers-reduced-motion: reduce)"
-      ).matches
+      // An editor must stop with the pointer. Inertia must not resume after
+      // changing from furniture editing back to camera movement.
+      controls.enableDamping = false
+      if (mode !== "vr") {
+        controls.mouseButtons.LEFT = THREE.MOUSE.PAN
+        controls.mouseButtons.RIGHT =
+          mode === "2d" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE
+        controls.touches.ONE = THREE.TOUCH.PAN
+      }
       controls.maxPolarAngle = Math.PI / 2.15
       controls.minDistance = Math.max(2, 4 * focusScale)
       controls.maxDistance = 16 * scale
@@ -252,14 +261,11 @@ export function RoomScene({
 
       const furnitureGroup = new THREE.Group()
       scene.add(furnitureGroup)
-      runtimeRef.current = { renderer, scene, furnitureGroup, bounds }
 
       const raycaster = new THREE.Raycaster()
       const pointer = new THREE.Vector2()
       const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
       const hitPoint = new THREE.Vector3()
-      let draggingId: string | null = null
-      let furnitureMoved = false
 
       function identifyFurniture(object: THREE.Object3D): string | null {
         let current: THREE.Object3D | null = object
@@ -280,42 +286,78 @@ export function RoomScene({
         raycaster.setFromCamera(pointer, camera)
       }
 
-      function selectFurniture(event: PointerEvent) {
-        if (event.button !== 0) return
+      function pickFurniture(event: PointerEvent) {
         setPointerRay(event)
-        const hit = raycaster.intersectObjects(furnitureGroup.children, true)[0]
+        // Selection BoxHelpers are not furniture and must not mask a model hit.
+        const hit = raycaster
+          .intersectObjects(furnitureGroup.children, true)
+          .find((entry) => identifyFurniture(entry.object))
         const id = hit ? identifyFurniture(hit.object) : null
-        if (id) {
-          draggingId = id
-          furnitureMoved = false
-          controls.enabled = false
-          onSelect(id)
-          renderer.domElement.setPointerCapture(event.pointerId)
-        }
+        const model = furnitureGroup.children.find(
+          (entry) => entry.userData.furnitureId === id
+        )
+        return id && model
+          ? {
+              id,
+              center: [model.position.x, model.position.z] as [number, number],
+            }
+          : null
       }
 
-      function moveFurniture(event: PointerEvent) {
-        if (!draggingId) return
+      function pointAt(event: PointerEvent): [number, number] | null {
         setPointerRay(event)
-        if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
-          const placement = placementAt(hitPoint, bounds, room, focusRoom)
-          if (!placement) return
-          furnitureMoved = true
-          onMove(draggingId, ...placement)
-        }
+        return raycaster.ray.intersectPlane(floorPlane, hitPoint)
+          ? [hitPoint.x, hitPoint.z]
+          : null
       }
 
-      function releaseFurniture() {
-        if (draggingId && furnitureMoved) onMoveEnd()
-        draggingId = null
-        furnitureMoved = false
-        controls.enabled = true
+      const interaction =
+        mode === "vr"
+          ? null
+          : bindSceneInteraction({
+              element: renderer.domElement,
+              // The synchronization effect below applies the current tool, including
+              // when a new room renderer is mounted. Tool changes never recreate it.
+              initialTool: "move",
+              pick: pickFurniture,
+              pointAt,
+              onSelect,
+              onMove(id, [x, z]) {
+                const placement = placementAt(
+                  new THREE.Vector3(x, 0, z),
+                  bounds,
+                  room,
+                  focusRoom
+                )
+                if (!placement) return false
+                const model = furnitureGroup.children.find(
+                  (entry) => entry.userData.furnitureId === id
+                )
+                if (
+                  model &&
+                  round(model.position.x + bounds.width / 2) === placement[0] &&
+                  round(model.position.z + bounds.depth / 2) === placement[1]
+                )
+                  return false
+                onMove(id, ...placement)
+                return true
+              },
+              onCommit: onMoveEnd,
+              setCameraEnabled(enabled) {
+                controls.enabled = enabled
+              },
+              resetCameraGesture() {
+                controls.disconnect()
+                controls.connect(renderer.domElement)
+              },
+            })
+      runtimeRef.current = {
+        renderer,
+        scene,
+        furnitureGroup,
+        bounds,
+        interaction,
       }
-
-      renderer.domElement.addEventListener("pointerdown", selectFurniture)
-      renderer.domElement.addEventListener("pointermove", moveFurniture)
-      renderer.domElement.addEventListener("pointerup", releaseFurniture)
-      renderer.domElement.addEventListener("pointercancel", releaseFurniture)
 
       let vrButton: HTMLElement | null = null
       let stopLocalizingVrEntry: (() => void) | null = null
@@ -381,7 +423,7 @@ export function RoomScene({
           locomotion?.update()
           camera.getWorldPosition(headPosition)
           animateDoors(doors, headPosition, deltaSeconds)
-        } else {
+        } else if (controls.enabled) {
           controls.update()
         }
         renderer.render(scene, camera)
@@ -390,13 +432,7 @@ export function RoomScene({
       return function disposeRoomRenderer() {
         observer.disconnect()
         renderer.setAnimationLoop(null)
-        renderer.domElement.removeEventListener("pointerdown", selectFurniture)
-        renderer.domElement.removeEventListener("pointermove", moveFurniture)
-        renderer.domElement.removeEventListener("pointerup", releaseFurniture)
-        renderer.domElement.removeEventListener(
-          "pointercancel",
-          releaseFurniture
-        )
+        interaction?.dispose()
         locomotion?.dispose()
         controls.dispose()
         disposeGroup(roomGroup)
@@ -409,6 +445,13 @@ export function RoomScene({
       }
     },
     [mode, room, focusRoom, onMove, onMoveEnd, onSelect, xrEntryContainer]
+  )
+
+  useEffect(
+    function synchronizeCursorTool() {
+      runtimeRef.current?.interaction?.setTool(tool)
+    },
+    [tool, mode, room, focusRoom, onMove, onMoveEnd, onSelect, xrEntryContainer]
   )
 
   useEffect(

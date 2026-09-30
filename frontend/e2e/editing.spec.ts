@@ -419,8 +419,8 @@ suite(
       await page.getByRole("menuitem", { name: /열기$/ }).click()
       await expect(page.getByRole("menuitem", { name: /닫기$/ })).toBeVisible()
       await page.keyboard.press("Escape")
-      await changedPixels(canvas, closed)
       const open = await stableCanvas(canvas)
+      expect(open.equals(closed)).toBe(false)
       await info.attach(`${mode}-open`, {
         body: open,
         contentType: "image/png",
@@ -431,8 +431,8 @@ suite(
       await page.getByRole("menuitem", { name: /닫기$/ }).click()
       await expect(page.getByRole("menuitem", { name: /열기$/ })).toBeVisible()
       await page.keyboard.press("Escape")
-      await changedPixels(canvas, open)
       const closedAgain = await stableCanvas(canvas)
+      expect(closedAgain.equals(open)).toBe(false)
       await info.attach(`${mode}-closed-after`, {
         body: closedAgain,
         contentType: "image/png",

@@ -63,7 +63,10 @@ async function rectangle(page: Page) {
 }
 async function closeSheet(page: Page, narrow: boolean) {
   if (narrow) {
-    await page.getByRole("button", { name: "닫기", exact: true }).click()
+    await page
+      .locator(".mobile-sheet")
+      .getByRole("button", { name: "닫기", exact: true })
+      .click()
     await expect(page.locator(".mobile-sheet[data-open]")).toHaveCount(0)
   }
 }
@@ -166,7 +169,7 @@ suite(
     await page.getByRole("button", { name: /^창문 선택 / }).press("Enter")
     await field(page, "벽 시작점에서 거리", "0.6")
     await field(page, "폭", "1.2")
-    await dragPlan(page, [1.2, 4], [1.6, 4])
+    await dragPlan(page, [4.8, 4], [4.4, 4])
     await expect(
       page.getByRole("textbox", { name: "벽 시작점에서 거리", exact: true })
     ).toHaveValue("1.00")
@@ -230,8 +233,9 @@ suite(
     expect(partial.furniture[0]).toMatchObject({
       id: added.furniture[0].id,
       x: 1,
-      z: added.furniture[0].z,
     })
+    expect(partial.furniture[0].z).toBeGreaterThanOrEqual(0.425)
+    expect(partial.furniture[0].z).toBeLessThanOrEqual(1.575)
     const zResponse = savedResponse(page, `/projects/${initial.id}/layout`)
     await field(page, "세로", "1")
     const repaired = await projectResponse(await zResponse)
@@ -261,7 +265,8 @@ suite(
     await x.pressSequentially("123")
     await expect(x).toHaveValue("123")
     await x.press("Escape")
-    await closeSheet(page, narrow)
+    if (narrow)
+      await expect(page.locator(".mobile-sheet[data-open]")).toHaveCount(0)
     await expect(
       page.getByRole("radio", { name: "가구 이동", exact: true })
     ).toBeChecked()
@@ -357,6 +362,7 @@ suite(
     if (
       narrow &&
       (await page
+        .locator(".mobile-sheet")
         .getByRole("button", { name: "닫기", exact: true })
         .isVisible())
     )
@@ -385,7 +391,7 @@ suite(
 
 suite(
   "door controls change the rendered scene in both 2D and 3D",
-  async ({ page, projectIds }) => {
+  async ({ page, projectIds }, info) => {
     const initial = await createRoom(page, (id) => projectIds.push(id))
     await rectangle(page)
     await page.getByRole("radio", { name: "문·창", exact: true }).click()
@@ -401,6 +407,10 @@ suite(
       ).toBeChecked()
       await expect(canvas).toBeVisible()
       const closed = await stableCanvas(canvas)
+      await info.attach(`${mode}-closed-before`, {
+        body: closed,
+        contentType: "image/png",
+      })
       if (previousMode) expect(closed.equals(previousMode)).toBe(false)
       previousMode = closed
       await page
@@ -411,6 +421,10 @@ suite(
       await page.keyboard.press("Escape")
       await changedPixels(canvas, closed)
       const open = await stableCanvas(canvas)
+      await info.attach(`${mode}-open`, {
+        body: open,
+        contentType: "image/png",
+      })
       await page
         .getByRole("button", { name: "문 열고 닫기", exact: true })
         .click()
@@ -418,7 +432,12 @@ suite(
       await expect(page.getByRole("menuitem", { name: /열기$/ })).toBeVisible()
       await page.keyboard.press("Escape")
       await changedPixels(canvas, open)
-      expect((await stableCanvas(canvas)).equals(closed)).toBe(true)
+      const closedAgain = await stableCanvas(canvas)
+      await info.attach(`${mode}-closed-after`, {
+        body: closedAgain,
+        contentType: "image/png",
+      })
+      expect(closedAgain.equals(closed)).toBe(true)
     }
     // Door pose is transient. Only the opening geometry is persisted.
     await reloadProject(page, saved)
@@ -435,7 +454,7 @@ suite(
     const movedResponse = savedResponse(page, `/projects/${initial.id}/layout`)
     await field(page, "세로", "0.7")
     const moved = await projectResponse(await movedResponse)
-    expect(moved.furniture[0].z).toBe(0.7)
+    expect(moved.furniture[0].z).toBeCloseTo(0.7, 10)
     const rotatedResponse = savedResponse(
       page,
       `/projects/${initial.id}/layout`

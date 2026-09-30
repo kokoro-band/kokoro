@@ -298,27 +298,54 @@ describe("openings", () => {
   it.each(["vertical", "horizontal"] as const)(
     "preserves exterior openings and their physical positions through a %s split and merge",
     (axis) => {
-      const draft = draftOf([{ id: "a", name: "거실", x: 0, z: 0, width: 6, depth: 4 }])
+      const draft = draftOf([
+        { id: "a", name: "거실", x: 0, z: 0, width: 6, depth: 4 },
+      ])
       let original = buildRoomModel(draft)
-      for (const wall of original.walls) original = addOpening(original, wall.id, "window", 1, 0.8)
+      for (const wall of original.walls)
+        original = addOpening(original, wall.id, "window", 1, 0.8)
       const divided = splitRoom(draft, "a", axis, axis === "vertical" ? 3 : 2)
       const after = buildRoomModel(divided, original.openings)
       expect(after.openings).toHaveLength(4)
       for (const opening of original.openings) {
-        const next = after.openings.find(item => item.id === opening.id)!
-        const beforeWall = original.walls.find(wall => wall.id === opening.wallId)!
-        const afterWall = after.walls.find(wall => wall.id === next.wallId)!
+        const next = after.openings.find((item) => item.id === opening.id)!
+        const beforeWall = original.walls.find(
+          (wall) => wall.id === opening.wallId
+        )!
+        const afterWall = after.walls.find((wall) => wall.id === next.wallId)!
         // Opening center in world coordinates is independent of wall direction.
         const center = (wall: typeof beforeWall, from: number, to: number) => {
-          const length = Math.hypot(wall.b[0] - wall.a[0], wall.b[1] - wall.a[1])
+          const length = Math.hypot(
+            wall.b[0] - wall.a[0],
+            wall.b[1] - wall.a[1]
+          )
           const fraction = (from + to) / (2 * length)
-          return [wall.a[0] + fraction * (wall.b[0] - wall.a[0]), wall.a[1] + fraction * (wall.b[1] - wall.a[1])]
+          return [
+            wall.a[0] + fraction * (wall.b[0] - wall.a[0]),
+            wall.a[1] + fraction * (wall.b[1] - wall.a[1]),
+          ]
         }
-        expect(center(afterWall, next.from, next.to)).toEqual(center(beforeWall, opening.from, opening.to))
+        center(afterWall, next.from, next.to).forEach((value, index) =>
+          expect(value).toBeCloseTo(
+            center(beforeWall, opening.from, opening.to)[index],
+            10
+          )
+        )
         expect(next.to - next.from).toBeCloseTo(opening.to - opening.from)
       }
-      const merged = mergeRooms(divided, divided.rooms[0].id, divided.rooms[1].id)
-      expect(buildRoomModel(merged, after.openings).openings).toEqual(original.openings)
+      const merged = mergeRooms(
+        divided,
+        divided.rooms[0].id,
+        divided.rooms[1].id
+      )
+      const restored = buildRoomModel(merged, after.openings).openings
+      expect(restored).toHaveLength(original.openings.length)
+      restored.forEach((opening, index) => {
+        const { from, to, ...identity } = original.openings[index]
+        expect(opening).toMatchObject(identity)
+        expect(opening.from).toBeCloseTo(from, 10)
+        expect(opening.to).toBeCloseTo(to, 10)
+      })
     }
   )
 

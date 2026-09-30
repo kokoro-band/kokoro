@@ -9,7 +9,7 @@ import {
   getProject,
   makeFurniture,
   readActiveProjectId,
-  readSavedProject,
+  readSavedProjectWithRecovery,
   rememberActiveProject,
 } from "@/features/studio/project-api"
 import {
@@ -78,7 +78,12 @@ function round(value: number) {
 }
 
 export function useStudioController() {
-  const [project, setProject] = useState<Project>(readSavedProject)
+  const [initial] = useState(() =>
+    isServerMode
+      ? { project: structuredClone(sampleProject), recovery: null }
+      : readSavedProjectWithRecovery()
+  )
+  const [project, setProject] = useState<Project>(initial.project)
   const [projectLoad, setProjectLoad] = useState<ProjectLoadState>(
     isServerMode
       ? { status: "loading", message: "" }
@@ -101,9 +106,20 @@ export function useStudioController() {
     commandReviewRef.current = next
     setCommandReviewState(next)
   }, [])
-  const [notice, setNoticeState] = useState<Notice | null>(null)
-  const noticeIdRef = useRef(0)
-  const lastNoticeAtRef = useRef(0)
+  const [notice, setNoticeState] = useState<Notice | null>(() =>
+    initial.recovery
+      ? {
+          id: 1,
+          tone: "critical",
+          text:
+            initial.recovery === "corrupt"
+              ? "저장된 프로젝트를 읽지 못해 예제를 열었어요. 원본은 기기에 남아 있어요. 편집을 저장하면 예제로 대체됩니다."
+              : "기기 저장소에 접근할 수 없어 예제를 열었어요. 브라우저 저장 권한을 확인해 주세요.",
+        }
+      : null
+  )
+  const noticeIdRef = useRef(initial.recovery ? 1 : 0)
+  const lastNoticeAtRef = useRef(initial.recovery ? Date.now() : 0)
   const setNotice = useCallback(function setNotice(
     text: string,
     tone: Notice["tone"] = "default",
@@ -135,6 +151,8 @@ export function useStudioController() {
   const projectRef = useRef(project)
   const transientBaseRef = useRef<Furniture[] | null>(null)
   const queueRef = useRef<ProjectWriteQueue | null>(null)
+  // A newly opened local project has no durable snapshot until its first write.
+  const pendingLocalProjectRef = useRef<ProjectWriteQueue | null>(null)
   const closingWritesRef = useRef(new ClosingWrites())
   /** Increases on every project switch so a slower load or create cannot replace a newer project. */
   const navigationRef = useRef(0)
@@ -163,12 +181,24 @@ export function useStudioController() {
     return queueRef.current === queue && !queue.closed
   }, [])
 
+  const markLocalProjectStored = useCallback(
+    function markLocalProjectStored(queue: ProjectWriteQueue) {
+      if (pendingLocalProjectRef.current !== queue) return
+      pendingLocalProjectRef.current = null
+      if (!isCurrent(queue)) return
+      setSaveError(null)
+      saveFailureRef.current = null
+    },
+    [isCurrent]
+  )
+
   const syncSaveState = useCallback(function syncSaveState() {
     const queue = queueRef.current
     if (!queue) return
     setSaving(queue.busy)
     setDirty(
       queue.busy ||
+        pendingLocalProjectRef.current === queue ||
         transientBaseRef.current !== null ||
         !sameFurniture(projectRef.current.furniture, queue.saved.furniture)
     )
@@ -178,27 +208,32 @@ export function useStudioController() {
     function makeQueue(saved: Project, after?: Promise<unknown>) {
       const queue: ProjectWriteQueue = new ProjectWriteQueue(saved, {
         after,
-        saveLayout: (base, furniture) =>
-          executeProjectMutation(
+        saveLayout: async (base, furniture) => {
+          const saved = await executeProjectMutation(
             queryClient,
             saveProjectMutationOptions(queryClient, base.id),
             { ...base, furniture }
-          ),
+          )
+          markLocalProjectStored(queue)
+          return saved
+        },
         onChange: () => {
           if (queueRef.current === queue) syncSaveState()
         },
       })
       return queue
     },
-    [queryClient, syncSaveState]
+    [queryClient, syncSaveState, markLocalProjectStored]
   )
 
   const currentQueue = useCallback(
     function currentQueue() {
-      queueRef.current ??= makeQueue(projectRef.current)
+      // The first local edit can update the draft before creating the queue.
+      // Seed it from the loaded snapshot so that edit is not mistaken for a save.
+      queueRef.current ??= makeQueue(initial.project)
       return queueRef.current
     },
-    [makeQueue]
+    [initial.project, makeQueue]
   )
 
   const hasUnsavedChanges = useCallback(
@@ -206,6 +241,7 @@ export function useStudioController() {
       const queue = currentQueue()
       return (
         queue.busy ||
+        pendingLocalProjectRef.current === queue ||
         transientBaseRef.current !== null ||
         !sameFurniture(projectRef.current.furniture, queue.saved.furniture)
       )
@@ -242,6 +278,7 @@ export function useStudioController() {
   const openProject = useCallback(
     function openProject(saved: Project) {
       noticeIdRef.current += 1
+      pendingLocalProjectRef.current = null
       queueRef.current = makeQueue(saved, closingFor(saved.id))
       layoutPromiseRef.current = null
       transientBaseRef.current = null
@@ -324,22 +361,39 @@ export function useStudioController() {
     function persistLocalProject(snapshot: Project) {
       if (isServerMode) return
       const queue = currentQueue()
-      queue
+      pendingLocalProjectRef.current = queue
+      return queue
         .run("project", async () => {
           const saved = await executeProjectMutation(
             queryClient,
             saveProjectMutationOptions(queryClient, snapshot.id),
             snapshot
           )
+          markLocalProjectStored(queue)
           return { project: saved, result: saved }
         })
+        .then(() => {
+          if (!isCurrent(queue)) return false
+          setSaveError(null)
+          saveFailureRef.current = null
+          syncSaveState()
+          return true
+        })
         .catch((error: unknown) => {
-          if (!isCurrent(queue)) return
-          if (error instanceof WriteCancelledError) return
+          if (!isCurrent(queue)) return false
+          if (error instanceof WriteCancelledError) return false
           reportSaveFailure(error)
+          return false
         })
     },
-    [currentQueue, isCurrent, queryClient, reportSaveFailure]
+    [
+      currentQueue,
+      isCurrent,
+      queryClient,
+      reportSaveFailure,
+      syncSaveState,
+      markLocalProjectStored,
+    ]
   )
 
   const loadServerProject = useCallback(
@@ -538,7 +592,11 @@ export function useStudioController() {
     const queue = currentQueue()
     setBusy("save")
     try {
-      await persistLayout(projectRef.current.furniture)
+      if (pendingLocalProjectRef.current === queue) {
+        if (!(await persistLocalProject(projectRef.current))) return
+      } else {
+        await persistLayout(projectRef.current.furniture)
+      }
       if (!isCurrent(queue)) return
       setNotice(
         isServerMode ? "저장했어요." : "이 브라우저에 저장했어요.",
@@ -672,6 +730,8 @@ export function useStudioController() {
                   saveProjectMutationOptions(queryClient, saved.id),
                   response.project
                 )
+        // Preview/no-op responses have not written anything to local storage.
+        if (confirming || result !== saved) markLocalProjectStored(queue)
         if (isCurrent(queue)) {
           const rebase = (furniture: Furniture[]) =>
             mergeFurniture(saved.furniture, result.furniture, furniture)
@@ -844,6 +904,7 @@ export function useStudioController() {
               saveProjectMutationOptions(queryClient, saved.id),
               response
             )
+        markLocalProjectStored(queue)
         return { project: result, result }
       })
       if (!isCurrent(queue)) return
@@ -917,7 +978,7 @@ export function useStudioController() {
       }
       void closeQueue()
       openProject(created)
-      persistLocalProject(created)
+      void persistLocalProject(created)
       setMessages(initialMessages)
       setLeftTab("furniture")
       setNotice("새 프로젝트를 만들었어요. 먼저 집 구조를 잡아 주세요.")
@@ -946,7 +1007,7 @@ export function useStudioController() {
     void closeQueue()
     const sample = structuredClone(sampleProject)
     openProject(sample)
-    persistLocalProject(sample)
+    void persistLocalProject(sample)
     setNotice("예제 집을 열었어요.")
   }
 
@@ -960,6 +1021,7 @@ export function useStudioController() {
           saveRoomMutationOptions(queryClient, saved.id),
           { project: saved, room }
         )
+        markLocalProjectStored(queue)
         if (isCurrent(queue)) {
           setDraft({
             ...projectRef.current,

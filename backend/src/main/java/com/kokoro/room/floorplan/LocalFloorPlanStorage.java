@@ -25,13 +25,20 @@ public class LocalFloorPlanStorage implements FloorPlanStorage {
     public StoredFloorPlan store(String projectId, MultipartFile file) throws IOException {
         String safeProjectId = safeSegment(projectId);
         String originalName = file.getOriginalFilename() == null ? "floor-plan" : file.getOriginalFilename();
-        String objectKey = safeProjectId + "/" + UUID.randomUUID() + "/" + safeSegment(originalName);
+        String objectKey = safeProjectId + "/" + UUID.randomUUID() + "/source";
         Path target = root.resolve(objectKey).normalize();
         if (!target.startsWith(root)) throw new IOException("도면 저장 경로가 올바르지 않습니다.");
 
         Files.createDirectories(target.getParent());
         try (InputStream input = file.getInputStream()) {
             Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException | RuntimeException exception) {
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
         }
         return new StoredFloorPlan(objectKey, originalName, file.getContentType(), file.getSize());
     }

@@ -52,6 +52,10 @@ class FloorPlanJobAuthorizationTest {
     @Test
     void onlyOwnerCanReadJobAndStoragePathsAreNeverExposed() throws Exception {
         String projectId = createProject("alice");
+        mvc.perform(multipart("/api/projects/{id}/floor-plan", projectId)
+                        .file(new MockMultipartFile("file", "bad.txt", "text/plain", "invalid".getBytes()))
+                        .with(jwt().jwt(token -> token.subject("bob"))))
+                .andExpect(status().isNotFound());
         var file = new MockMultipartFile("file", "plan.pdf", "application/pdf", "%PDF-1.7\n".getBytes());
         String upload = mvc.perform(multipart("/api/projects/{id}/floor-plan", projectId)
                         .file(file).with(jwt().jwt(token -> token.subject("alice"))))

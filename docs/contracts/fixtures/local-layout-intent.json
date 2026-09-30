@@ -1,0 +1,23 @@
+{
+  "valid": [
+    { "id": "add-sofa", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "sofa-cloud" }] } },
+    { "id": "add-two-chairs-near-window", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "count": 2, "anchorQuery": "창문" }] } },
+    { "id": "move-to-window", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "anchorQuery": "창가" }] } },
+    { "id": "rotate-fractional", "intent": { "version": 1, "intents": [{ "type": "ROTATE", "targetQuery": "의자", "rotation": 45.5 }] } },
+    { "id": "remove-and-add", "intent": { "version": 1, "intents": [{ "type": "REMOVE", "targetQuery": "화분" }, { "type": "ADD", "catalogId": "sofa-moss" }] } },
+    { "id": "clear", "intent": { "version": 1, "intents": [{ "type": "CLEAR" }] } }
+  ],
+  "invalid": [
+    { "id": "model-coordinates", "reason": "모델은 좌표를 정하지 못합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "x": 1.2, "z": 3 }] } },
+    { "id": "unknown-type", "reason": "허용하지 않는 의도입니다.", "intent": { "version": 1, "intents": [{ "type": "RESIZE", "targetQuery": "소파" }] } },
+    { "id": "missing-target", "reason": "REMOVE에는 대상이 필요합니다.", "intent": { "version": 1, "intents": [{ "type": "REMOVE" }] } },
+    { "id": "blank-target", "reason": "대상 표현이 공백입니다.", "intent": { "version": 1, "intents": [{ "type": "REMOVE", "targetQuery": "   " }] } },
+    { "id": "empty-intents", "reason": "의도가 하나 이상 있어야 합니다.", "intent": { "version": 1, "intents": [] } },
+    { "id": "rotation-out-of-range", "reason": "회전은 -360~360도입니다.", "intent": { "version": 1, "intents": [{ "type": "ROTATE", "targetQuery": "의자", "rotation": 400 }] } },
+    { "id": "rotation-missing", "reason": "ROTATE에는 회전이 필요합니다.", "intent": { "version": 1, "intents": [{ "type": "ROTATE", "targetQuery": "의자" }] } },
+    { "id": "bad-catalog-id", "reason": "카탈로그 ID 형식이 아닙니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "Sofa Cloud!" }] } },
+    { "id": "count-too-large", "reason": "한 번에 최대 5개입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "count": 6 }] } },
+    { "id": "unknown-version", "reason": "지원하지 않는 계약 버전입니다.", "intent": { "version": 2, "intents": [{ "type": "CLEAR" }] } },
+    { "id": "extra-field", "reason": "정의되지 않은 필드입니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR", "confirm": true }] } }
+  ]
+}

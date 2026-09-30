@@ -124,6 +124,12 @@ export function useStudioController() {
   /** Increases on every project switch so a slower load or create cannot replace a newer project. */
   const navigationRef = useRef(0)
   const layoutPromiseRef = useRef<Promise<Project> | null>(null)
+  // Recovery actions belong to a specific failure, not the most recent informational notice.
+  const saveFailureRef = useRef<{
+    noticeId: number
+    queue: ProjectWriteQueue
+    kind: SaveError
+  } | null>(null)
 
   const selected = project.furniture.find((item) => item.id === selectedId)
   const roomBounds = project.room?.bounds ?? {
@@ -229,7 +235,9 @@ export function useStudioController() {
       setPast([])
       setFuture([])
       setUploadAttempt(null)
+      setBusy(null)
       setSaveError(null)
+      saveFailureRef.current = null
       syncSaveState()
     },
     [closingFor, makeQueue, setDraft, syncSaveState]
@@ -243,6 +251,14 @@ export function useStudioController() {
         return
       }
       const kind = saveFailureKind(error)
+      const queue = queueRef.current
+      if (queue) {
+        saveFailureRef.current = {
+          noticeId: noticeIdRef.current + 1,
+          queue,
+          kind,
+        }
+      }
       setSaveError(kind)
       const message =
         error instanceof Error ? error.message : "자동으로 저장하지 못했어요."
@@ -268,6 +284,7 @@ export function useStudioController() {
         () => {
           if (!isCurrent(queue)) return
           setSaveError(null)
+          saveFailureRef.current = null
           if (
             !queue.busy &&
             Date.now() - lastNoticeAtRef.current > autosaveNoticeQuietMs
@@ -513,12 +530,15 @@ export function useStudioController() {
     } catch {
       // persistLayout reports the failure and provides the retry action.
     } finally {
-      setBusy(null)
+      if (isCurrent(queue)) {
+        setBusy((current) => (current === "save" ? null : current))
+      }
     }
   }
 
   function restoreSaved(noticeId?: number) {
-    if (noticeId !== undefined && noticeId !== noticeIdRef.current) return
+    if (noticeId !== undefined && !isActiveSaveFailure(noticeId, "rejected"))
+      return
     const queue = currentQueue()
     // Snackbar actions can outlive the failure and bypass the disabled toolbar.
     if (queue.busy || saveError !== "rejected") return
@@ -529,10 +549,28 @@ export function useStudioController() {
     setFuture([])
     setDraft({ ...current, furniture: saved.furniture })
     setSaveError(null)
+    saveFailureRef.current = null
     if (!saved.furniture.some((item) => item.id === selectedId))
       setSelectedId(null)
     syncSaveState()
     setNotice("마지막으로 저장한 배치로 되돌렸어요.")
+  }
+
+  function isActiveSaveFailure(noticeId: number, kind: SaveError) {
+    const failure = saveFailureRef.current
+    return Boolean(
+      failure &&
+      failure.noticeId === noticeId &&
+      failure.kind === kind &&
+      failure.queue === queueRef.current &&
+      !failure.queue.closed &&
+      !failure.queue.busy
+    )
+  }
+
+  function retryFailedSave(noticeId: number) {
+    if (!isActiveSaveFailure(noticeId, "network")) return
+    void handleSave()
   }
 
   async function handleChat(text: string, focus?: Point2[]) {
@@ -829,6 +867,7 @@ export function useStudioController() {
     openSampleProject,
     exportProject,
     saveProject: () => void handleSave(),
+    retryFailedSave,
     restoreSavedProject: restoreSaved,
     setLeftTab,
     setCategory,

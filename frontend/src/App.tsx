@@ -37,7 +37,7 @@ function NoticeSnackbar({
 }: {
   notice: Notice | null
   onShown: () => void
-  onRetrySave: () => void
+  onRetrySave: (noticeId: number) => void
   onRestoreSaved: (noticeId: number) => void
 }) {
   const adapter = useSnackbarAdapter()
@@ -59,7 +59,10 @@ function NoticeSnackbar({
             variant={notice.tone}
             message={notice.text}
             {...(notice.action === "retrySave"
-              ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
+              ? {
+                  actionLabel: "다시 저장",
+                  onAction: () => retryRef.current(notice.id),
+                }
               : notice.action === "restoreSaved"
                 ? {
                     actionLabel: "되돌리기",
@@ -194,7 +197,7 @@ function Studio() {
       <NoticeSnackbar
         notice={studio.notice}
         onShown={studio.dismissNotice}
-        onRetrySave={studio.saveProject}
+        onRetrySave={studio.retryFailedSave}
         onRestoreSaved={studio.restoreSavedProject}
       />
       <input

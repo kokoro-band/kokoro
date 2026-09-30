@@ -9,6 +9,10 @@ import { makeFurniture } from "./features/studio/project-api"
 import type { Project } from "./features/studio/types"
 
 vi.hoisted(() => vi.stubEnv("VITE_API_MODE", "local"))
+const viewport = vi.hoisted(() => ({ mobile: false }))
+vi.mock("./lib/use-media-query", () => ({
+  useMediaQuery: () => viewport.mobile,
+}))
 vi.mock("./features/studio/components/SceneEditor", () => ({
   SceneEditor: () => <div>WebGL 경계</div>,
 }))
@@ -18,6 +22,7 @@ afterEach(() => {
   localStorage.clear()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  viewport.mobile = false
 })
 afterAll(() => vi.unstubAllEnvs())
 async function flush() {
@@ -106,6 +111,26 @@ it("applies a local clear only when the confirmation button is clicked", async (
   expect(dialog).not.toBeNull()
   await app.click("변경 적용", dialog!)
   expect(app.saved().furniture).toEqual([])
+})
+it("gives mobile confirmation sole modal ownership and restores the assistant on cancel", async () => {
+  viewport.mobile = true
+  const app = await setup()
+  await app.send("방을 비워줘")
+  const dialog = document.querySelector(
+    '[role="dialog"].seed-content-dialog__content'
+  )
+  expect(dialog?.textContent).toContain("배치 변경 확인")
+  expect(document.querySelector(".mobile-sheet[data-open]")).toBeNull()
+  expect(app.saved().furniture).toEqual(app.initial.furniture)
+  await app.click("취소", dialog!)
+  await vi.waitFor(() => {
+    const input = document.querySelector<HTMLTextAreaElement>(
+      '.mobile-sheet textarea[aria-label="가구 배치 요청"]'
+    )
+    expect(input).not.toBeNull()
+    expect(document.activeElement === input).toBe(true)
+  })
+  expect(app.saved().furniture).toEqual(app.initial.furniture)
 })
 it("lists same-named candidates with coordinates and changes only the selected one", async () => {
   const one = makeFurniture("chair-shell", 1, 1)

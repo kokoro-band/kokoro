@@ -25,7 +25,21 @@ public class FurniturePlacementValidator {
      * Width in meters kept clear on each side of a door opening, in front of the door.
      */
     private static final double DOOR_CLEARANCE = 0.8;
-    private static final Map<String, FurnitureCatalog.Size> CATALOG = FurnitureCatalog.load();
+    private final java.util.function.Function<String, FurnitureCatalog.Size> sizeOf;
+
+    /** Pure geometry tests use the same packaged contract without a database. */
+    public FurniturePlacementValidator() {
+        Map<String, FurnitureCatalog.Size> sizes = FurnitureCatalog.load();
+        sizeOf = sizes::get;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FurniturePlacementValidator(FurnitureRegistry registry) {
+        sizeOf = id -> {
+            var item = registry.require(id);
+            return new FurnitureCatalog.Size(item.path("width").doubleValue(), item.path("depth").doubleValue());
+        };
+    }
 
     /**
      * Coordinates are meters with the origin at the top-left of the room bounding box.
@@ -91,7 +105,7 @@ public class FurniturePlacementValidator {
     }
 
     private OrientedBox box(FurnitureItem item) {
-        FurnitureCatalog.Size size = CATALOG.get(item.catalogId());
+        FurnitureCatalog.Size size = sizeOf.apply(item.catalogId());
         if (size == null) throw invalid("지원하지 않는 가구입니다: " + item.catalogId());
         if (!Double.isFinite(item.x()) || !Double.isFinite(item.z())) {
             throw invalid("가구 위치 값이 올바르지 않습니다.");

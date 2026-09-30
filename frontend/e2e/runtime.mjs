@@ -1,6 +1,10 @@
 import { createServer } from "node:net"
 import { statfs } from "node:fs/promises"
 
+export function playwrightArguments(_args = []) {
+  return ["exec", "playwright", "test"]
+}
+
 // Do not pass Spring overrides, production credentials, NODE_OPTIONS or JAVA_TOOL_OPTIONS.
 export function isolatedEnvironment(source = process.env) {
   return Object.fromEntries(

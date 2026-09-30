@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test"
 import { statfs } from "node:fs/promises"
 import {
   isolatedEnvironment,
+  playwrightArguments,
   requireDiskSpace,
   unusedPort,
   waitUntil,
@@ -10,6 +11,29 @@ import {
 vi.mock("node:fs/promises", () => ({ statfs: vi.fn() }))
 
 describe("isolated E2E runtime", () => {
+  it("runs every configured project by default", () => {
+    expect(playwrightArguments()).toEqual(["exec", "playwright", "test"])
+    expect(playwrightArguments([])).toEqual(["exec", "playwright", "test"])
+  })
+  it.each(["desktop", "narrow"])("selects only the explicit %s project", (project) => {
+    expect(playwrightArguments([`--project=${project}`])).toEqual([
+      "exec", "playwright", "test", `--project=${project}`,
+    ])
+  })
+  it.each([
+    ["--project=mobile"],
+    ["--project="],
+    ["--project=desktop", "--project=narrow"],
+    ["--project=desktop", "--project=desktop"],
+    ["--project=desktop", "--grep=login"],
+    ["--project=desktop;echo unsafe"],
+    ["--config=https://example.com"],
+    ["--project", "desktop"],
+    ["--"],
+    [" "],
+  ])("rejects unsupported or ambiguous arguments %j", (...args) => {
+    expect(() => playwrightArguments(args)).toThrow("--project=desktop or --project=narrow")
+  })
   it("refuses low disk space before any builds", async () => {
     vi.mocked(statfs).mockResolvedValue({ bavail: 100, bsize: 4096 } as Awaited<
       ReturnType<typeof statfs>

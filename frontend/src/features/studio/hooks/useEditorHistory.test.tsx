@@ -1,5 +1,11 @@
 // @vitest-environment happy-dom
-import { act, createRef, useImperativeHandle, type Ref } from "react"
+import {
+  act,
+  createRef,
+  StrictMode,
+  useImperativeHandle,
+  type Ref,
+} from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { useEditorHistory } from "./useEditorHistory"
@@ -20,12 +26,76 @@ function setup() {
     return null
   }
   const root = createRoot(document.createElement("div"))
-  act(() => root.render(<Harness handle={ref} />))
+  act(() =>
+    root.render(
+      <StrictMode>
+        <Harness handle={ref} />
+      </StrictMode>
+    )
+  )
   cleanups.push(() => act(() => root.unmount()))
   return () => ref.current!
 }
 
 describe("editor undo and redo", () => {
+  it("groups real tagged edits in one React batch", () => {
+    const history = setup()
+    act(() => {
+      history().set(() => 1, "width")
+      history().set(() => 2, "width")
+    })
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+    expect(history().canUndo).toBe(false)
+    act(() => history().redo())
+    expect(history().present).toBe(2)
+  })
+  it("preserves redo through a tagged no-op after undo", () => {
+    const history = setup()
+    act(() => history().set(() => 1, "width"))
+    act(() => history().undo())
+    act(() => history().set((value) => value, "width"))
+    expect(history().canRedo).toBe(true)
+    act(() => history().set(() => 2, "width"))
+    expect(history().canRedo).toBe(false)
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+  })
+  it("does not let a tagged no-op consume the first undo boundary", () => {
+    const history = setup()
+    act(() => {
+      history().set((value) => value, "width")
+      history().set(() => 1, "width")
+    })
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+    act(() => history().redo())
+    expect(history().present).toBe(1)
+  })
+  it("does not extend the merge window for a no-op", () => {
+    const history = setup()
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000)
+    act(() => history().set(() => 1, "width"))
+    now.mockReturnValue(1600)
+    act(() => history().set((value) => value, "width"))
+    now.mockReturnValue(1800)
+    act(() => history().set(() => 2, "width"))
+    act(() => history().undo())
+    expect(history().present).toBe(1)
+  })
+  it("keeps a marked boundary through no-op replacement in a batch", () => {
+    const history = setup()
+    act(() => {
+      history().mark()
+      history().replace((value) => value)
+      history().replace(() => 1)
+      history().replace(() => 2)
+    })
+    act(() => history().undo())
+    expect(history().present).toBe(0)
+    act(() => history().redo())
+    expect(history().present).toBe(2)
+  })
   it("keeps empty undo and redo harmless and restores an edit", () => {
     const history = setup()
     act(() => {

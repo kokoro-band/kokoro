@@ -1,0 +1,26 @@
+{
+  "strings": [
+    { "id": "name-empty", "field": "name", "unit": "", "repeat": 1, "client": false, "server": false },
+    { "id": "name-unicode-blank", "field": "name", "unit": "\u00a0\ufeff\u3000", "repeat": 1, "client": false, "server": false },
+    { "id": "name-80", "field": "name", "unit": "가", "repeat": 80, "client": true, "server": true },
+    { "id": "name-81-ui-only", "field": "name", "unit": "가", "repeat": 81, "client": false, "server": true },
+    { "id": "name-family-80", "field": "name", "unit": "👨‍👩‍👧‍👦", "repeat": 80, "client": true, "server": true },
+    { "id": "name-indic-41", "field": "name", "unit": "क्ष", "repeat": 41, "client": true, "server": true },
+    { "id": "name-raw-1024", "field": "name", "prefix": "a", "unit": "\u0301", "repeat": 1023, "client": true, "server": true },
+    { "id": "name-raw-1025", "field": "name", "prefix": "a", "unit": "\u0301", "repeat": 1024, "client": false, "server": false },
+    { "id": "room-type-80", "field": "roomType", "unit": "방", "repeat": 80, "client": true, "server": true },
+    { "id": "room-type-81", "field": "roomType", "unit": "방", "repeat": 81, "client": false, "server": false },
+    { "id": "room-type-blank", "field": "roomType", "unit": "\u00a0", "repeat": 1, "client": false, "server": false },
+    { "id": "chat-empty", "field": "message", "unit": "", "repeat": 1, "client": false, "server": false },
+    { "id": "chat-blank", "field": "message", "unit": "\u00a0\ufeff\u3000", "repeat": 1, "client": false, "server": false },
+    { "id": "chat-1000", "field": "message", "unit": "가", "repeat": 1000, "client": true, "server": true },
+    { "id": "chat-1001", "field": "message", "unit": "가", "repeat": 1001, "client": false, "server": false },
+    { "id": "chat-emoji-1000", "field": "message", "unit": "😀", "repeat": 500, "client": true, "server": true },
+    { "id": "chat-emoji-1002", "field": "message", "unit": "😀", "repeat": 501, "client": false, "server": false }
+  ],
+  "furniture": [
+    { "count": 0, "accepted": true },
+    { "count": 200, "accepted": true },
+    { "count": 201, "accepted": false }
+  ]
+}

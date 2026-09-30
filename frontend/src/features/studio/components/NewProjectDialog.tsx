@@ -7,6 +7,11 @@ import {
   ResponsivePair,
 } from "@seed-design/react"
 import { TextField, TextFieldInput } from "seed-design/ui/text-field"
+import {
+  maxProjectNameGraphemes,
+  maxProjectNameLength,
+  projectNameError,
+} from "../input-limits"
 
 export function NewProjectDialog({
   open,
@@ -20,10 +25,11 @@ export function NewProjectDialog({
   onSubmit: (name: string) => Promise<boolean>
 }) {
   const [name, setName] = useState("")
+  const error = projectNameError(name.trim())
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!name.trim()) return
+    if (busy || error) return
     if (await onSubmit(name)) {
       setName("")
       onOpenChange(false)
@@ -51,11 +57,14 @@ export function NewProjectDialog({
                 size="medium"
                 value={name}
                 onValueChange={({ value }) => setName(value)}
-                maxGraphemeCount={60}
+                maxGraphemeCount={maxProjectNameGraphemes}
+                invalid={Boolean(name && error)}
+                errorMessage={name ? error : undefined}
                 required
               >
                 <TextFieldInput
                   name="project-name"
+                  maxLength={maxProjectNameLength}
                   placeholder="예: 우리 집 거실"
                   autoFocus
                 />
@@ -76,7 +85,7 @@ export function NewProjectDialog({
                   type="submit"
                   variant="brandSolid"
                   size="medium"
-                  disabled={busy || !name.trim()}
+                  disabled={busy || Boolean(error)}
                   loading={busy}
                 >
                   만들기

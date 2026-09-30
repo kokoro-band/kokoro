@@ -1,6 +1,11 @@
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { catalog, sampleProject } from "./data"
+import {
+  assertFurnitureCount,
+  chatInputError,
+  projectNameError,
+} from "./input-limits"
 import { withObjectParticle } from "./format"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
@@ -99,6 +104,7 @@ export function getProject(projectId: string) {
 }
 
 export async function saveProject(project: Project): Promise<Project> {
+  assertFurnitureCount(project.furniture.length)
   const updated = { ...project, updatedAt: new Date().toISOString() }
   if (isServerMode) {
     return request<Project>({
@@ -153,6 +159,8 @@ export async function uploadPlan(
 }
 
 export async function createProject(name: string): Promise<Project> {
+  const error = projectNameError(name)
+  if (error) throw new Error(error)
   const project: Project = {
     ...structuredClone(sampleProject),
     id: crypto.randomUUID(),
@@ -195,6 +203,8 @@ export async function sendCommand(
   focus?: Point2[],
   furnitureId?: string
 ): Promise<CommandResponse> {
+  const error = chatInputError(message)
+  if (error) throw new Error(error)
   if (isServerMode) {
     return request<CommandResponse>({
       url: `${projectPath(project.id)}/layout/commands`,
@@ -310,6 +320,7 @@ export async function sendCommand(
       actions.push("소파와 테이블과 식물로 간결한 배치를 만들었어요")
     }
   }
+  assertFurnitureCount(furniture.length)
   const commands: LayoutCommand[] = [
     ...project.furniture
       .filter((item) => !furniture.some((next) => next.id === item.id))

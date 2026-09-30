@@ -8,6 +8,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public ProblemDetail invalidRequest() {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400),
+                "요청의 필수 항목과 입력 형식을 확인해 주세요.");
+    }
+
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ProblemDetail uploadTooLarge() {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(413), "도면은 15MiB 이하여야 합니다.");

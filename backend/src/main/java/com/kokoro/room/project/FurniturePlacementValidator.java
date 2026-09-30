@@ -32,6 +32,7 @@ public class FurniturePlacementValidator {
      * Without room data the room is treated as a rectangle of the project dimensions.
      */
     public void validate(Dimensions dimensions, RoomModel room, List<FurnitureItem> furniture) {
+        ProjectInputLimits.furnitureCount(furniture.size());
         checkDuplicateIds(furniture);
         List<Point> outline = outline(dimensions, room);
         List<OrientedBox> boxes = furniture.stream().map(this::box).toList();
@@ -70,6 +71,7 @@ public class FurniturePlacementValidator {
 
     /** Manual drafts may need placement repairs, but must still contain usable furniture data. */
     public void validateData(List<FurnitureItem> furniture) {
+        ProjectInputLimits.furnitureCount(furniture.size());
         checkDuplicateIds(furniture);
         furniture.forEach(this::box);
     }

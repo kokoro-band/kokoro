@@ -10,6 +10,13 @@ import {
 import { instantiateFurnitureModel } from "./furniture-models"
 import { catalog } from "./data"
 import type { RoomModel } from "./types"
+import {
+  addOpening,
+  buildRoomModel,
+  mergeRooms,
+  splitRoom,
+  type RoomDraft,
+} from "./room-builder"
 
 const room: RoomModel = {
   version: 2,
@@ -47,6 +54,49 @@ function setup() {
 }
 
 describe("operable doors", () => {
+  it.each(["vertical", "horizontal"] as const)(
+    "preserves hinges and open leaf endpoints through a %s split and merge",
+    (axis) => {
+      const draft: RoomDraft = {
+        wallHeight: 2.4,
+        rooms: [{ id: "a", name: "거실", x: 0, z: 0, width: 6, depth: 4 }],
+      }
+      let original = buildRoomModel(draft)
+      for (const wall of original.walls)
+        original = addOpening(original, wall.id, "door", 1, 0.8)
+      const divided = splitRoom(draft, "a", axis, axis === "vertical" ? 3 : 2)
+      const after = buildRoomModel(divided, original.openings)
+      const merged = buildRoomModel(
+        mergeRooms(divided, divided.rooms[0].id, divided.rooms[1].id),
+        after.openings
+      )
+      const poses = (model: RoomModel, open: boolean) => {
+        // Text sprites are unrelated to door geometry and require a browser canvas.
+        const group = buildRoomGroup({ ...model, rooms: [] }, "3d")
+        const doors = group.userData.doors as DoorState[]
+        setManualDoorStates(
+          doors,
+          Object.fromEntries(doors.map((door) => [door.id, open]))
+        )
+        animateDoors(doors, null, 1)
+        group.updateMatrixWorld(true)
+        return doors
+          .map((door) => ({
+            id: door.id,
+            hinge: door.hinge.getWorldPosition(new THREE.Vector3()).toArray(),
+            end: door.hinge
+              .localToWorld(new THREE.Vector3(0.7, 0, 0))
+              .toArray(),
+          }))
+          .sort((a, b) => a.id.localeCompare(b.id))
+      }
+      for (const open of [false, true]) {
+        expect(poses(after, open)).toEqual(poses(original, open))
+        expect(poses(merged, open)).toEqual(poses(original, open))
+      }
+    }
+  )
+
   it("opens a manually operated door toward the floor plan swing side", () => {
     const { door, advance } = setup()
     door.manualOpen = true

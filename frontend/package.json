@@ -10,6 +10,8 @@
     "lint": "vp lint .",
     "format": "vp fmt \"**/*.{ts,tsx}\"",
     "test": "vp test",
+    "test:e2e": "node e2e/run.mjs",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck": "tsc --noEmit",
     "preview": "vp preview"
   },
@@ -29,6 +31,7 @@
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@seed-design/vite-plugin": "^2.1.0",
     "@types/node": "^24",
     "@types/react": "^19",

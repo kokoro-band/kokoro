@@ -337,17 +337,20 @@ export function StructureView({
   }
 
   function editDraft(updater: (current: RoomDraft) => RoomDraft, tag?: string) {
-    history.set(
-      (current) => ({ ...current, draft: updater(current.draft) }),
-      tag
-    )
+    history.set((current) => {
+      const draft = updater(current.draft)
+      return draft === current.draft ? current : { ...current, draft }
+    }, tag)
   }
 
   function editOpenings(updater: (current: RoomModel) => RoomModel) {
-    history.set((current) => ({
-      ...current,
-      openings: updater(model).openings,
-    }))
+    history.set((current) => {
+      const model = buildRoomModel(current.draft, current.openings)
+      const next = updater(model)
+      return next.openings === model.openings
+        ? current
+        : { ...current, openings: next.openings }
+    })
   }
 
   function pointerToPlan(event: React.PointerEvent) {

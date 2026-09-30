@@ -1,6 +1,7 @@
 import {
   mutationOptions,
   queryOptions,
+  type MutationOptions,
   type QueryClient,
 } from "@tanstack/react-query"
 
@@ -43,6 +44,18 @@ export function projectQueryOptions(projectId: string) {
     queryKey: projectKeys.detail(projectId),
     queryFn: () => getProject(projectId),
   })
+}
+
+/** Run the mutation directly so queued writes can finish after the component unmounts. */
+export function executeProjectMutation<TData, TVariables>(
+  queryClient: QueryClient,
+  options: MutationOptions<TData, Error, TVariables>,
+  variables: TVariables
+) {
+  return queryClient
+    .getMutationCache()
+    .build(queryClient, options)
+    .execute(variables)
 }
 
 function cacheProject(queryClient: QueryClient, project: Project) {

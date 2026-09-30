@@ -22,6 +22,7 @@ parseFurnitureCatalog(
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
   test: {
+    exclude: ["**/node_modules/**", "**/.git/**", "e2e/**/*.spec.ts"],
     server: {
       deps: {
         // SEED recipes import CSS which must pass through Vite in DOM tests.
@@ -30,6 +31,13 @@ export default defineConfig({
     },
   },
   server: {
+    watch: {
+      ignored: [
+        "**/.e2e-artifacts/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
+      ],
+    },
     fs: {
       allow: [
         fileURLToPath(new URL(".", import.meta.url)),
@@ -45,7 +53,13 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", "seed-design"],
+    ignorePatterns: [
+      "dist",
+      "seed-design",
+      "playwright-report",
+      "test-results",
+      ".e2e-artifacts",
+    ],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -192,6 +206,9 @@ export default defineConfig({
       "yarn.lock",
       "public/models/",
       "seed-design/",
+      "playwright-report/",
+      "test-results/",
+      ".e2e-artifacts/",
     ],
   },
   plugins: lazyPlugins(() => [

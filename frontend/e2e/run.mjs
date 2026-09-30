@@ -212,11 +212,18 @@ try {
     { VITE_API_MODE: "server", VITE_API_BASE_URL: `${api}/api` }
   )
   await ready(web, client)
-  await command("playwright", "vp", ["exec", "playwright", "test"], frontend, {
-    KOKORO_E2E_WEB: web,
-    KOKORO_E2E_API: `${api}/api`,
-    CI: process.env.CI ? "true" : "",
-  })
+  await command(
+    "playwright",
+    "vp",
+    ["exec", "playwright", "test"],
+    frontend,
+    {
+      KOKORO_E2E_WEB: web,
+      KOKORO_E2E_API: `${api}/api`,
+      CI: process.env.CI ? "true" : "",
+    },
+    600_000
+  )
 } catch (error) {
   failed = true
   console.error(error.message)

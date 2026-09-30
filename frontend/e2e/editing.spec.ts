@@ -164,7 +164,12 @@ suite(
     await page.getByRole("radio", { name: "창", exact: true }).click()
     await clickPlan(page, 4, 4)
     await page.getByRole("button", { name: /^창문 선택 / }).press("Enter")
+    await field(page, "벽 시작점에서 거리", "0.6")
     await field(page, "폭", "1.2")
+    await dragPlan(page, [1.2, 4], [1.6, 4])
+    await expect(
+      page.getByRole("textbox", { name: "벽 시작점에서 거리", exact: true })
+    ).toHaveValue("1.00")
     const saved = await saveStructure(page, initial)
     expect(saved.room!.openings).toHaveLength(2)
     expect(
@@ -174,6 +179,7 @@ suite(
       (opening) => opening.type === "window"
     )!
     expect(window.to - window.from).toBeCloseTo(1.2)
+    expect(window.from).toBe(1)
     await reloadProject(page, saved)
     await page.getByRole("button", { name: "구조", exact: true }).click()
     await expect(page.locator(".plan-opening")).toHaveCount(2)
@@ -191,6 +197,52 @@ suite(
     const merged = await saveStructure(page, saved)
     expect(merged.room!.openings).toEqual(saved.room!.openings)
     await reloadProject(page, merged)
+  }
+)
+
+suite(
+  "shrinking a room retains invalid furniture and lets the user repair it",
+  async ({ page, projectIds }, info) => {
+    const narrow = info.project.name === "narrow"
+    const initial = await createRoom(page, (id) => projectIds.push(id))
+    await openFurniture(page, narrow)
+    const added = await projectResponse(
+      await addFurniture(page, initial.id, "셸 체어")
+    )
+    await closeSheet(page, narrow)
+    await page.getByRole("button", { name: "구조", exact: true }).click()
+    await field(page, "가로", "2")
+    await field(page, "세로", "2")
+    const shrunk = await saveStructure(page, added)
+    expect(shrunk.furniture).toEqual(added.furniture)
+    expect(shrunk.room!.bounds).toEqual({ width: 2, depth: 2 })
+    if (narrow)
+      await page.getByRole("button", { name: "방 고르기", exact: true }).click()
+    const issues = page.getByRole("region", {
+      name: "배치 확인이 필요한 가구",
+      exact: true,
+    })
+    await expect(issues).toBeVisible()
+    await issues.getByRole("button", { name: /셸 체어/ }).click()
+    const xResponse = savedResponse(page, `/projects/${initial.id}/layout`)
+    await field(page, "가로", "1")
+    const partial = await projectResponse(await xResponse)
+    expect(partial.furniture[0]).toMatchObject({
+      id: added.furniture[0].id,
+      x: 1,
+      z: added.furniture[0].z,
+    })
+    const zResponse = savedResponse(page, `/projects/${initial.id}/layout`)
+    await field(page, "세로", "1")
+    const repaired = await projectResponse(await zResponse)
+    expect(repaired.furniture[0]).toMatchObject({
+      id: added.furniture[0].id,
+      x: 1,
+      z: 1,
+    })
+    await expect(page.locator(".placement-issue-detail")).toHaveCount(0)
+    await closeSheet(page, narrow)
+    await summary(page, repaired, ["셸 체어"])
   }
 )
 

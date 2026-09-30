@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { catalog } from "./data"
 import { makeFallbackModel } from "./furniture-fallback"
-import { upgradeFurnitureModel } from "./furniture-models"
+import {
+  instantiateFurnitureModel,
+  upgradeFurnitureModel,
+} from "./furniture-models"
 import type { CatalogItem } from "./types"
 
 function fallback(item: CatalogItem) {
@@ -17,6 +20,25 @@ function fallback(item: CatalogItem) {
 afterEach(() => vi.restoreAllMocks())
 
 describe("editable model fallback", () => {
+  it.each(catalog)(
+    "matches $id loaded bounds to the collision footprint",
+    (item) => {
+      const template = new THREE.Group()
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 1))
+      mesh.position.set(2, 4, -3)
+      template.add(mesh)
+      template.userData.bounds = new THREE.Box3().setFromObject(template)
+      const loaded = instantiateFurnitureModel(template, item)
+      const bounds = new THREE.Box3().setFromObject(loaded)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      expect(size.x).toBeCloseTo(item.width, 6)
+      expect(size.z).toBeCloseTo(item.depth, 6)
+      expect(bounds.min.y).toBeCloseTo(0, 6)
+      expect(center.x).toBeCloseTo(0, 6)
+      expect(center.z).toBeCloseTo(0, 6)
+    }
+  )
   it.each(catalog)("keeps $id within its exact catalog footprint", (item) => {
     const size = new THREE.Box3()
       .setFromObject(fallback(item))

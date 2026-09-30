@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { PerspectiveCamera, MOUSE, TOUCH } from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 
-import { bindSceneInteraction, type CursorTool } from "./scene-interaction"
+import {
+  bindSceneInteraction,
+  type CursorTool,
+  type SceneHit,
+} from "./scene-interaction"
 
 const cleanups: (() => void)[] = []
 afterEach(() => {
@@ -35,13 +39,14 @@ function setup(tool: CursorTool = "move") {
   controls.mouseButtons.LEFT = MOUSE.PAN
   controls.mouseButtons.RIGHT = MOUSE.ROTATE
   controls.touches.ONE = TOUCH.PAN
-  const pick = vi.fn(() => ({
+  const pick = vi.fn<() => SceneHit | null>(() => ({
     id: "chair",
     center: [0, 0] as [number, number],
   }))
   const onSelect = vi.fn()
   const onMove = vi.fn(() => true)
   const onCommit = vi.fn()
+  const onToggleDoor = vi.fn()
   const interaction = bindSceneInteraction({
     element,
     initialTool: tool,
@@ -50,6 +55,7 @@ function setup(tool: CursorTool = "move") {
     onSelect,
     onMove,
     onCommit,
+    onToggleDoor,
     setCameraEnabled: (enabled) => {
       controls.enabled = enabled
     },
@@ -88,6 +94,7 @@ function setup(tool: CursorTool = "move") {
     ...controls.target.toArray(),
   ]
   return {
+    onToggleDoor,
     element,
     captures,
     camera,
@@ -103,6 +110,65 @@ function setup(tool: CursorTool = "move") {
 }
 
 describe("scene gesture ownership", () => {
+  it.each(["select", "move"] as const)(
+    "toggles a door on release in %s mode without moving furniture or camera",
+    (tool) => {
+      const s = setup(tool)
+      s.pick.mockReturnValue({ kind: "door", id: "door-1" })
+      const before = s.position()
+      s.pointer("pointerdown")
+      expect(s.onToggleDoor).not.toHaveBeenCalled()
+      s.pointer("pointerup")
+      expect(s.onToggleDoor).toHaveBeenCalledExactlyOnceWith("door-1")
+      expect(s.onMove).not.toHaveBeenCalled()
+      expect(s.onSelect).not.toHaveBeenCalled()
+      expect(s.onCommit).not.toHaveBeenCalled()
+      expect(s.position()).toEqual(before)
+      expect(s.captures.size).toBe(0)
+    }
+  )
+
+  it("never toggles doors in pan mode or after a drag that returns to its start", () => {
+    const s = setup("pan")
+    s.pick.mockReturnValue({ kind: "door", id: "door-1" })
+    s.pointer("pointerdown")
+    s.pointer("pointerup")
+    s.interaction.setTool("move")
+    s.pointer("pointerdown")
+    s.pointer("pointermove", 150, 150)
+    s.pointer("pointermove", 100, 100)
+    s.pointer("pointerup")
+    expect(s.onToggleDoor).not.toHaveBeenCalled()
+  })
+
+  it.each(["pointercancel", "lostpointercapture", "blur", "Escape", "tool"])(
+    "cancels a pending door click on %s",
+    (reason) => {
+      const s = setup()
+      s.pick.mockReturnValue({ kind: "door", id: "door-1" })
+      s.pointer("pointerdown")
+      if (reason === "blur") window.dispatchEvent(new Event("blur"))
+      else if (reason === "Escape")
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      else if (reason === "tool") s.interaction.setTool("select")
+      else s.pointer(reason)
+      s.pointer("pointerup")
+      expect(s.onToggleDoor).not.toHaveBeenCalled()
+      expect(s.captures.size).toBe(0)
+    }
+  )
+
+  it("ignores another pointer and a release over a different door", () => {
+    const s = setup()
+    s.pick.mockReturnValue({ kind: "door", id: "door-1" })
+    s.pointer("pointerdown")
+    s.pointer("pointerup", 100, 100, { pointerId: 2, isPrimary: false })
+    expect(s.onToggleDoor).not.toHaveBeenCalled()
+    s.pick.mockReturnValue({ kind: "door", id: "door-2" })
+    s.pointer("pointerup")
+    expect(s.onToggleDoor).not.toHaveBeenCalled()
+  })
+
   it("moves furniture with grip offset but never starts OrbitControls", () => {
     const s = setup()
     const before = s.position()

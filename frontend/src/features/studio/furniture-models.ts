@@ -59,7 +59,12 @@ export function instantiateFurnitureModel(
   const wrapper = new THREE.Group()
   model.position.set(-center.x, -bounds.min.y, -center.z)
   wrapper.add(model)
-  wrapper.scale.setScalar(scale)
+  // Match both horizontal catalog dimensions used by the placement footprint.
+  wrapper.scale.set(
+    size.x > 0 ? item.width / size.x : 1,
+    scale,
+    size.z > 0 ? item.depth / size.z : 1
+  )
   return wrapper
 }
 

@@ -21,6 +21,14 @@ parseFurnitureCatalog(
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
+  server: {
+    fs: {
+      allow: [
+        fileURLToPath(new URL(".", import.meta.url)),
+        fileURLToPath(new URL("../docs/contracts", import.meta.url)),
+      ],
+    },
+  },
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
     categories: {

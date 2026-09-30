@@ -68,9 +68,20 @@ async function closeSheet(page: Page, narrow: boolean) {
   }
 }
 async function changedPixels(canvas: Locator, before: Buffer) {
+  expect((await stableCanvas(canvas)).equals(before)).toBe(false)
+}
+async function stableCanvas(canvas: Locator) {
+  let previous = await canvas.screenshot()
+  let equalFrames = 0
   await expect
-    .poll(async () => (await canvas.screenshot()).equals(before))
-    .toBe(false)
+    .poll(async () => {
+      const current = await canvas.screenshot()
+      equalFrames = current.equals(previous) ? equalFrames + 1 : 0
+      previous = current
+      return equalFrames
+    })
+    .toBeGreaterThanOrEqual(3)
+  return previous
 }
 
 suite(
@@ -196,6 +207,7 @@ suite(
     const x = page.getByRole("textbox", { name: "가로", exact: true })
     await x.fill("")
     await x.pressSequentially("123")
+    await expect(x).toHaveValue("123")
     await x.press("Escape")
     await closeSheet(page, narrow)
     await expect(
@@ -214,6 +226,13 @@ suite(
     await expect(
       page.getByRole("status").filter({ hasText: "벽이나 경계" })
     ).toBeVisible()
+    const centeredResponse = savedResponse(
+      page,
+      `/projects/${initial.id}/layout`
+    )
+    await field(page, "가로", "2")
+    const centered = await projectResponse(await centeredResponse)
+    expect(centered.furniture[0].x).toBe(2)
     const rotatedResponse = savedResponse(
       page,
       `/projects/${initial.id}/layout`
@@ -227,7 +246,7 @@ suite(
     const undoneResponse = savedResponse(page, `/projects/${initial.id}/layout`)
     await page.getByRole("button", { name: "실행 취소", exact: true }).click()
     const undone = await projectResponse(await undoneResponse)
-    expect(undone.furniture).toEqual(moved.furniture)
+    expect(undone.furniture).toEqual(centered.furniture)
     const redoneResponse = savedResponse(page, `/projects/${initial.id}/layout`)
     await page.getByRole("button", { name: "다시 실행", exact: true }).click()
     const redone = await projectResponse(await redoneResponse)
@@ -246,6 +265,7 @@ suite(
       await readFile((await download.path())!, "utf8")
     ) as Project
     expect(exported.id).toBe(redone.id)
+    expect(exported.revision).toBe(redone.revision)
     expect(exported.room).toEqual(redone.room)
     expect(exported.furniture).toEqual(redone.furniture)
   }
@@ -293,7 +313,7 @@ suite(
     await expect(
       page.getByRole("radio", { name: "화면 이동", exact: true })
     ).toBeChecked()
-    const before = await canvas.screenshot()
+    const before = await stableCanvas(canvas)
     const pan = (await canvas.boundingBox())!
     await page.mouse.move(pan.x + pan.width / 2, pan.y + pan.height / 2)
     await page.mouse.down()
@@ -321,10 +341,16 @@ suite(
     await expect(page.locator(".plan-opening")).toHaveCount(1)
     const saved = await saveStructure(page, initial)
     const canvas = page.locator(".room-renderer canvas")
+    let previousMode: Buffer | undefined
     for (const mode of ["2D", "3D"]) {
       await page.getByRole("radio", { name: mode, exact: true }).click()
+      await expect(
+        page.getByRole("radio", { name: mode, exact: true })
+      ).toBeChecked()
       await expect(canvas).toBeVisible()
-      const closed = await canvas.screenshot()
+      const closed = await stableCanvas(canvas)
+      if (previousMode) expect(closed.equals(previousMode)).toBe(false)
+      previousMode = closed
       await page
         .getByRole("button", { name: "문 열고 닫기", exact: true })
         .click()
@@ -332,7 +358,7 @@ suite(
       await expect(page.getByRole("menuitem", { name: /닫기$/ })).toBeVisible()
       await page.keyboard.press("Escape")
       await changedPixels(canvas, closed)
-      const open = await canvas.screenshot()
+      const open = await stableCanvas(canvas)
       await page
         .getByRole("button", { name: "문 열고 닫기", exact: true })
         .click()
@@ -340,8 +366,46 @@ suite(
       await expect(page.getByRole("menuitem", { name: /열기$/ })).toBeVisible()
       await page.keyboard.press("Escape")
       await changedPixels(canvas, open)
+      expect((await stableCanvas(canvas)).equals(closed)).toBe(true)
     }
     // Door pose is transient. Only the opening geometry is persisted.
     await reloadProject(page, saved)
+  }
+)
+
+suite(
+  "wall-limited fractional sofa rotation survives reload",
+  async ({ page, projectIds }, info) => {
+    const narrow = info.project.name === "narrow"
+    const initial = await createRoom(page, (id) => projectIds.push(id))
+    await openFurniture(page, narrow)
+    await projectResponse(await addFurniture(page, initial.id, "클라우드 소파"))
+    const movedResponse = savedResponse(page, `/projects/${initial.id}/layout`)
+    await field(page, "세로", "0.7")
+    const moved = await projectResponse(await movedResponse)
+    expect(moved.furniture[0].z).toBe(0.7)
+    const rotatedResponse = savedResponse(
+      page,
+      `/projects/${initial.id}/layout`
+    )
+    await page
+      .getByRole("slider", { name: "가구 방향", exact: true })
+      .press("ArrowRight")
+    const rotated = await projectResponse(await rotatedResponse)
+    const angle = rotated.furniture[0].rotation
+    expect(angle).toBeGreaterThan(0)
+    expect(angle).toBeLessThan(15)
+    expect(Number.isInteger(angle)).toBe(false)
+    // Independent rectangle footprint: half-depth along the wall normal.
+    const halfDepth = (degrees: number) =>
+      1.1 * Math.sin((degrees * Math.PI) / 180) +
+      0.46 * Math.cos((degrees * Math.PI) / 180)
+    expect(halfDepth(angle) + 0.1).toBeLessThanOrEqual(0.7)
+    expect(halfDepth(angle + 0.5) + 0.1).toBeGreaterThan(0.7)
+    await expect(
+      page.getByRole("slider", { name: "가구 방향", exact: true })
+    ).toHaveAttribute("aria-valuenow", String(angle))
+    await closeSheet(page, narrow)
+    await summary(page, rotated, ["클라우드 소파"])
   }
 )

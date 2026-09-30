@@ -41,19 +41,6 @@
   min-width: 18rem;
 }
 
-.door-menu-bulk {
-  display: flex;
-  align-items: center;
-  gap: var(--seed-dimension-x1);
-  padding: var(--seed-dimension-x2) var(--seed-dimension-x3);
-  border-bottom: 1px solid var(--line);
-}
-
-.door-menu-bulk > span {
-  flex: 1;
-  color: var(--seed-color-fg-neutral-muted);
-}
-
 .door-menu-row {
   display: flex;
   align-items: center;

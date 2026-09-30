@@ -250,31 +250,21 @@ export function SceneEditor({
               </MenuTrigger>
               <MenuContent className="door-menu" aria-label="문 열고 닫기">
                 {doors.length > 1 && (
-                  <div className="door-menu-bulk">
-                    <span>모든 문</span>
-                    <ActionButton
-                      variant="ghost"
-                      size="small"
-                      layout="iconOnly"
-                      aria-label="모두 열기"
-                      title="모두 열기"
+                  <MenuGroup>
+                    <MenuGroupLabel>모든 문</MenuGroupLabel>
+                    <MenuItem
+                      label="모두 열기"
+                      prefixIcon={<DoorOpen />}
                       disabled={allDoorsOpen}
                       onClick={() => changeAllDoors(true)}
-                    >
-                      <Icon svg={<DoorOpen />} size="x5" />
-                    </ActionButton>
-                    <ActionButton
-                      variant="ghost"
-                      size="small"
-                      layout="iconOnly"
-                      aria-label="모두 닫기"
-                      title="모두 닫기"
+                    />
+                    <MenuItem
+                      label="모두 닫기"
+                      prefixIcon={<DoorClosed />}
                       disabled={allDoorsClosed}
                       onClick={() => changeAllDoors(false)}
-                    >
-                      <Icon svg={<DoorClosed />} size="x5" />
-                    </ActionButton>
-                  </div>
+                    />
+                  </MenuGroup>
                 )}
                 <MenuGroup>
                   {doors.length > 1 && <MenuGroupLabel>각 문</MenuGroupLabel>}

@@ -260,6 +260,8 @@ describe("useStudioController project switching", () => {
     await flush()
     expect(app.get().project.room).toEqual(room)
     expect(app.get().project.floorPlan.status).toBe("READY")
+    expect(app.get().notice?.text).toContain("파일 처리가 끝났어요")
+    expect(app.get().notice?.text).not.toContain("로컬 데모")
   })
   it("reloads A only after A's earlier save finishes, even after visiting B", async () => {
     const app = await setup()

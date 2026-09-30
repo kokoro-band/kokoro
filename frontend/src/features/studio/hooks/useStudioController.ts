@@ -870,9 +870,9 @@ export function useStudioController() {
       setUploadAttempt(null)
       setNotice(
         resolved.floorPlan.status === "READY"
-          ? resolved.room
-            ? "도면을 올렸어요. 로컬 데모에서는 예제 집 구조를 보여 드려요."
-            : "도면을 올렸어요. 구조에서 방을 나눠 주세요."
+          ? isServerMode
+            ? "도면 파일 처리가 끝났어요. 현재 집 구조는 그대로예요."
+            : "도면을 올렸어요. 로컬 데모에서는 예제 집 구조를 보여 드려요."
           : resolved.floorPlan.status === "FAILED"
             ? "도면을 읽지 못했어요. 도면 파일에서 다른 파일을 올려 주세요."
             : "도면을 올렸어요. 도면 파일에서 처리 상태를 확인할 수 있어요.",

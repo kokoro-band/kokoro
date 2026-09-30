@@ -111,6 +111,7 @@
                 <targetPath>contracts</targetPath>
                 <includes>
                     <include>furniture-catalog.json</include>
+                    <include>furniture-source-assets.json</include>
                 </includes>
             </resource>
         </resources>

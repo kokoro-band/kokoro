@@ -1,0 +1,11 @@
+CREATE TABLE furniture_catalog (
+    id VARCHAR(100) PRIMARY KEY,
+    payload JSONB NOT NULL,
+    imported_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE furniture_source_assets (
+    asset_name VARCHAR(200) PRIMARY KEY,
+    payload JSONB NOT NULL,
+    imported_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

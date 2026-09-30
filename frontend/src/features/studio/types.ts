@@ -90,6 +90,36 @@ export type ChatMessage = {
   text: string
 }
 
+export type LayoutCommand = {
+  type: "ADD" | "MOVE" | "ROTATE" | "REMOVE" | "CLEAR"
+  catalogId?: string | null
+  furnitureId?: string | null
+  x?: number | null
+  z?: number | null
+  rotation?: number | null
+}
+
+export type CommandResponse = {
+  reply: string
+  project: Project
+  appliedActions: string[]
+  commands: LayoutCommand[]
+  requiresConfirmation: boolean
+  proposalId: string | null
+  expiresAt: string | null
+  proposedCommands: LayoutCommand[]
+  candidates: { furnitureId: string; name: string }[]
+}
+
+export type CommandReview = {
+  response: CommandResponse
+  message: string
+  focus?: Point2[]
+  baseKey: string
+  status: "ready" | "applying" | "retry" | "stale"
+  error: string
+}
+
 export type ProjectLoadState =
   | { status: "loading"; message: "" }
   | { status: "ready"; message: "" }

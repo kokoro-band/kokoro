@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { ApiError } from "@/lib/http-client"
+import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
@@ -11,6 +13,7 @@ import {
   rememberActiveProject,
 } from "@/features/studio/project-api"
 import {
+  confirmCommandMutationOptions,
   createProjectMutationOptions,
   executeProjectMutation,
   projectQueryOptions,
@@ -38,6 +41,7 @@ import type {
   RoomLabel,
   Category,
   ChatMessage,
+  CommandReview,
   Furniture,
   Point2,
   Project,
@@ -86,6 +90,17 @@ export function useStudioController() {
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
+  const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
+    null
+  )
+  const commandReviewRef = useRef<CommandReview | null>(null)
+  const commandOperationRef = useRef<symbol | null>(null)
+  const setCommandReview = useCallback(function setCommandReview(
+    next: CommandReview | null
+  ) {
+    commandReviewRef.current = next
+    setCommandReviewState(next)
+  }, [])
   const [notice, setNoticeState] = useState<Notice | null>(null)
   const noticeIdRef = useRef(0)
   const lastNoticeAtRef = useRef(0)
@@ -235,12 +250,14 @@ export function useStudioController() {
       setPast([])
       setFuture([])
       setUploadAttempt(null)
+      commandOperationRef.current = null
+      setCommandReview(null)
       setBusy(null)
       setSaveError(null)
       saveFailureRef.current = null
       syncSaveState()
     },
-    [closingFor, makeQueue, setDraft, syncSaveState]
+    [closingFor, makeQueue, setDraft, syncSaveState, setCommandReview]
   )
 
   const reportSaveFailure = useCallback(
@@ -573,39 +590,102 @@ export function useStudioController() {
     void handleSave()
   }
 
-  async function handleChat(text: string, focus?: Point2[]) {
-    if (!text.trim() || busy) return
+  async function handleChat(
+    text: string,
+    focus?: Point2[],
+    review?: CommandReview,
+    furnitureId?: string
+  ) {
+    if (!text.trim() || busy || commandOperationRef.current) return
+    if (!review && commandReviewRef.current) return
     const queue = currentQueue()
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", text },
-    ])
+    if (queue.closed) return
+    const operation = Symbol("command")
+    commandOperationRef.current = operation
+    if (review) setCommandReview({ ...review, status: "applying", error: "" })
+    else
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "user", text },
+      ])
     setInput("")
     setBusy("chat")
     try {
       const reply = await queue.run("command", async (saved) => {
-        const response = await executeProjectMutation(
-          queryClient,
-          sendCommandMutationOptions(queryClient, saved.id),
-          { project: saved, message: text, focus }
+        if (
+          review &&
+          (review.baseKey !== commandLayoutKey(saved) ||
+            review.baseKey !== commandLayoutKey(projectRef.current))
         )
-        const result = isServerMode
-          ? response.project
+          throw new CommandReviewExpiredError()
+        if (!sameFurniture(saved.furniture, projectRef.current.furniture))
+          throw new Error("먼저 배치를 저장한 뒤 다시 요청해 주세요.")
+        const confirming = Boolean(review?.response.requiresConfirmation)
+        if (
+          confirming &&
+          review?.status !== "retry" &&
+          Date.parse(review!.response.expiresAt ?? "") <= Date.now()
+        )
+          throw new CommandReviewExpiredError()
+        const response = confirming
+          ? await executeProjectMutation(
+              queryClient,
+              confirmCommandMutationOptions(queryClient, saved.id),
+              { project: saved, proposalId: review!.response.proposalId! }
+            )
           : await executeProjectMutation(
               queryClient,
-              saveProjectMutationOptions(queryClient, saved.id),
-              response.project
+              sendCommandMutationOptions(queryClient, saved.id),
+              { project: saved, message: text, focus, furnitureId }
             )
+        if (response.requiresConfirmation || response.candidates?.length) {
+          if (
+            response.requiresConfirmation &&
+            (!response.proposalId ||
+              !Number.isFinite(Date.parse(response.expiresAt ?? "")) ||
+              !response.proposedCommands?.length)
+          )
+            throw new Error(
+              "확인할 제안이 올바르지 않아요. 다시 요청해 주세요."
+            )
+          if (isCurrent(queue))
+            setCommandReview({
+              response,
+              message: text,
+              focus,
+              baseKey: commandLayoutKey(saved),
+              status:
+                commandLayoutKey(saved) === commandLayoutKey(projectRef.current)
+                  ? "ready"
+                  : "stale",
+              error: "",
+            })
+          return { project: saved, result: response.reply }
+        }
+        const result =
+          isServerMode || confirming
+            ? response.project
+            : sameFurniture(saved.furniture, response.project.furniture)
+              ? saved
+              : await executeProjectMutation(
+                  queryClient,
+                  saveProjectMutationOptions(queryClient, saved.id),
+                  response.project
+                )
         if (isCurrent(queue)) {
           const rebase = (furniture: Furniture[]) =>
             mergeFurniture(saved.furniture, result.furniture, furniture)
           queue.rebasePendingLayouts(rebase)
           const draft = projectRef.current
-          setPast((history) => [...history.slice(-29), draft.furniture])
-          setFuture([])
+          const next = rebase(draft.furniture)
+          if (!sameFurniture(draft.furniture, next)) {
+            setPast((history) => [...history.slice(-29), draft.furniture])
+            setFuture([])
+          }
+          setCommandReview(null)
           setDraft({
             ...draft,
-            furniture: rebase(draft.furniture),
+            furniture: next,
             updatedAt: result.updatedAt,
           })
         }
@@ -618,6 +698,21 @@ export function useStudioController() {
       ])
     } catch (error) {
       if (!isCurrent(queue)) return
+      if (review) {
+        const stale =
+          error instanceof CommandReviewExpiredError ||
+          error instanceof WriteSkippedError ||
+          (error instanceof ApiError &&
+            (error.status === 404 || error.status === 409 || !error.retryable))
+        setCommandReview({
+          ...review,
+          status: stale ? "stale" : "retry",
+          error: stale
+            ? "배치가 바뀌었거나 제안을 적용할 수 없어요. 다시 요청해 주세요."
+            : "결과를 받지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+        })
+        return
+      }
       setInput((current) => current || text)
       setMessages((current) => [
         ...current,
@@ -631,8 +726,67 @@ export function useStudioController() {
         },
       ])
     } finally {
-      setBusy(null)
+      if (commandOperationRef.current === operation) {
+        commandOperationRef.current = null
+        if (isCurrent(queue))
+          setBusy((current) => (current === "chat" ? null : current))
+      }
     }
+  }
+
+  function cancelCommandReview() {
+    if (commandOperationRef.current) return
+    setCommandReview(null)
+  }
+
+  function validCommandReview() {
+    const review = commandReviewRef.current
+    if (
+      !review ||
+      review.status === "applying" ||
+      review.status === "stale" ||
+      commandOperationRef.current
+    )
+      return null
+    if (
+      review.baseKey !== commandLayoutKey(projectRef.current) ||
+      (review.status !== "retry" &&
+        review.response.expiresAt &&
+        Date.parse(review.response.expiresAt) <= Date.now())
+    ) {
+      setCommandReview({
+        ...review,
+        status: "stale",
+        error: "배치가 바뀌었거나 제안이 만료됐어요. 다시 요청해 주세요.",
+      })
+      return null
+    }
+    return review
+  }
+
+  function confirmCommandReview() {
+    const review = validCommandReview()
+    if (!review?.response.requiresConfirmation) return
+    void handleChat(review.message, review.focus, review)
+  }
+
+  function chooseCommandCandidate(furnitureId: string) {
+    const review = validCommandReview()
+    if (
+      !review ||
+      !review.response.candidates.some(
+        (item) => item.furnitureId === furnitureId
+      )
+    )
+      return
+    void handleChat(review.message, review.focus, review, furnitureId)
+  }
+
+  function requestCommandAgain() {
+    const review = commandReviewRef.current
+    if (!review || commandOperationRef.current || busy) return
+    setCommandReview(null)
+    void handleChat(review.message, review.focus)
   }
 
   function applyFloorPlanResult(resolved: Project) {
@@ -853,6 +1007,11 @@ export function useStudioController() {
     category,
     leftTab,
     messages,
+    commandReview,
+    cancelCommandReview,
+    confirmCommandReview,
+    chooseCommandCandidate,
+    requestCommandAgain,
     input,
     notice,
     busy,

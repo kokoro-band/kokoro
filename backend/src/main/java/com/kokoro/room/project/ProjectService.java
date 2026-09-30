@@ -81,7 +81,7 @@ public class ProjectService {
                             furniture("chair-01", "chair-shell", "셸 체어", "의자", 4.2, 1.3, 25, "#4A665A"),
                             furniture("plant-01", "plant-olive", "올리브 화분", "장식", 4.9, 3.2, 0, "#69805E")
                     )),
-                    Instant.now()
+                    Instant.now(), 0
             );
             projectRepository.insert(sample);
         }
@@ -111,15 +111,15 @@ public class ProjectService {
                 null,
                 new FloorPlan("", 0, ConversionStatus.EMPTY, 0, null, null, null, null, null, false),
                 new ArrayList<>(),
-                Instant.now()
+                Instant.now(), 0
         );
         projectRepository.insert(project);
         return project;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = IOException.class)
     public void delete(String id) throws IOException {
-        RenovationProject project = find(id);
+        RenovationProject project = lock(id, null);
         LinkedHashSet<String> objectKeys = new LinkedHashSet<>(floorPlanJobRepository.findObjectKeysByProject(id));
         if (project.floorPlan().objectKey() != null) {
             objectKeys.add(project.floorPlan().objectKey());
@@ -169,8 +169,8 @@ public class ProjectService {
     }
 
     @Transactional
-    public RenovationProject saveLayout(String id, List<FurnitureItem> furniture) {
-        RenovationProject project = find(id);
+    public RenovationProject saveLayout(String id, List<FurnitureItem> furniture, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         furniturePlacementValidator.validateData(furniture);
         RenovationProject updated = copy(project, project.floorPlan(), new ArrayList<>(furniture));
         projectRepository.replace(updated);
@@ -178,18 +178,18 @@ public class ProjectService {
     }
 
     @Transactional
-    public RenovationProject saveRoom(String id, RoomModel room) {
-        RenovationProject project = find(id);
+    public RenovationProject saveRoom(String id, RoomModel room, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         roomModelValidator.validate(room);
         RenovationProject updated = new RenovationProject(project.id(), project.ownerId(), project.name(),
-                project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now());
+                project.roomType(), project.dimensions(), room, project.floorPlan(), project.furniture(), Instant.now(), project.revision() + 1);
         projectRepository.replace(updated);
         return updated;
     }
 
     @Transactional
-    public ChatCommandResponse applyCommand(String id, String message, String furnitureId) {
-        RenovationProject project = find(id);
+    public ChatCommandResponse applyCommand(String id, String message, String furnitureId, Long expectedRevision) {
+        RenovationProject project = lock(id, expectedRevision);
         ProjectInputLimits.message(message);
         LayoutCommandInterpreter.Interpretation interpretation = layoutCommandInterpreter.interpret(message, bounds(project));
         if (interpretation.requiresConfirmation()) {
@@ -197,7 +197,7 @@ public class ProjectService {
             Instant expiresAt = now.plus(PROPOSAL_TTL);
             String proposalId = UUID.randomUUID().toString();
             layoutProposalRepository.insert(new LayoutProposal(proposalId, id, currentUser.id(),
-                    project.updatedAt(), interpretation.commands(), now, expiresAt, null));
+                    project.updatedAt(), project.revision(), interpretation.commands(), now, expiresAt, null));
             return new ChatCommandResponse(interpretation.reply(), List.of(), interpretation.commands(), true,
                     project, proposalId, expiresAt, interpretation.commands(), List.of());
         }
@@ -238,7 +238,7 @@ public class ProjectService {
         }
 
         furniturePlacementValidator.validate(project.dimensions(), project.room(), next);
-        RenovationProject updated = saveLayout(id, next);
+        RenovationProject updated = saveLayout(id, next, project.revision());
         return new ChatCommandResponse(
                 String.join(", ", actions) + "했습니다. 3D 공간에서 위치를 직접 조절할 수 있어요.",
                 actions, interpretation.commands(), false, updated, null, null, List.of(), List.of()
@@ -247,7 +247,7 @@ public class ProjectService {
 
     @Transactional
     public ChatCommandResponse confirmCommand(String id, String proposalId) {
-        RenovationProject project = find(id);
+        RenovationProject project = lock(id, null);
         LayoutProposal proposal = layoutProposalRepository.findById(proposalId)
                 .filter(candidate -> candidate.projectId().equals(id) && candidate.ownerId().equals(currentUser.id()))
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "확인할 제안을 찾을 수 없습니다."));
@@ -258,7 +258,7 @@ public class ProjectService {
         if (Instant.now().isAfter(proposal.expiresAt())) {
             throw new ResponseStatusException(CONFLICT, "제안이 만료되었습니다. 다시 요청해 주세요.");
         }
-        if (!project.updatedAt().equals(proposal.baseUpdatedAt())) {
+        if (proposal.baseRevision() == null || project.revision() != proposal.baseRevision()) {
             throw new ResponseStatusException(CONFLICT, "그 사이 배치가 바뀌어 다시 요청해야 합니다.");
         }
         if (!layoutProposalRepository.tryConsume(proposalId, Instant.now())) {
@@ -274,7 +274,7 @@ public class ProjectService {
             }
         }
         furniturePlacementValidator.validate(project.dimensions(), project.room(), next);
-        RenovationProject updated = actions.isEmpty() ? project : saveLayout(id, next);
+        RenovationProject updated = actions.isEmpty() ? project : saveLayout(id, next, project.revision());
         return new ChatCommandResponse(String.join(", ", actions) + "했습니다.", actions, proposal.commands(),
                 false, updated, proposal.proposalId(), proposal.expiresAt(), List.of(), List.of());
     }
@@ -348,7 +348,16 @@ public class ProjectService {
     private RenovationProject copy(RenovationProject project, FloorPlan floorPlan, List<FurnitureItem> furniture) {
         return new RenovationProject(
                 project.id(), project.ownerId(), project.name(), project.roomType(), project.dimensions(),
-                project.room(), floorPlan, furniture, Instant.now());
+                project.room(), floorPlan, furniture, Instant.now(), project.revision() + 1);
+    }
+
+    private RenovationProject lock(String id, Long expectedRevision) {
+        RenovationProject project = projectRepository.lockById(id).filter(this::owned)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "프로젝트를 찾을 수 없습니다."));
+        if (expectedRevision != null && expectedRevision != project.revision()) {
+            throw new ResponseStatusException(CONFLICT, "프로젝트가 변경되었습니다. 최신 상태를 불러와 주세요.");
+        }
+        return project;
     }
 
     private static RoomBounds bounds(RenovationProject project) {

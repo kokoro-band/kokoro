@@ -395,6 +395,7 @@ export function ArrangeView({
         </SnackbarAvoidOverlap>
         <BottomSheet.Root
           open={sheet !== null && !studio.conflict?.open}
+          modal={!studio.commandReview}
           onOpenChange={(open) => {
             if (!open) setSheet(null)
           }}

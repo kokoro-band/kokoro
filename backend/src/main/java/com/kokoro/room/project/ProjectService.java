@@ -100,6 +100,7 @@ public class ProjectService {
     public RenovationProject create(CreateProjectRequest request) {
         ProjectInputLimits.name(request.name());
         ProjectInputLimits.roomType(request.roomType());
+        ProjectInputLimits.dimensions(request.dimensions());
         String id = UUID.randomUUID().toString();
         RenovationProject project = new RenovationProject(
                 id,

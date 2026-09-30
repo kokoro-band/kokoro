@@ -20,6 +20,7 @@ import type {
 } from "./types"
 import { commandLayoutKey, CommandReviewExpiredError } from "./command-review"
 import {
+  assertFurnitureWrite,
   maxStoredProjectLength,
   parseStoredProject,
 } from "./project-validation"
@@ -63,6 +64,7 @@ export function readSavedProjectWithRecovery(): {
 }
 
 function persistProject(project: Project): Project {
+  assertFurnitureWrite(project.furniture)
   const validated = parseStoredProject(project)
   const raw = JSON.stringify(validated)
   if (raw.length > maxStoredProjectLength)
@@ -104,7 +106,7 @@ export function getProject(projectId: string) {
 }
 
 export async function saveProject(project: Project): Promise<Project> {
-  assertFurnitureCount(project.furniture.length)
+  assertFurnitureWrite(project.furniture)
   const updated = { ...project, updatedAt: new Date().toISOString() }
   if (isServerMode) {
     return request<Project>({

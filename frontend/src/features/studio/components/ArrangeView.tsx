@@ -394,12 +394,12 @@ export function ArrangeView({
           </nav>
         </SnackbarAvoidOverlap>
         <BottomSheet.Root
-          open={sheet !== null}
+          open={sheet !== null && !studio.conflict?.open}
           onOpenChange={(open) => {
             if (!open) setSheet(null)
           }}
           onAnimationEnd={(open) => {
-            if (!open) focusDock()
+            if (!open && !studio.conflict?.open) focusDock()
           }}
         >
           <BottomSheet.Backdrop />

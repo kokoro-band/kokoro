@@ -10,6 +10,11 @@ import { sampleProject } from "./features/studio/data"
 import { buildRoomModel } from "./features/studio/room-builder"
 import type { Project } from "./features/studio/types"
 
+const viewport = vi.hoisted(() => ({ mobile: false }))
+vi.mock("./lib/use-media-query", () => ({
+  useMediaQuery: () => viewport.mobile,
+}))
+
 const http = vi.hoisted(() => {
   vi.stubEnv("VITE_API_MODE", "server")
   type Call = {
@@ -43,6 +48,7 @@ afterEach(async () => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  viewport.mobile = false
 })
 afterAll(() => vi.unstubAllEnvs())
 
@@ -196,6 +202,19 @@ async function setup() {
 }
 
 describe("save recovery through the real App and SEED UI", () => {
+  it("closes the mobile furniture sheet while conflict recovery owns the dialog", async () => {
+    viewport.mobile = true
+    const ui = await setup()
+    await ui.click("배치")
+    await ui.click("방 고르기")
+    await ui.click("거실 비어 있어요")
+    await ui.click("가구 놓기")
+    await ui.click("셸 체어 거실에 놓기")
+    expect(document.querySelector(".mobile-sheet[data-open]")).not.toBeNull()
+    await ui.reject(0, new ApiError("changed", 409, false))
+    expect(ui.text()).toContain("서버 내용이 바뀌었어요")
+    expect(document.querySelector(".mobile-sheet[data-open]")).toBeNull()
+  })
   it("resets an unsubmitted structure when discarding a furniture conflict", async () => {
     const ui = await setup()
     await ui.add()

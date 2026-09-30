@@ -31,6 +31,13 @@ export default defineConfig({
     },
   },
   server: {
+    watch: {
+      ignored: [
+        "**/.e2e-artifacts/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
+      ],
+    },
     fs: {
       allow: [
         fileURLToPath(new URL(".", import.meta.url)),

@@ -289,6 +289,13 @@ for (const externalEdit of [false, true]) {
           await expect(conflict(page)).not.toBeVisible()
         } else {
           await expect(confirmation(page)).not.toBeVisible()
+          if (info.project.name === "narrow") {
+            await page
+              .locator(".mobile-sheet")
+              .getByRole("button", { name: "닫기", exact: true })
+              .click()
+            await expect(page.locator(".mobile-sheet")).toHaveCount(0)
+          }
           await expect(page.getByRole("banner")).toContainText("저장됨")
         }
         await reloadProject(page, latest)

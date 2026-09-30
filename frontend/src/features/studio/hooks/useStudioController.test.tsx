@@ -115,6 +115,185 @@ beforeEach(() => {
 })
 
 describe("useStudioController project switching", () => {
+  it("preserves the confirmed room base and remaining furniture draft after partial recovery fails", async () => {
+    const app = await setup({ ...projectA, revision: 0 })
+    const room = { ...projectA.room!, wallHeight: 3.1 }
+    let applying!: Promise<boolean>
+    act(() => {
+      applying = app.get().applyRoom(room)
+    })
+    await flush()
+    calls("saveRoom")[0].reject(new ApiError("conflict", 409, false))
+    await flush()
+    expect(await applying).toBe(false)
+    expect(app.get().conflict).toBeTruthy()
+    act(() => app.get().addFurniture("chair-shell"))
+    const mine = app.get().project.furniture
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    calls("getProject")[1].resolve({ ...projectA, revision: 3 })
+    await flush()
+    act(() => {
+      void app.get().reapplyConflictDraft()
+      void app.get().reapplyConflictDraft()
+    })
+    await flush()
+    expect(calls("saveRoom")).toHaveLength(2)
+    expect((calls("saveRoom")[1].arg as Project).revision).toBe(3)
+    act(() => app.get().addFurniture("plant-olive"))
+    expect(app.get().project.furniture).toEqual(mine)
+    calls("saveRoom")[1].resolve({ ...projectA, room, revision: 4 })
+    await flush()
+    expect(calls("saveProject")).toHaveLength(1)
+    expect((calls("saveProject")[0].arg as Project).revision).toBe(4)
+    calls("saveProject")[0].reject(new ApiError("again", 409, false))
+    await flush()
+    expect(app.get().conflict?.base).toMatchObject({ room, revision: 4 })
+    expect(app.get().project.furniture).toEqual(mine)
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    calls("getProject")[2].resolve({ ...projectA, room, revision: 6 })
+    await flush()
+    act(() => {
+      void app.get().reapplyConflictDraft()
+    })
+    await flush()
+    expect(calls("saveRoom")).toHaveLength(2)
+    expect((calls("saveProject")[1].arg as Project).revision).toBe(6)
+    calls("saveProject")[1].resolve({
+      ...(calls("saveProject")[1].arg as Project),
+      revision: 7,
+    })
+    await flush()
+    expect(app.get().conflict).toBeNull()
+    expect(app.get().project.room).toEqual(room)
+  })
+  it("keeps the draft and offers explicit recovery after409 without retrying on more edits", async () => {
+    const app = await setup({ ...projectA, revision: 2 })
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    calls("saveProject")[0].reject(new ApiError("다른 탭 변경", 409, false))
+    await flush()
+    const mine = app.get().project.furniture
+    expect(app.get().conflict).toMatchObject({ status: "idle" })
+    expect(app.get().saveRejected).toBe(false)
+    act(() => app.get().saveProject())
+    await flush()
+    expect(calls("saveProject")).toHaveLength(1)
+    expect(app.get().project.furniture).toEqual(mine)
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    const latest = {
+      ...projectA,
+      revision: 4,
+      furniture: [
+        ...projectA.furniture,
+        { ...projectA.furniture[0], id: "remote" },
+      ],
+    }
+    calls("getProject")[1].resolve(latest)
+    await flush()
+    expect(app.get().conflict?.latest).toEqual(latest)
+    expect(app.get().project.furniture).toEqual(mine)
+    expect(calls("saveProject")).toHaveLength(1)
+    act(() => {
+      void app.get().reapplyConflictDraft()
+    })
+    await flush()
+    expect(calls("saveProject")).toHaveLength(2)
+    const sent = calls("saveProject")[1].arg as Project
+    expect(sent.revision).toBe(4)
+    expect(sent.furniture).toHaveLength(mine.length + 1)
+    calls("saveProject")[1].resolve({ ...sent, revision: 5 })
+    await flush()
+    expect(app.get().conflict).toBeNull()
+    expect(app.get().project.revision).toBe(5)
+    expect(app.get().dirty).toBe(false)
+  })
+
+  it("adopts a newer version at dispatch and displays it without replacing newer edits", async () => {
+    const app = await setup({ ...projectA, revision: 2 })
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    act(() => app.get().addFurniture("plant-olive"))
+    await flush()
+    const draft = app.get().project.furniture
+    calls("saveProject")[0].resolve({
+      ...(calls("saveProject")[0].arg as Project),
+      revision: 3,
+    })
+    await flush()
+    expect((calls("saveProject")[1].arg as Project).revision).toBe(3)
+    expect(app.get().project.furniture).toEqual(draft)
+    calls("saveProject")[1].resolve({
+      ...(calls("saveProject")[1].arg as Project),
+      revision: 4,
+    })
+    await flush()
+    expect(app.get().project.revision).toBe(4)
+  })
+
+  it("does not replace the draft when latest lookup fails or when discard is cancelled", async () => {
+    const app = await setup({ ...projectA, revision: 0 })
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    calls("saveProject")[0].reject(new ApiError("conflict", 409, false))
+    await flush()
+    expect(app.get().conflict).toBeTruthy()
+    const mine = app.get().project
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    calls("getProject")[1].reject(new ApiError("offline", null, true))
+    await flush()
+    expect(app.get().project).toEqual(mine)
+    expect(app.get().conflict?.error).toContain("offline")
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    const latest = { ...projectA, revision: 3 }
+    calls("getProject")[2].resolve(latest)
+    await flush()
+    vi.spyOn(window, "confirm").mockReturnValue(false)
+    act(() => app.get().discardConflictDraft())
+    expect(app.get().project).toEqual(mine)
+    vi.mocked(window.confirm).mockReturnValue(true)
+    act(() => app.get().discardConflictDraft())
+    expect(app.get().project).toEqual(latest)
+    expect(app.get().conflict).toBeNull()
+    expect(calls("saveProject")).toHaveLength(1)
+  })
+
+  it("ignores conflict lookup after switching projects", async () => {
+    const app = await setup({ ...projectA, revision: 0 })
+    act(() => app.get().addFurniture("chair-shell"))
+    await flush()
+    calls("saveProject")[0].reject(new ApiError("conflict", 409, false))
+    await flush()
+    expect(app.get().conflict).toBeTruthy()
+    act(() => {
+      void app.get().loadConflictLatest()
+    })
+    await flush()
+    act(() => {
+      void app.get().createProject("B")
+    })
+    await flush()
+    calls("createProject")[0].resolve({ ...projectB, revision: 0 })
+    await flush()
+    calls("getProject")[1].resolve({ ...projectA, revision: 99 })
+    await flush()
+    expect(app.get().project.id).toBe(projectB.id)
+    expect(app.get().conflict).toBeNull()
+  })
   it("keeps the chat draft and history when a request exceeds the input limit", async () => {
     const app = await setup()
     const input = "가".repeat(1001)
@@ -253,10 +432,11 @@ describe("useStudioController project switching", () => {
     expect(app.get().dirty).toBe(false)
   })
 
-  it("keeps a newer room when an older upload status read completes", async () => {
+  it("serializes room saves after the upload status read and uses its revision", async () => {
     const app = await setup()
     const uploaded = {
       ...structuredClone(projectA),
+      revision: 1,
       floorPlan: { ...projectA.floorPlan, status: "PROCESSING", progress: 50 },
     }
     act(() =>
@@ -280,18 +460,21 @@ describe("useStudioController project switching", () => {
       applying = app.get().applyRoom(room)
     })
     await flush()
-    expect(calls("saveRoom")).toHaveLength(1)
-    calls("saveRoom")[0].resolve({ ...uploaded, room })
-    await flush()
-    await expect(applying).resolves.toBe(true)
+    expect(calls("saveRoom")).toHaveLength(0)
     calls("getProject")[1].resolve({
       ...uploaded,
+      revision: 3,
       floorPlan: { ...uploaded.floorPlan, status: "READY", progress: 100 },
     })
     await flush()
+    expect(calls("saveRoom")).toHaveLength(1)
+    expect((calls("saveRoom")[0].arg as Project).revision).toBe(3)
+    calls("saveRoom")[0].resolve({ ...uploaded, room, revision: 4 })
+    await flush()
+    await expect(applying).resolves.toBe(true)
     expect(app.get().project.room).toEqual(room)
     expect(app.get().project.floorPlan.status).toBe("READY")
-    expect(app.get().notice?.text).toContain("파일 처리가 끝났어요")
+    expect(app.get().notice?.text).toContain("구조를 저장했어요")
     expect(app.get().notice?.text).not.toContain("로컬 데모")
   })
   it("reloads A only after A's earlier save finishes, even after visiting B", async () => {

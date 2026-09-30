@@ -42,6 +42,8 @@ export function AppBar({
   saving,
   saveFailed,
   saveRejected,
+  saveConflict = false,
+  onReviewConflict,
   saveBusy,
   onViewChange,
   onSave,
@@ -62,6 +64,8 @@ export function AppBar({
   saving: boolean
   saveFailed: boolean
   saveRejected: boolean
+  saveConflict?: boolean
+  onReviewConflict?: () => void
   saveBusy: boolean
   onViewChange: (view: StudioView) => void
   onSave: () => void
@@ -184,7 +188,16 @@ export function AppBar({
             저장된 배치로 되돌리기
           </ActionButton>
         )}
-        {saveFailed && !saveRejected && (
+        {saveConflict && (
+          <ActionButton
+            variant="neutralWeak"
+            size="small"
+            onClick={onReviewConflict}
+          >
+            저장 충돌 해결
+          </ActionButton>
+        )}
+        {saveFailed && !saveRejected && !saveConflict && (
           <ActionButton
             variant="neutralWeak"
             size="small"

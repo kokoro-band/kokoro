@@ -60,7 +60,7 @@ function response(
 async function setup() {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.stubGlobal("confirm", () => true)
-  const initial = structuredClone(sampleProject)
+  const initial = { ...structuredClone(sampleProject), revision: 0 }
   const result: { current?: ReturnType<typeof useStudioController> } = {}
   function Harness() {
     Object.assign(result, { current: useStudioController() })
@@ -164,6 +164,29 @@ it("retries a lost confirmation with the same ID and synchronizes already-applie
   expect(app.get().project.furniture).toEqual([])
   expect(app.get().canUndo).toBe(true)
 })
+it("preserves the draft when an idempotent confirmation returns an externally changed room", async () => {
+  const app = await setup()
+  await app.propose()
+  act(() => app.get().confirmCommandReview())
+  await flush()
+  http.calls[2].reject(new ApiError("연결 끊김", null, true))
+  await flush()
+  act(() => app.get().confirmCommandReview())
+  await flush()
+  expect(http.calls[3].config.data).toEqual({ proposalId: "proposal-1" })
+  http.calls[3].resolve(
+    response({
+      ...app.initial,
+      revision: 3,
+      furniture: [],
+      room: { ...app.initial.room!, bounds: { width: 20, depth: 20 } },
+    })
+  )
+  await flush()
+  expect(app.get().conflict).toMatchObject({ status: "idle", open: true })
+  expect(app.get().project).toEqual(app.initial)
+  expect(app.get().conflict?.base.revision).toBe(0)
+})
 it("does not confirm after a preview is invalidated by a furniture edit", async () => {
   const app = await setup()
   await app.propose()
@@ -177,7 +200,7 @@ it("does not confirm after a preview is invalidated by a furniture edit", async 
   ).toHaveLength(0)
   expect(app.get().commandReview?.status).toBe("stale")
 })
-it("shows an expired server proposal as a new-request action, not confirmation retry", async () => {
+it("routes an expired or stale server proposal to conflict recovery without another confirmation", async () => {
   const app = await setup()
   await app.propose()
   expect(app.get().commandReview).toBeDefined()
@@ -185,7 +208,8 @@ it("shows an expired server proposal as a new-request action, not confirmation r
   await flush()
   http.calls[2].reject(new ApiError("만료", 409, false))
   await flush()
-  expect(app.get().commandReview?.status).toBe("stale")
+  expect(app.get().commandReview).toBeNull()
+  expect(app.get().conflict).toMatchObject({ status: "idle", open: true })
   act(() => app.get().confirmCommandReview())
   await flush()
   expect(http.calls).toHaveLength(3)
@@ -207,6 +231,7 @@ it("resubmits the original text with only a valid candidate ID", async () => {
   await flush()
   expect(http.calls[2].config.data).toEqual({
     message: "방을 비워줘",
+    expectedRevision: 0,
     furnitureId: item.id,
   })
 })
@@ -273,7 +298,10 @@ it("does not send expired proposals and requests a fresh preview explicitly", as
   expect(app.get().commandReview?.status).toBe("stale")
   act(() => app.get().requestCommandAgain())
   await flush()
-  expect(http.calls[2].config.data).toEqual({ message: "방을 비워줘" })
+  expect(http.calls[2].config.data).toEqual({
+    message: "방을 비워줘",
+    expectedRevision: 0,
+  })
   expect(http.calls[2].config.url).toBe(
     `/projects/${app.initial.id}/layout/commands`
   )

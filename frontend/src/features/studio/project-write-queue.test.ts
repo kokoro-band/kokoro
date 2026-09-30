@@ -50,6 +50,26 @@ function fakeServer() {
 }
 
 describe("ProjectWriteQueue", () => {
+  it("does not adopt a response that moves the confirmed version backwards", async () => {
+    const saved = { ...base, revision: 7 }
+    const queue = new ProjectWriteQueue(saved, {
+      saveLayout: async () => ({ ...base, revision: 6 }),
+    })
+    await expect(queue.saveLayout([])).rejects.toThrow("버전")
+    expect(queue.saved).toBe(saved)
+  })
+  it("does not send later writes after a version conflict even when enqueued after the failure", async () => {
+    const conflict = new ApiError("프로젝트가 변경됐어요", 409, false)
+    const saveLayout = vi.fn().mockRejectedValue(conflict)
+    const command = vi.fn()
+    const queue = new ProjectWriteQueue(base, { saveLayout })
+    await expect(queue.saveLayout([])).rejects.toBe(conflict)
+    await expect(queue.saveLayout([sofa])).rejects.toThrow()
+    await expect(queue.run("command", command)).rejects.toThrow()
+    expect(saveLayout).toHaveBeenCalledTimes(1)
+    expect(command).not.toHaveBeenCalled()
+    expect(queue.saved).toBe(base)
+  })
   it("sends one write at a time in request order", async () => {
     const server = fakeServer()
     const queue = new ProjectWriteQueue(base, {
@@ -261,7 +281,7 @@ describe("saveFailureKind", () => {
       "rejected"
     )
     expect(saveFailureKind(new ApiError("conflict", 409, false))).toBe(
-      "rejected"
+      "conflict"
     )
     expect(saveFailureKind(new ApiError("offline", null, true))).toBe("network")
     expect(saveFailureKind(new ApiError("server", 503, true))).toBe("network")

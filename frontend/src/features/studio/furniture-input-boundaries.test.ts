@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   vi.stubGlobal("localStorage", { setItem, getItem })
-  vi.mocked(request).mockResolvedValue(sampleProject)
+  vi.mocked(request).mockResolvedValue({ ...sampleProject, revision: 0 })
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -31,7 +31,10 @@ describe.each(["local", "server"])("%s furniture write boundary", (mode) => {
   it.each(cases)("$id", async ({ field, value, accepted }) => {
     vi.stubEnv("VITE_API_MODE", mode)
     const { saveProject } = await import("./project-api")
-    const project = structuredClone(sampleProject)
+    const project = {
+      ...structuredClone(sampleProject),
+      ...(mode === "server" ? { revision: 0 } : {}),
+    }
     project.furniture = [{ ...project.furniture[0], [field]: value }]
     const before = structuredClone(project)
     if (accepted) await expect(saveProject(project)).resolves.toBeDefined()

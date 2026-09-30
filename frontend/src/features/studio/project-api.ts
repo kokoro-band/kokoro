@@ -102,7 +102,46 @@ export function rememberActiveProject(projectId: string) {
 }
 
 export function getProject(projectId: string) {
-  return request<Project>({ url: projectPath(projectId) })
+  return request<Project>({ url: projectPath(projectId) }).then((project) =>
+    validateServerProject(project, projectId)
+  )
+}
+
+export function requireProjectRevision(project: Project): number {
+  const revision = project?.revision
+  if (
+    typeof revision !== "number" ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0
+  )
+    throw new Error(
+      "서버 프로젝트 버전을 확인할 수 없어요. 최신 서버로 연결한 뒤 다시 불러와 주세요."
+    )
+  return revision
+}
+
+function validateServerProject(
+  project: Project,
+  projectId?: string,
+  minimumRevision = 0
+): Project {
+  if (requireProjectRevision(project) < minimumRevision)
+    throw new Error(
+      "이전 버전의 서버 응답은 적용하지 않았어요. 최신 내용을 확인해 주세요."
+    )
+  if (
+    !project ||
+    typeof project.id !== "string" ||
+    !projectIdPattern.test(project.id) ||
+    (projectId && project.id !== projectId)
+  )
+    throw new Error("다른 프로젝트의 응답이라 적용하지 않았어요.")
+  return project
+}
+
+function validateCommandResponse(response: CommandResponse, project: Project) {
+  validateServerProject(response.project, project.id, project.revision)
+  return response
 }
 
 export async function saveProject(project: Project): Promise<Project> {
@@ -112,8 +151,13 @@ export async function saveProject(project: Project): Promise<Project> {
     return request<Project>({
       url: `${projectPath(project.id)}/layout`,
       method: "PUT",
-      data: { furniture: project.furniture },
-    })
+      data: {
+        furniture: project.furniture,
+        expectedRevision: requireProjectRevision(project),
+      },
+    }).then((saved) =>
+      validateServerProject(saved, project.id, project.revision)
+    )
   }
   return persistProject(updated)
 }
@@ -127,8 +171,10 @@ export async function saveRoom(
     return request<Project>({
       url: `${projectPath(project.id)}/room`,
       method: "PUT",
-      data: { room },
-    })
+      data: { room, expectedRevision: requireProjectRevision(project) },
+    }).then((saved) =>
+      validateServerProject(saved, project.id, project.revision)
+    )
   }
   return persistProject(updated)
 }
@@ -145,7 +191,9 @@ export async function uploadPlan(
       method: "POST",
       data: body,
       timeout: UPLOAD_TIMEOUT_MS,
-    })
+    }).then((saved) =>
+      validateServerProject(saved, project.id, project.revision)
+    )
   }
   return {
     ...project,
@@ -182,7 +230,7 @@ export async function createProject(name: string): Promise<Project> {
     url: "/projects",
     method: "POST",
     data: { name, roomType: project.roomType, dimensions: project.dimensions },
-  })
+  }).then((saved) => validateServerProject(saved))
 }
 
 export function makeFurniture(catalogId: string, x = 0, z = 0): Furniture {
@@ -211,8 +259,12 @@ export async function sendCommand(
     return request<CommandResponse>({
       url: `${projectPath(project.id)}/layout/commands`,
       method: "POST",
-      data: { message, ...(furnitureId ? { furnitureId } : {}) },
-    })
+      data: {
+        message,
+        expectedRevision: requireProjectRevision(project),
+        ...(furnitureId ? { furnitureId } : {}),
+      },
+    }).then((response) => validateCommandResponse(response, project))
   }
 
   const normalized = message.replaceAll(" ", "")
@@ -423,7 +475,7 @@ export async function confirmCommand(
       url: `${projectPath(project.id)}/layout/commands/confirm`,
       method: "POST",
       data: { proposalId },
-    })
+    }).then((response) => validateCommandResponse(response, project))
   const proposal = localProposals.get(proposalId)
   if (!proposal || proposal.result.project.id !== project.id)
     throw new CommandReviewExpiredError()

@@ -62,6 +62,7 @@ async function setup() {
   const initial: Project = {
     ...structuredClone(sampleProject),
     id: "project-a",
+    revision: 0,
     name: "검증 A",
     furniture: [],
     dimensions: { width: 8, depth: 8, height: 2.4 },
@@ -138,6 +139,7 @@ async function setup() {
     http.calls.filter((call) => call.config.url?.endsWith("/layout"))
   const savedResponse = (index: number) => ({
     ...initial,
+    revision: (saves()[index].config.data.expectedRevision as number) + 1,
     furniture: structuredClone(saves()[index].config.data.furniture),
   })
   return {
@@ -194,6 +196,153 @@ async function setup() {
 }
 
 describe("save recovery through the real App and SEED UI", () => {
+  it("resets an unsubmitted structure when discarding a furniture conflict", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.click("구조")
+    await ui.type("이름", "버릴 구조")
+    await ui.reject(0, new ApiError("changed", 409, false))
+    await ui.click("최신 내용 확인")
+    await act(async () =>
+      http.calls.at(-1)!.resolve({ ...ui.initial, revision: 3 })
+    )
+    await settle()
+    await ui.click("내 초안 버리고 서버 내용 사용")
+    expect(ui.text()).not.toContain("버릴 구조")
+    expect(ui.header().textContent).toContain("저장됨")
+    const unload = new window.Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(false)
+  })
+  it("protects a structure-only draft from refresh and clears protection on undo", async () => {
+    const ui = await setup()
+    await ui.click("구조")
+    await ui.type("이름", "미저장 구조")
+    const unload = new window.Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+    await ui.click("실행 취소")
+    const clean = new window.Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(clean)
+    expect(clean.defaultPrevented).toBe(false)
+  })
+  it("previews a latest room with a nullable rooms collection", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.reject(0, new ApiError("changed", 409, false))
+    await ui.click("최신 내용 확인")
+    await act(async () =>
+      http.calls.at(-1)!.resolve({
+        ...ui.initial,
+        revision: 3,
+        // The HTTP boundary can receive nullable collections from the server.
+        room: { ...ui.initial.room, rooms: null } as unknown as Project["room"],
+      })
+    )
+    await settle()
+    expect(ui.text()).toContain("방 0개")
+  })
+  it("retains the structure baseline after a failed room recovery and edit undo", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.click("구조")
+    await ui.type("이름", "내 구조")
+    await ui.reject(0, new ApiError("changed", 409, false))
+    await ui.click("최신 내용 확인")
+    await act(async () =>
+      http.calls.at(-1)!.resolve({ ...ui.initial, revision: 3 })
+    )
+    await settle()
+    await ui.click("내 변경을 최신 내용에 적용")
+    const roomWrite = http.calls.find((call) =>
+      call.config.url?.endsWith("/room")
+    )!
+    await act(async () =>
+      roomWrite.reject(new ApiError("changed again", 409, false))
+    )
+    await settle()
+    await ui.click("나중에 해결")
+    // Separate this later edit from the editor's 700ms typing undo group.
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 1000)
+    await ui.type("이름", "추가 편집")
+    await ui.click("실행 취소")
+    expect(ui.text()).toContain("내 구조")
+    await ui.click("저장 충돌 해결")
+    await ui.click("최신 내용 확인")
+    await act(async () =>
+      http.calls.at(-1)!.resolve({ ...ui.initial, revision: 4 })
+    )
+    await settle()
+    await ui.click("내 변경을 최신 내용에 적용")
+    const roomWrites = http.calls.filter((call) =>
+      call.config.url?.endsWith("/room")
+    )
+    expect(roomWrites).toHaveLength(2)
+    expect(roomWrites[1].config.data.room.rooms[0].name).toBe("내 구조")
+    expect(roomWrites[1].config.data.expectedRevision).toBe(4)
+  })
+  it("includes an unsubmitted structure draft when explicitly reapplying a furniture conflict", async () => {
+    const ui = await setup()
+    await ui.add()
+    await ui.click("구조")
+    await ui.type("이름", "내 구조")
+    await ui.reject(0, new ApiError("changed", 409, false))
+    await ui.click("최신 내용 확인")
+    await act(async () =>
+      http.calls.at(-1)!.resolve({ ...ui.initial, revision: 3 })
+    )
+    await settle()
+    await ui.click("내 변경을 최신 내용에 적용")
+    const roomSave = http.calls.find((call) =>
+      call.config.url?.endsWith("/room")
+    )
+    expect(roomSave).toBeDefined()
+    expect(roomSave!.config.data.room.rooms[0].name).toBe("내 구조")
+    expect(roomSave!.config.data.expectedRevision).toBe(3)
+    await act(async () =>
+      roomSave!.resolve({
+        ...ui.initial,
+        revision: 4,
+        room: roomSave!.config.data.room,
+      })
+    )
+    await settle()
+    expect(ui.saves()[1].config.data.expectedRevision).toBe(4)
+    await act(async () =>
+      ui
+        .saves()[1]
+        .resolve({ ...ui.savedResponse(1), room: roomSave!.config.data.room })
+    )
+    await settle()
+    expect(ui.text()).not.toContain("저장 충돌 해결")
+  })
+  it("keeps the draft visible until explicit conflict recovery and sends the reviewed server version", async () => {
+    const ui = await setup()
+    await ui.add()
+    const mine = ui.savedResponse(0).furniture
+    await ui.reject(0, new ApiError("server changed", 409, false))
+    expect(ui.text()).toContain("서버 내용이 바뀌었어요")
+    expect(ui.text()).toContain("저장 충돌 해결")
+    await ui.click("나중에 해결")
+    await ui.click("저장 충돌 해결")
+    await ui.click("최신 내용 확인")
+    const latest = { ...ui.initial, revision: 5 }
+    const latestRead = http.calls.at(-1)!
+    expect(latestRead.config.method).not.toBe("PUT")
+    await act(async () => latestRead.resolve(latest))
+    await settle()
+    expect(ui.text()).toContain("서버 버전 5")
+    expect(ui.saves()).toHaveLength(1)
+    await ui.click("내 변경을 최신 내용에 적용")
+    expect(ui.saves()).toHaveLength(2)
+    expect(ui.saves()[1].config.data).toEqual({
+      furniture: mine,
+      expectedRevision: 5,
+    })
+    await ui.resolve(1)
+    expect(ui.text()).not.toContain("저장 충돌 해결")
+    expect(ui.header().textContent).toContain("저장됨")
+  })
   it("clears the old manual save busy state after switching to the sample project", async () => {
     const ui = await setup()
     await ui.add()

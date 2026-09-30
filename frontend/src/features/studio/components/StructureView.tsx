@@ -204,12 +204,14 @@ export function StructureView({
   saving,
   onApply,
   onDirtyChange,
+  onDraftChange,
 }: {
   room?: RoomModel
   active: boolean
   saving: boolean
   onApply: (room: RoomModel) => void
   onDirtyChange: (dirty: boolean) => void
+  onDraftChange?: (room: RoomModel | null) => void
 }) {
   const [initial] = useState<EditorState>(() => ({
     draft: room ? draftFromModel(room) : createDraft(defaultAreaPyeong),
@@ -279,8 +281,9 @@ export function StructureView({
   useEffect(
     function reportStructureDirty() {
       onDirtyChange(dirty)
+      onDraftChange?.(dirty && !choosingStart ? model : null)
     },
-    [dirty, onDirtyChange]
+    [dirty, choosingStart, model, onDirtyChange, onDraftChange]
   )
 
   // 구조 화면이 가려져 있거나 시작 방법을 고르는 동안에는 편집 단축키를 쉬게 합니다.

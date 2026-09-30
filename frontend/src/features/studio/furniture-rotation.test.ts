@@ -53,13 +53,13 @@ describe("fractional rotation persistence", () => {
 
       vi.resetModules()
       vi.stubEnv("VITE_API_MODE", "server")
-      vi.mocked(request).mockResolvedValue(restored)
+      vi.mocked(request).mockResolvedValue({ ...restored, revision: 1 })
       const server = await import("./project-api")
-      await server.saveProject(restored)
+      await server.saveProject({ ...restored, revision: 0 })
       expect(request).toHaveBeenCalledWith(
         expect.objectContaining({
           method: "PUT",
-          data: { furniture: restored.furniture },
+          data: { furniture: restored.furniture, expectedRevision: 0 },
         })
       )
       expect(restored.furniture[0].rotation).toBe(rotation)

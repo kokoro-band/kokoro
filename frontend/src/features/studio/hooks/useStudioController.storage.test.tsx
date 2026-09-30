@@ -156,6 +156,7 @@ describe("storage recovery through the actual controller", () => {
     vi.mocked(request).mockResolvedValue({
       ...sampleProject,
       id: "server-project",
+      revision: 0,
     })
     const app = await setup()
     expect(getItem.mock.calls.some(([name]) => name === key)).toBe(false)

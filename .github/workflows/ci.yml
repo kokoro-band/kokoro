@@ -41,6 +41,10 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, narrow]
     defaults:
       run:
         working-directory: frontend
@@ -58,11 +62,11 @@ jobs:
           cache: true
       - run: vp run typecheck:e2e
       - run: vp exec playwright install --with-deps chromium
-      - run: vp run test:e2e
+      - run: vp run test:e2e --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          name: e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
           include-hidden-files: true
           retention-days: 7
           path: |

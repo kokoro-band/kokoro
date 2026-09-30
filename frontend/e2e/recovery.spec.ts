@@ -60,7 +60,12 @@ async function inspectUnsubmittedDraft(page: Page) {
   await expect(page.locator(".summary")).toContainText("올리브 화분")
   await expect(page.locator(".summary")).not.toContainText("셸 체어")
   await expect(page.locator(".summary-total")).toContainText("가구 1개")
-  await page.getByRole("button", { name: "구조", exact: true }).click()
+  await page
+    .getByRole("button", {
+      name: "구조, 저장하지 않은 변경 있음",
+      exact: true,
+    })
+    .click()
   await expect(
     page.getByRole("textbox", { name: "이름", exact: true })
   ).toHaveValue("내 미저장 구조")

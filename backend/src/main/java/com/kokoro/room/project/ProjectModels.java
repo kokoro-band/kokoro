@@ -147,6 +147,11 @@ public final class ProjectModels {
 
     public record ConfirmCommandRequest(@NotBlank String proposalId) {}
 
+    /** {@code selections} maps a 0-based intent index to the furnitureId the user picked among candidates. */
+    public record LayoutIntentRequest(@NotNull tools.jackson.databind.JsonNode intent,
+                                      java.util.Map<String, String> selections,
+                                      @PositiveOrZero Long expectedRevision) {}
+
     public enum LayoutActionType { ADD, MOVE, ROTATE, REMOVE, CLEAR }
 
     public record LayoutCommand(

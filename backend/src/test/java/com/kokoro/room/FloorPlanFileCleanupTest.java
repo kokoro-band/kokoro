@@ -26,9 +26,14 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -88,6 +93,66 @@ class FloorPlanFileCleanupTest {
 
         assertThat(pending(projectId)).isZero();
         assertThat(countFiles(projectId)).isZero();
+    }
+
+    // Characterization tests: they pin the current behavior of FloorPlanFileCleanup without changing it.
+
+    @Test
+    void enqueueDoesNotRecordTheSameKeyTwice() {
+        cleanup.enqueue("idempotent-project", List.of("idempotent-project/a/source", "idempotent-project/a/source",
+                "idempotent-project/b/source"));
+        cleanup.enqueue("idempotent-project", List.of("idempotent-project/a/source"));
+
+        assertThat(pending("idempotent-project")).isEqualTo(2);
+        cleanup.drain();
+        assertThat(pending("idempotent-project")).isZero();
+    }
+
+    @Test
+    void rowsLeftBeforeARestartAreProcessedByTheNextDrain() throws Exception {
+        Path file = storageRoot.resolve("restart-project/job/source");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "left over");
+        jdbc.update("""
+                INSERT INTO floor_plan_file_cleanup (object_key, project_id, created_at, attempts, last_error)
+                VALUES ('restart-project/job/source', 'restart-project', now(), 3, 'IOException')
+                """);
+
+        cleanup.drain();
+
+        assertThat(pending("restart-project")).isZero();
+        assertThat(Files.notExists(file)).isTrue();
+    }
+
+    @Test
+    void drainCoversMoreThanOneBatchAndStopsWhenOnlyFailuresRemain() throws Exception {
+        List<String> keys = new ArrayList<>();
+        for (int i = 0; i < 125; i++) keys.add("batch-project/k-%03d/source".formatted(i));
+        for (int i = 0; i < 5; i++) keys.add("batch-project/k-bad-%d/source".formatted(i));
+        for (String key : keys) {
+            Path file = storageRoot.resolve(key);
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, "x");
+        }
+        cleanup.enqueue("batch-project", keys);
+        doThrow(new IOException("denied")).when(storage).delete(argThat(key -> key != null && key.contains("-bad-")));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> cleanup.drain());
+
+        assertThat(pending("batch-project")).isEqualTo(5);
+        assertThat(countFiles("batch-project")).isEqualTo(5);
+        int firstRunAttempts = attempts("batch-project");
+        assertThat(firstRunAttempts).isGreaterThanOrEqualTo(5);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> cleanup.drain());
+
+        assertThat(pending("batch-project")).isEqualTo(5);
+        assertThat(attempts("batch-project")).isGreaterThan(firstRunAttempts);
+    }
+
+    private int attempts(String projectId) {
+        return jdbc.queryForObject("SELECT COALESCE(SUM(attempts), 0) FROM floor_plan_file_cleanup WHERE project_id = ?",
+                Integer.class, projectId);
     }
 
     private int pending(String projectId) {

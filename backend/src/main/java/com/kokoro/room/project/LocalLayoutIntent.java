@@ -19,8 +19,11 @@ public final class LocalLayoutIntent {
 
     public enum Type { ADD, MOVE, ROTATE, REMOVE, CLEAR }
 
+    public enum Relation { NEAR, FAR_FROM }
+
     /** Fields not used by a type stay null (count defaults to 1). */
-    public record Intent(Type type, String catalogId, int count, String targetQuery, String anchorQuery, Double rotation) {}
+    public record Intent(Type type, String catalogId, int count, String targetQuery, String anchorQuery,
+                         Relation relation, Double rotation) {}
 
     private static final Pattern CATALOG_ID = Pattern.compile("^[a-z0-9][a-z0-9-]{0,99}$");
     private static final Set<String> COMMON = Set.of("type");
@@ -43,7 +46,7 @@ public final class LocalLayoutIntent {
         String type = item.path("type").isString() ? item.path("type").asString() : "";
         return switch (type) {
             case "ADD" -> {
-                onlyKeys(item, Set.of("type", "catalogId", "count", "anchorQuery"));
+                onlyKeys(item, Set.of("type", "catalogId", "count", "anchorQuery", "relation"));
                 String catalogId = text(item, "catalogId");
                 if (!CATALOG_ID.matcher(catalogId).matches()) throw invalid("가구 ID 형식이 올바르지 않습니다.");
                 int count = 1;
@@ -54,11 +57,13 @@ public final class LocalLayoutIntent {
                     }
                     count = value.intValue();
                 }
-                yield new Intent(Type.ADD, catalogId, count, null, optionalQuery(item, "anchorQuery"), null);
+                String anchor = optionalQuery(item, "anchorQuery");
+                yield new Intent(Type.ADD, catalogId, count, null, anchor, relation(item, anchor), null);
             }
             case "MOVE" -> {
-                onlyKeys(item, Set.of("type", "targetQuery", "anchorQuery"));
-                yield new Intent(Type.MOVE, null, 1, query(item, "targetQuery"), optionalQuery(item, "anchorQuery"), null);
+                onlyKeys(item, Set.of("type", "targetQuery", "anchorQuery", "relation"));
+                String anchor = optionalQuery(item, "anchorQuery");
+                yield new Intent(Type.MOVE, null, 1, query(item, "targetQuery"), anchor, relation(item, anchor), null);
             }
             case "ROTATE" -> {
                 onlyKeys(item, Set.of("type", "targetQuery", "rotation"));
@@ -66,15 +71,15 @@ public final class LocalLayoutIntent {
                 if (!value.isNumber() || value.doubleValue() < -360 || value.doubleValue() > 360) {
                     throw invalid("회전은 -360도 이상 360도 이하여야 합니다.");
                 }
-                yield new Intent(Type.ROTATE, null, 1, query(item, "targetQuery"), null, value.doubleValue());
+                yield new Intent(Type.ROTATE, null, 1, query(item, "targetQuery"), null, null, value.doubleValue());
             }
             case "REMOVE" -> {
                 onlyKeys(item, Set.of("type", "targetQuery"));
-                yield new Intent(Type.REMOVE, null, 1, query(item, "targetQuery"), null, null);
+                yield new Intent(Type.REMOVE, null, 1, query(item, "targetQuery"), null, null, null);
             }
             case "CLEAR" -> {
                 onlyKeys(item, COMMON);
-                yield new Intent(Type.CLEAR, null, 1, null, null, null);
+                yield new Intent(Type.CLEAR, null, 1, null, null, null, null);
             }
             default -> throw invalid("지원하지 않는 의도입니다.");
         };
@@ -96,6 +101,16 @@ public final class LocalLayoutIntent {
         String value = text(node, field);
         if (value.length() > 100 || value.isBlank()) throw invalid("대상 표현은 공백이 아닌 100자 이하여야 합니다.");
         return value;
+    }
+
+    /** relation needs an anchor; an anchor without a relation means NEAR. */
+    private static Relation relation(JsonNode node, String anchorQuery) {
+        if (!node.has("relation")) return anchorQuery == null ? null : Relation.NEAR;
+        if (anchorQuery == null) throw invalid("relation은 anchorQuery와 함께 써야 합니다.");
+        JsonNode value = node.path("relation");
+        if (value.isString() && value.asString().equals("NEAR")) return Relation.NEAR;
+        if (value.isString() && value.asString().equals("FAR_FROM")) return Relation.FAR_FROM;
+        throw invalid("지원하지 않는 relation 값입니다.");
     }
 
     private static String optionalQuery(JsonNode node, String field) {

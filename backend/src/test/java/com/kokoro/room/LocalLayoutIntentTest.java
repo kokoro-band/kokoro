@@ -21,8 +21,8 @@ class LocalLayoutIntentTest {
     void acceptsEveryValidFixtureAndRejectsEveryInvalidOne() throws IOException {
         JsonNode fixtures = MAPPER.readTree(Files.readString(
                 Path.of("..", "docs", "contracts", "fixtures", "local-layout-intent.json"), StandardCharsets.UTF_8));
-        assertThat(fixtures.path("valid")).hasSize(6);
-        assertThat(fixtures.path("invalid")).hasSize(11);
+        assertThat(fixtures.path("valid")).hasSize(8);
+        assertThat(fixtures.path("invalid")).hasSize(13);
         for (JsonNode valid : fixtures.path("valid")) {
             assertThat(LocalLayoutIntent.parse(valid.path("intent"))).as(valid.path("id").asString()).isNotEmpty();
         }
@@ -42,5 +42,17 @@ class LocalLayoutIntentTest {
         assertThat(intents.get(0).catalogId()).isEqualTo("chair-shell");
         assertThat(intents.get(1).rotation()).isEqualTo(45.5);
         assertThat(intents.get(1).targetQuery()).isEqualTo("의자");
+    }
+
+    @Test
+    void relationDefaultsToNearWhenAnAnchorIsGiven() {
+        var intents = LocalLayoutIntent.parse(MAPPER.readTree("""
+                {"version":1,"intents":[{"type":"ADD","catalogId":"plant-olive","anchorQuery":"문","relation":"FAR_FROM"},
+                {"type":"MOVE","targetQuery":"소파","anchorQuery":"창문"},
+                {"type":"REMOVE","targetQuery":"의자"}]}
+                """));
+        assertThat(intents.get(0).relation()).isEqualTo(LocalLayoutIntent.Relation.FAR_FROM);
+        assertThat(intents.get(1).relation()).isEqualTo(LocalLayoutIntent.Relation.NEAR);
+        assertThat(intents.get(2).relation()).isNull();
     }
 }

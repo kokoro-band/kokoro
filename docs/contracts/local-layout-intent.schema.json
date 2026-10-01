@@ -25,6 +25,7 @@
   "$defs": {
     "query": { "type": "string", "maxLength": 100, "pattern": "\\S" },
     "catalogId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,99}$" },
+    "relation": { "enum": ["NEAR", "FAR_FROM"] },
     "add": {
       "type": "object",
       "additionalProperties": false,
@@ -33,8 +34,10 @@
         "type": { "const": "ADD" },
         "catalogId": { "$ref": "#/$defs/catalogId" },
         "count": { "type": "integer", "minimum": 1, "maximum": 5 },
-        "anchorQuery": { "$ref": "#/$defs/query" }
-      }
+        "anchorQuery": { "$ref": "#/$defs/query" },
+        "relation": { "$ref": "#/$defs/relation" }
+      },
+      "dependentRequired": { "relation": ["anchorQuery"] }
     },
     "move": {
       "type": "object",
@@ -43,8 +46,10 @@
       "properties": {
         "type": { "const": "MOVE" },
         "targetQuery": { "$ref": "#/$defs/query" },
-        "anchorQuery": { "$ref": "#/$defs/query" }
-      }
+        "anchorQuery": { "$ref": "#/$defs/query" },
+        "relation": { "$ref": "#/$defs/relation" }
+      },
+      "dependentRequired": { "relation": ["anchorQuery"] }
     },
     "rotate": {
       "type": "object",

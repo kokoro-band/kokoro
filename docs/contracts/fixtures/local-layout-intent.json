@@ -5,7 +5,9 @@
     { "id": "move-to-window", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "anchorQuery": "창가" }] } },
     { "id": "rotate-fractional", "intent": { "version": 1, "intents": [{ "type": "ROTATE", "targetQuery": "의자", "rotation": 45.5 }] } },
     { "id": "remove-and-add", "intent": { "version": 1, "intents": [{ "type": "REMOVE", "targetQuery": "화분" }, { "type": "ADD", "catalogId": "sofa-moss" }] } },
-    { "id": "clear", "intent": { "version": 1, "intents": [{ "type": "CLEAR" }] } }
+    { "id": "clear", "intent": { "version": 1, "intents": [{ "type": "CLEAR" }] } },
+    { "id": "add-far-from-door", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "plant-olive", "anchorQuery": "문", "relation": "FAR_FROM" }] } },
+    { "id": "move-near-window", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "anchorQuery": "창문", "relation": "NEAR" }] } }
   ],
   "invalid": [
     { "id": "model-coordinates", "reason": "모델은 좌표를 정하지 못합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "x": 1.2, "z": 3 }] } },
@@ -18,6 +20,8 @@
     { "id": "bad-catalog-id", "reason": "카탈로그 ID 형식이 아닙니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "Sofa Cloud!" }] } },
     { "id": "count-too-large", "reason": "한 번에 최대 5개입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "count": 6 }] } },
     { "id": "unknown-version", "reason": "지원하지 않는 계약 버전입니다.", "intent": { "version": 2, "intents": [{ "type": "CLEAR" }] } },
-    { "id": "extra-field", "reason": "정의되지 않은 필드입니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR", "confirm": true }] } }
+    { "id": "extra-field", "reason": "정의되지 않은 필드입니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR", "confirm": true }] } },
+    { "id": "relation-without-anchor", "reason": "relation은 anchorQuery와 함께 써야 합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "relation": "NEAR" }] } },
+    { "id": "unknown-relation", "reason": "허용하지 않는 relation 값입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "anchorQuery": "창문", "relation": "BESIDE" }] } }
   ]
 }

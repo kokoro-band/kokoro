@@ -82,6 +82,14 @@ class ProjectProdAccessTest {
                 .andExpect(jsonPath("$[*].id", not(hasItem(otherId))));
     }
 
+    @Test
+    void furnitureCatalogRequiresALoginAndListsTheSharedItems() throws Exception {
+        mvc.perform(get("/api/furniture-catalog")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/furniture-catalog").with(user("alice")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(8));
+    }
+
     private static RequestPostProcessor user(String subject) {
         return jwt().jwt(token -> token.subject(subject));
     }

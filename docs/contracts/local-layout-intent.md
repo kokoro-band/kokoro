@@ -12,7 +12,7 @@
 |---|---|---|---|
 | ADD | `catalogId` | `count`(1~5), `anchorQuery`, `relation` | 등록된 가구를 추가합니다. |
 | MOVE | `targetQuery` | `anchorQuery`, `relation` | 배치된 가구를 옮깁니다. |
-| ROTATE | `targetQuery`, `rotation` | | 가구의 회전각(도, -360~360)입니다. |
+| ROTATE | `targetQuery`, `rotation` | | 가구의 새 회전각(도, -360~360)입니다. 절대각이며 현재 각도에 더하지 않습니다. |
 | REMOVE | `targetQuery` | | 배치된 가구를 삭제합니다. |
 | CLEAR | | | 모든 가구를 삭제합니다. 서버가 항상 확인을 요구합니다. |
 
@@ -20,6 +20,7 @@
 - `targetQuery`와 `anchorQuery`는 사용자가 말한 표현이며 100자 이하의 공백이 아닌 문자열입니다. 모델은 가구 ID를 추측하지 않고 서버가 배치된 가구에서 후보를 찾습니다.
 - `catalogId`는 서버 카탈로그에 등록된 ID여야 합니다. 형식이 맞아도 등록되지 않은 ID는 서버가 거절합니다.
 - `relation`은 `NEAR`(기준 가까이) 또는 `FAR_FROM`(기준에서 멀리)이며 `anchorQuery`가 있을 때만 쓸 수 있습니다. 생략하면 서버가 `NEAR`로 처리합니다. `anchorQuery`가 창문이나 문 중 무엇을 뜻하는지는 서버가 사용자 표현으로 해석합니다.
+- `rotation`이 절대각이므로 "45도 더 돌려줘" 같은 상대 회전은 이 버전에서 표현할 수 없습니다. 모델은 사용자가 목표 각도를 말했을 때만 `ROTATE`를 만들어야 하며, 상대 회전이 필요하면 `rotationDelta` 같은 필드를 다음 계약 버전에 추가합니다.
 - 정의되지 않은 필드는 모두 거절합니다. 그래서 `x`와 `z` 같은 좌표를 모델이 반환할 수 없습니다.
 
 ## 책임

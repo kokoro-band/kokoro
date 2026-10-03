@@ -15,10 +15,15 @@ import { isServerMode } from "@/features/studio/project-api"
 import type { ChatMessage } from "@/features/studio/types"
 import { chatInputError, maxChatLength } from "../input-limits"
 
-const suggestions = [
+const ruleSuggestions = [
   "미니멀한 거실로 꾸며줘",
   "창가에 의자를 옮겨줘",
   "소파 옆에 화분을 놓아줘",
+]
+const webGpuSuggestions = [
+  "의자를 90도 회전해줘",
+  "소파 옆에 화분을 놓아줘",
+  "소파를 삭제해줘",
 ]
 
 export function AssistantPanel({
@@ -27,6 +32,10 @@ export function AssistantPanel({
   roomName,
   chatBusy,
   busy,
+  engine = "rules",
+  browserAiStatus = "",
+  onEngineChange,
+  onStopAi,
   onInputChange,
   onSend,
   inputRef,
@@ -37,6 +46,10 @@ export function AssistantPanel({
   roomName: string | null
   chatBusy: boolean
   busy: boolean
+  engine?: "rules" | "webgpu"
+  browserAiStatus?: string
+  onEngineChange?: (engine: "rules" | "webgpu") => void
+  onStopAi?: () => void
   onInputChange: (input: string) => void
   onSend: (text: string) => void
   inputRef?: Ref<HTMLTextAreaElement>
@@ -83,9 +96,57 @@ export function AssistantPanel({
           variant="weak"
           size="medium"
         >
-          {isServerMode ? "서버 배치" : "규칙 기반 데모"}
+          {isServerMode
+            ? "서버 배치"
+            : engine === "webgpu"
+              ? "브라우저 AI"
+              : "규칙 기반 데모"}
         </Badge>
       </div>
+      {!isServerMode && onEngineChange && (
+        <div
+          className="assistant-engine"
+          role="group"
+          aria-label="배치 요청 방식"
+        >
+          <ActionButton
+            type="button"
+            size="small"
+            variant={engine === "rules" ? "neutralSolid" : "neutralWeak"}
+            disabled={busy}
+            onClick={() => onEngineChange("rules")}
+          >
+            규칙 기반
+          </ActionButton>
+          <ActionButton
+            type="button"
+            size="small"
+            variant={engine === "webgpu" ? "neutralSolid" : "neutralWeak"}
+            disabled={busy}
+            onClick={() => onEngineChange("webgpu")}
+          >
+            이 기기에서 AI 실행
+          </ActionButton>
+        </div>
+      )}
+      {!isServerMode && engine === "webgpu" && (
+        <Type variant="description" as="p" role="status">
+          {browserAiStatus ||
+            "첫 요청에 약 570MB 모델 파일을 다운로드합니다. 제안을 확인한 뒤 적용할 수 있어요."}
+        </Type>
+      )}
+      {!isServerMode && engine === "webgpu" && chatBusy && onStopAi && (
+        <div className="assistant-stop">
+          <ActionButton
+            type="button"
+            size="small"
+            variant="neutralWeak"
+            onClick={onStopAi}
+          >
+            모델 요청 중단
+          </ActionButton>
+        </div>
+      )}
       <div className="assistant-log" ref={logRef} aria-live="polite">
         {messages.map((message) => (
           <div
@@ -100,7 +161,9 @@ export function AssistantPanel({
         {chatBusy && (
           <div className="assistant-message is-assistant loading-row">
             <ProgressCircle size="24" />
-            <Type variant="description">배치를 고민하고 있어요</Type>
+            <Type variant="description">
+              {browserAiStatus || "배치를 고민하고 있어요"}
+            </Type>
           </div>
         )}
       </div>
@@ -110,17 +173,19 @@ export function AssistantPanel({
         className="assistant-suggestions"
       >
         <div className="assistant-suggestions-row" aria-label="요청 예시">
-          {suggestions.map((text) => (
-            <Chip.Root
-              key={text}
-              variant="outlineWeak"
-              size="small"
-              disabled={busy}
-              onClick={() => onSend(text)}
-            >
-              <Chip.Label>{text}</Chip.Label>
-            </Chip.Root>
-          ))}
+          {(engine === "webgpu" ? webGpuSuggestions : ruleSuggestions).map(
+            (text) => (
+              <Chip.Root
+                key={text}
+                variant="outlineWeak"
+                size="small"
+                disabled={busy}
+                onClick={() => onSend(text)}
+              >
+                <Chip.Label>{text}</Chip.Label>
+              </Chip.Root>
+            )
+          )}
         </div>
       </ScrollFog>
       <form className="assistant-form" onSubmit={submit}>

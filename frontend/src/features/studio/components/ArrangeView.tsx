@@ -304,6 +304,10 @@ export function ArrangeView({
       roomName={room?.name ?? null}
       chatBusy={studio.busy === "chat"}
       busy={busy}
+      engine={studio.assistantEngine}
+      browserAiStatus={studio.browserAiStatus}
+      onEngineChange={studio.setAssistantEngine}
+      onStopAi={studio.stopBrowserAi}
       onInputChange={studio.setInput}
       onSend={send}
       inputRef={assistantInputRef}

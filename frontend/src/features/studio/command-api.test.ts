@@ -15,6 +15,21 @@ async function localApi() {
 }
 
 describe("local command review contract", () => {
+  it("reviews a single deletion instead of adding another item", async () => {
+    const api = await localApi()
+    const project = structuredClone(sampleProject)
+    const proposal = await api.sendCommand(project, "소파를 삭제해줘")
+    expect(proposal.requiresConfirmation).toBe(true)
+    expect(proposal.proposedCommands).toEqual([
+      { type: "REMOVE", furnitureId: "sofa-01" },
+    ])
+    expect(proposal.project.furniture).toEqual(project.furniture)
+    expect(localStorage.length).toBe(0)
+    const saved = await api.confirmCommand(project, proposal.proposalId!)
+    expect(saved.project.furniture.some((item) => item.id === "sofa-01")).toBe(
+      false
+    )
+  })
   it("proposes clearing without changing furniture or browser storage", async () => {
     const api = await localApi()
     const project = structuredClone(sampleProject)

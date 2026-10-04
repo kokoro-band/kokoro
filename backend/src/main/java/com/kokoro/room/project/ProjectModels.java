@@ -1,9 +1,13 @@
 package com.kokoro.room.project;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
 import java.util.List;
@@ -84,7 +88,26 @@ public final class ProjectModels {
 
     public record RoomSource(double areaPyeong, int roomCount, String preset) {}
 
-    public record Point(double x, double z) {}
+    public record Point(double x, double z) {
+        @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+        public static Point fromJson(JsonNode value) {
+            if (!value.isArray() || value.size() != 2
+                    || !value.get(0).isNumber() || !value.get(1).isNumber()) {
+                throw new IllegalArgumentException("좌표는 숫자 두 개의 [x, z] 배열이어야 합니다.");
+            }
+            double x = value.get(0).doubleValue();
+            double z = value.get(1).doubleValue();
+            if (!Double.isFinite(x) || !Double.isFinite(z)) {
+                throw new IllegalArgumentException("좌표는 유한한 숫자여야 합니다.");
+            }
+            return new Point(x, z);
+        }
+
+        @JsonValue
+        public double[] coordinates() {
+            return new double[] { x, z };
+        }
+    }
 
     public record FurnitureItem(
             @NotBlank String id,
@@ -93,7 +116,7 @@ public final class ProjectModels {
             @NotBlank String category,
             @NotNull Double x,
             @NotNull Double z,
-            @NotNull Integer rotation,
+            @NotNull Double rotation,
             @NotBlank String color
     ) {}
 
@@ -106,10 +129,11 @@ public final class ProjectModels {
             RoomModel room,
             FloorPlan floorPlan,
             List<FurnitureItem> furniture,
-            Instant updatedAt
+            Instant updatedAt,
+            long revision
     ) {}
 
-    public record SaveRoomRequest(@NotNull @Valid RoomModel room) {}
+    public record SaveRoomRequest(@NotNull @Valid RoomModel room, @PositiveOrZero Long expectedRevision) {}
 
     public record CreateProjectRequest(
             @NotBlank String name,
@@ -117,9 +141,11 @@ public final class ProjectModels {
             @NotNull @Valid Dimensions dimensions
     ) {}
 
-    public record SaveLayoutRequest(@NotNull List<@Valid FurnitureItem> furniture) {}
+    public record SaveLayoutRequest(@NotNull List<@Valid FurnitureItem> furniture, @PositiveOrZero Long expectedRevision) {}
 
-    public record ChatCommandRequest(@NotBlank String message) {}
+    public record ChatCommandRequest(@NotBlank String message, String furnitureId, @PositiveOrZero Long expectedRevision) {}
+
+    public record ConfirmCommandRequest(@NotBlank String proposalId) {}
 
     public enum LayoutActionType { ADD, MOVE, ROTATE, REMOVE, CLEAR }
 
@@ -132,11 +158,30 @@ public final class ProjectModels {
             Integer rotation
     ) {}
 
+    public record LayoutCandidate(String furnitureId, String name) {}
+
+    /** A destructive command (CLEAR) staged for a one-time confirm within {@code expiresAt}. */
+    public record LayoutProposal(
+            String proposalId,
+            String projectId,
+            String ownerId,
+            Instant baseUpdatedAt,
+            Long baseRevision,
+            List<LayoutCommand> commands,
+            Instant createdAt,
+            Instant expiresAt,
+            Instant consumedAt
+    ) {}
+
     public record ChatCommandResponse(
             String reply,
             List<String> appliedActions,
             List<LayoutCommand> commands,
             boolean requiresConfirmation,
-            RenovationProject project
+            RenovationProject project,
+            String proposalId,
+            Instant expiresAt,
+            List<LayoutCommand> proposedCommands,
+            List<LayoutCandidate> candidates
     ) {}
 }

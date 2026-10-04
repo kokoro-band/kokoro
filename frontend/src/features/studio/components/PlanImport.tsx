@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from "react"
-import { FileImage, LoaderCircle, ScanSearch, X } from "lucide-react"
+import {
+  IconPictureLine,
+  IconXmarkLine,
+} from "@karrotmarket/react-monochrome-icon"
+import {
+  ActionButton,
+  ContentDialog,
+  Icon,
+  PrefixIcon,
+} from "@seed-design/react"
+import { Callout } from "seed-design/ui/callout"
+import { ProgressCircle } from "seed-design/ui/progress-circle"
 
+import { Type } from "@/components/kokoro/Type"
 import {
   analyzeFloorPlan,
   diagnosePlan,
@@ -10,6 +22,13 @@ import {
   type PlanWarning,
 } from "@/features/studio/floor-plan"
 import { clampArea, type RoomDraft } from "@/features/studio/room-builder"
+import {
+  checkPlanImageSize,
+  PlanImageError,
+  validatePlanImage,
+} from "@/features/studio/plan-image"
+
+import { MeterField } from "./MeterField"
 
 type Crop = { x: number; y: number; width: number; height: number }
 
@@ -27,39 +46,83 @@ type Status = "empty" | "loading" | "ready" | "analyzing" | "found" | "failed"
 const maxSide = 1200
 const maxBytes = 15 * 1024 * 1024
 const acceptedTypes = ["image/png", "image/jpeg", "image/webp"]
+const imageReadError = "이미지를 읽지 못했어요. 다른 파일을 골라 주세요."
 
-const warningText: Record<PlanWarning, string> = {
-  small: "이미지가 작습니다. 가로 800px 이상이면 더 정확합니다.",
-  colorful:
-    "컬러 도면으로 보입니다. 흑백 선 도면이 가장 잘 인식되고, 컬러 도면은 방이 잘못 나뉠 수 있습니다.",
+type ImportWork = {
+  generation: number
+  timer: number | null
+  controller: AbortController | null
 }
 
-function loadImage(file: File): Promise<Source> {
+function cancelImportWork(work: ImportWork) {
+  work.generation += 1
+  if (work.timer !== null) window.clearTimeout(work.timer)
+  work.timer = null
+  work.controller?.abort()
+  work.controller = null
+}
+
+const warningText: Record<PlanWarning, { title: string; description: string }> =
+  {
+    small: {
+      title: "이미지가 작아요",
+      description:
+        "가로 800px 이상인 도면이면 방을 더 정확하게 찾을 수 있어요.",
+    },
+    colorful: {
+      title: "컬러 도면이에요",
+      description:
+        "흑백 선 도면이 가장 잘 읽혀요. 컬러 도면은 방이 잘못 나뉠 수 있어요.",
+    },
+  }
+
+function cssColor(name: string, fallback: string) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim()
+  return value || fallback
+}
+
+function loadImage(file: File, signal: AbortSignal): Promise<Source> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
-    image.onload = () => {
+    function cleanup() {
+      image.onload = null
+      image.onerror = null
+      signal.removeEventListener("abort", abort)
       URL.revokeObjectURL(url)
-      const ratio = Math.min(1, maxSide / Math.max(image.width, image.height))
-      const width = Math.max(1, Math.round(image.width * ratio))
-      const height = Math.max(1, Math.round(image.height * ratio))
-      const canvas = document.createElement("canvas")
-      canvas.width = width
-      canvas.height = height
-      const context = canvas.getContext("2d")
-      if (!context) {
-        reject(new Error("이미지를 읽지 못했습니다."))
-        return
+    }
+    function abort() {
+      cleanup()
+      image.src = ""
+      reject(new DOMException("Image load cancelled", "AbortError"))
+    }
+    image.onload = () => {
+      cleanup()
+      try {
+        checkPlanImageSize(image.naturalWidth, image.naturalHeight)
+        const ratio = Math.min(1, maxSide / Math.max(image.width, image.height))
+        const width = Math.max(1, Math.round(image.width * ratio))
+        const height = Math.max(1, Math.round(image.height * ratio))
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext("2d")
+        if (!context) throw new Error(imageReadError)
+        context.fillStyle = "#fff"
+        context.fillRect(0, 0, width, height)
+        context.drawImage(image, 0, 0, width, height)
+        resolve({ canvas, width, height, name: file.name })
+      } catch {
+        reject(new Error(imageReadError))
       }
-      context.fillStyle = "#fff"
-      context.fillRect(0, 0, width, height)
-      context.drawImage(image, 0, 0, width, height)
-      resolve({ canvas, width, height, name: file.name })
     }
     image.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("이미지를 읽지 못했습니다."))
+      cleanup()
+      reject(new Error(imageReadError))
     }
+    signal.addEventListener("abort", abort, { once: true })
     image.src = url
   })
 }
@@ -77,10 +140,13 @@ function fullCrop(source: Source): Crop {
 export function PlanImport({
   initialArea,
   onImport,
+  onDrawBlank,
   onClose,
 }: {
   initialArea: number
   onImport: (draft: RoomDraft, areaPyeong: number) => void
+  /** 도면을 읽지 못했을 때 도면 없이 빈 집에서 그리기 */
+  onDrawBlank: () => void
   onClose: () => void
 }) {
   const [source, setSource] = useState<Source | null>(null)
@@ -91,126 +157,183 @@ export function PlanImport({
   const [found, setFound] = useState<Found | null>(null)
   const [error, setError] = useState("")
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const dragRef = useRef<{ x: number; y: number } | null>(null)
+  const areaRef = useRef(initialArea)
+  const workRef = useRef<ImportWork>({
+    generation: 0,
+    timer: null,
+    controller: null,
+  })
+  const validationRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !source) return
-    canvas.width = source.width
-    canvas.height = source.height
-    const context = canvas.getContext("2d")
-    if (!context) return
-    context.drawImage(source.canvas, 0, 0)
-
-    if (crop) {
-      context.fillStyle = "rgba(30, 36, 32, 0.45)"
-      context.fillRect(0, 0, source.width, crop.y)
-      context.fillRect(
-        0,
-        crop.y + crop.height,
-        source.width,
-        source.height - crop.y - crop.height
-      )
-      context.fillRect(0, crop.y, crop.x, crop.height)
-      context.fillRect(
-        crop.x + crop.width,
-        crop.y,
-        source.width - crop.x - crop.width,
-        crop.height
-      )
-      context.strokeStyle = "#3d7351"
-      context.lineWidth = 2
-      context.strokeRect(crop.x, crop.y, crop.width, crop.height)
+  useEffect(function manageImportLifetime() {
+    const work = workRef.current
+    return function cancelPendingImport() {
+      validationRef.current?.abort()
+      validationRef.current = null
+      cancelImportWork(work)
     }
+  }, [])
 
-    if (found) {
-      context.lineWidth = 2
-      context.font = "bold 14px sans-serif"
-      found.analysis.regions.forEach((region, index) => {
-        const x = found.crop.x + region.rect.x
-        const y = found.crop.y + region.rect.y
-        context.fillStyle = "rgba(61, 115, 81, 0.28)"
-        context.strokeStyle = "#3d7351"
-        context.fillRect(x, y, region.rect.width, region.rect.height)
-        context.strokeRect(x, y, region.rect.width, region.rect.height)
-        context.fillStyle = "#1e2420"
-        context.fillText(String(index + 1), x + 6, y + 18)
-      })
-    }
-  }, [source, crop, found])
+  useEffect(
+    function drawPlanPreview() {
+      const canvas = canvasRef.current
+      if (!canvas || !source) return
+      canvas.width = source.width
+      canvas.height = source.height
+      const context = canvas.getContext("2d")
+      if (!context) return
+      context.drawImage(source.canvas, 0, 0)
+      const brand = cssColor("--seed-color-stroke-brand-solid", "#ff6f0f")
+      const brandWeak = cssColor("--seed-color-bg-brand-weak", "#fff5f0")
+      const scrim = cssColor("--seed-color-bg-overlay", "rgba(0,0,0,0.5)")
+      const ink = cssColor("--seed-color-fg-neutral", "#1a1c20")
 
-  function reset() {
-    setFound(null)
+      if (crop) {
+        context.fillStyle = scrim
+        context.fillRect(0, 0, source.width, crop.y)
+        context.fillRect(
+          0,
+          crop.y + crop.height,
+          source.width,
+          source.height - crop.y - crop.height
+        )
+        context.fillRect(0, crop.y, crop.x, crop.height)
+        context.fillRect(
+          crop.x + crop.width,
+          crop.y,
+          source.width - crop.x - crop.width,
+          crop.height
+        )
+        context.strokeStyle = brand
+        context.lineWidth = 2
+        context.strokeRect(crop.x, crop.y, crop.width, crop.height)
+      }
+
+      if (found) {
+        context.lineWidth = 2
+        context.font = `700 14px ${getComputedStyle(document.body).fontFamily}`
+        found.analysis.regions.forEach((region, index) => {
+          const x = found.crop.x + region.rect.x
+          const y = found.crop.y + region.rect.y
+          context.globalAlpha = 0.6
+          context.fillStyle = brandWeak
+          context.fillRect(x, y, region.rect.width, region.rect.height)
+          context.globalAlpha = 1
+          context.strokeStyle = brand
+          context.strokeRect(x, y, region.rect.width, region.rect.height)
+          context.fillStyle = ink
+          context.fillText(String(index + 1), x + 6, y + 18)
+        })
+      }
+    },
+    [source, crop, found]
+  )
+
+  function findRooms(target: Source, region: Crop, areaPyeong: number) {
+    const work = workRef.current
+    cancelImportWork(work)
+    const generation = work.generation
+    setStatus("analyzing")
     setError("")
-    if (source) setStatus("ready")
+    setFound(null)
+    work.timer = window.setTimeout(() => {
+      work.timer = null
+      if (generation !== work.generation) return
+      try {
+        const pixels = pixelsOf(target, region)
+        if (!pixels) throw new Error(imageReadError)
+        const { gray, alpha } = toGrayscale(
+          pixels.data,
+          region.width,
+          region.height
+        )
+        const analysis = analyzeFloorPlan(
+          gray,
+          alpha,
+          region.width,
+          region.height
+        )
+        const draft = planToDraft(analysis, areaPyeong)
+        if (!draft.rooms.length) {
+          setStatus("failed")
+          setError(
+            "방을 찾지 못했어요. 도면 부분만 끌어서 고른 뒤 다시 찾아 보세요."
+          )
+          return
+        }
+        setFound({ draft, analysis, crop: region })
+        setStatus("found")
+      } catch {
+        setStatus("failed")
+        setError(imageReadError)
+      }
+    }, 30)
   }
 
   async function chooseFile(file: File | undefined) {
     if (!file) return
-    setError("")
-    setFound(null)
-    setCrop(null)
+    validationRef.current?.abort()
+    validationRef.current = null
     if (!acceptedTypes.includes(file.type)) {
-      setError("PNG, JPG, WebP 이미지를 올려 주세요.")
+      setError("PNG, JPG, WebP 이미지만 읽을 수 있어요.")
       return
     }
     if (file.size > maxBytes) {
-      setError("15MB 이하의 이미지를 올려 주세요.")
+      setError("15MiB 이하의 이미지를 골라 주세요.")
       return
     }
+    // A pending decode is not a committed preview. Do not let its continuation
+    // start analysis after the user has selected a replacement.
+    if (workRef.current.controller) {
+      cancelImportWork(workRef.current)
+      setStatus("empty")
+    }
+    const validation = new AbortController()
+    validationRef.current = validation
+    setError("")
+    try {
+      await validatePlanImage(file, validation.signal)
+    } catch (error) {
+      if (validationRef.current !== validation || validation.signal.aborted)
+        return
+      validationRef.current = null
+      setError(error instanceof PlanImageError ? error.message : imageReadError)
+      return
+    }
+    if (validationRef.current !== validation || validation.signal.aborted)
+      return
+    validationRef.current = null
+    const work = workRef.current
+    cancelImportWork(work)
+    const generation = work.generation
+    const controller = new AbortController()
+    work.controller = controller
+    dragRef.current = null
+    setError("")
+    setFound(null)
+    setCrop(null)
+    setSource(null)
+    setWarnings([])
     setStatus("loading")
     try {
-      const next = await loadImage(file)
+      const next = await loadImage(file, controller.signal)
+      if (generation !== work.generation) return
+      work.controller = null
       const pixels = pixelsOf(next, fullCrop(next))
       setWarnings(
         pixels ? diagnosePlan(pixels.data, next.width, next.height) : []
       )
       setSource(next)
-      setStatus("ready")
-    } catch (reason) {
+      findRooms(next, fullCrop(next), clampArea(areaRef.current))
+    } catch {
+      if (generation !== work.generation) return
+      work.controller = null
       setSource(null)
       setStatus("empty")
-      setError(
-        reason instanceof Error ? reason.message : "이미지를 읽지 못했습니다."
-      )
+      setError(imageReadError)
     }
-  }
-
-  function findRooms() {
-    if (!source) return
-    setStatus("analyzing")
-    setError("")
-    setTimeout(() => {
-      const region = crop ?? fullCrop(source)
-      const pixels = pixelsOf(source, region)
-      if (!pixels) {
-        setStatus("failed")
-        setError("이미지를 읽지 못했습니다.")
-        return
-      }
-      const { gray, alpha } = toGrayscale(
-        pixels.data,
-        region.width,
-        region.height
-      )
-      const analysis = analyzeFloorPlan(
-        gray,
-        alpha,
-        region.width,
-        region.height
-      )
-      const draft = planToDraft(analysis, area)
-      if (!draft.rooms.length) {
-        setFound(null)
-        setStatus("failed")
-        setError(
-          "방을 찾지 못했습니다. 도면 부분만 드래그해서 다시 찾거나, 평수로 직접 만들어 주세요."
-        )
-        return
-      }
-      setFound({ draft, analysis, crop: region })
-      setStatus("found")
-    }, 30)
   }
 
   function pointToImage(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -240,7 +363,10 @@ export function PlanImport({
       width: Math.min(source.width - x, Math.abs(now.x - start.x)),
       height: Math.min(source.height - y, Math.abs(now.y - start.y)),
     })
-    if (found) reset()
+    if (found) {
+      setFound(null)
+      setStatus("ready")
+    }
   }
 
   function endCrop() {
@@ -251,163 +377,208 @@ export function PlanImport({
   }
 
   const busy = status === "loading" || status === "analyzing"
+  const statusText =
+    status === "loading"
+      ? "도면을 불러오고 있어요"
+      : status === "analyzing"
+        ? "방을 찾고 있어요"
+        : found
+          ? `방 ${found.draft.rooms.length}개를 찾았어요`
+          : source
+            ? crop
+              ? `고른 영역 ${crop.width} × ${crop.height}px`
+              : `${source.name} · ${source.width} × ${source.height}px`
+            : ""
 
   return (
-    <div className="plan-import" role="dialog" aria-label="도면으로 시작하기">
-      <header className="plan-import-header">
-        <div>
-          <strong>도면으로 시작하기</strong>
-          <span>도면을 읽어 방 배치 초안을 만듭니다.</span>
-        </div>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="도면 가져오기 닫기"
-          onClick={onClose}
-        >
-          <X size={16} />
-        </button>
-      </header>
+    <ContentDialog.Root
+      open
+      size="large"
+      onOpenChange={(open) => {
+        if (!open) {
+          validationRef.current?.abort()
+          validationRef.current = null
+          cancelImportWork(workRef.current)
+          onClose()
+        }
+      }}
+    >
+      <ContentDialog.Backdrop />
+      <ContentDialog.Positioner>
+        <ContentDialog.Content className="plan-import">
+          <ContentDialog.Header>
+            <ContentDialog.Title>도면 이미지로 시작</ContentDialog.Title>
+            <ContentDialog.Description>
+              도면을 읽어 방 배치 초안을 만들어요. 초안은 구조에서 바로 고칠 수
+              있어요.
+            </ContentDialog.Description>
+            <ContentDialog.CloseButton aria-label="닫기">
+              <Icon svg={<IconXmarkLine />} size="x5" />
+            </ContentDialog.CloseButton>
+          </ContentDialog.Header>
+          <ContentDialog.Body className="plan-import-body">
+            <div className="plan-import-stage">
+              {source ? (
+                <canvas
+                  ref={canvasRef}
+                  aria-label="도면 미리보기. 끌어서 도면 영역만 고를 수 있어요."
+                  onPointerDown={startCrop}
+                  onPointerMove={moveCrop}
+                  onPointerUp={endCrop}
+                  onPointerCancel={endCrop}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="plan-import-drop"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    void chooseFile(event.dataTransfer.files[0])
+                  }}
+                >
+                  <Icon svg={<IconPictureLine />} size="x8" />
+                  <Type variant="label">
+                    {status === "loading"
+                      ? "도면을 불러오고 있어요"
+                      : "도면 이미지를 고르거나 여기에 끌어다 놓으세요"}
+                  </Type>
+                  <Type variant="caption">
+                    PNG, JPG, WebP 정지 이미지. 15MiB 이하. 1600만 픽셀 이하.
+                  </Type>
+                </button>
+              )}
+              {busy && source && (
+                <div className="plan-import-busy">
+                  <div className="loading-row">
+                    <ProgressCircle size="24" />
+                    <Type variant="label">{statusText}</Type>
+                  </div>
+                </div>
+              )}
+            </div>
 
-      <div className="plan-import-body">
-        <aside className="plan-import-guide">
-          <strong>이런 도면이 잘 인식됩니다</strong>
-          <ul>
-            <li>벽이 검게 칠해진 흑백 선 도면</li>
-            <li>도면 한 장만 담긴 이미지</li>
-            <li>가로 800px 이상</li>
-          </ul>
-          <strong>평수는 전용면적으로</strong>
-          <ul>
-            <li>도면 전체를 이 넓이에 맞춰 키우거나 줄입니다</li>
-            <li>
-              34평형처럼 부르는 공급면적을 넣으면 방이 크게 나옵니다. 34평형은
-              전용 약 25평입니다
-            </li>
-          </ul>
-          <strong>정확도가 떨어지는 경우</strong>
-          <ul>
-            <li>바닥에 색이나 무늬가 들어간 도면</li>
-            <li>투시도나 면적표가 함께 있는 분양 안내 페이지</li>
-            <li>사진으로 찍거나 손으로 그린 도면</li>
-          </ul>
-          <p>
-            결과는 초안입니다. 방이 더 나뉘어 나오면 벽 지우기로 합치고, 덜
-            나뉘면 쪼개기로 나눠 주세요.
-          </p>
-        </aside>
-
-        <div className="plan-import-main">
-          <div className="plan-import-controls">
-            <label className="plan-import-file">
-              <FileImage size={14} />
-              {source ? "다른 도면 고르기" : "도면 이미지 고르기"}
+            <div className="plan-import-side">
+              <ActionButton
+                variant="neutralWeak"
+                size="medium"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                <PrefixIcon svg={<IconPictureLine />} />
+                {source ? "다른 이미지 고르기" : "도면 이미지 고르기"}
+              </ActionButton>
               <input
+                ref={fileRef}
+                className="sr-only"
                 type="file"
                 accept={acceptedTypes.join(",")}
-                disabled={busy}
+                tabIndex={-1}
                 onChange={(event) => {
                   void chooseFile(event.target.files?.[0])
                   event.target.value = ""
                 }}
               />
-            </label>
-            <label title="34평형 아파트의 전용면적은 약 25평입니다">
-              전용면적 (평)
-              <input
-                type="number"
+              <MeterField
+                label="전용면적"
+                value={area}
                 min={5}
                 max={100}
                 step={1}
-                value={area}
-                disabled={busy}
-                onChange={(event) => {
-                  setArea(Number(event.target.value))
-                  if (found) reset()
+                suffix="평"
+                onCommit={(next) => {
+                  areaRef.current = next
+                  setArea(next)
+                  if (source && status !== "loading") {
+                    cancelImportWork(workRef.current)
+                    setFound(null)
+                    setStatus("ready")
+                    setError("")
+                  }
                 }}
               />
-            </label>
-            {crop && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setCrop(null)
-                  if (found) reset()
-                }}
-              >
-                영역 지우기
-              </button>
-            )}
-            <button
-              type="button"
-              className="plan-import-primary"
-              disabled={!source || busy}
-              onClick={findRooms}
+              <Type variant="caption" as="p">
+                도면 전체를 이 넓이에 맞춰 키우거나 줄여요. 34평형 아파트의
+                전용면적은 약 25평이에요.
+              </Type>
+
+              {error && <Callout tone="critical" description={error} />}
+              {warnings.map((warning) => (
+                <Callout
+                  key={warning}
+                  tone="warning"
+                  title={warningText[warning].title}
+                  description={warningText[warning].description}
+                />
+              ))}
+
+              <div className="plan-import-guide">
+                <Type variant="heading" as="h3">
+                  잘 읽히는 도면
+                </Type>
+                <ul>
+                  <li>
+                    <Type variant="description">
+                      벽이 검게 칠해진 흑백 선 도면
+                    </Type>
+                  </li>
+                  <li>
+                    <Type variant="description">도면 한 장만 담긴 이미지</Type>
+                  </li>
+                  <li>
+                    <Type variant="description">
+                      분양 안내처럼 다른 그림이 함께 있으면 도면 부분만 끌어서
+                      골라 주세요
+                    </Type>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </ContentDialog.Body>
+          <ContentDialog.Footer className="plan-import-footer">
+            <Type
+              variant="caption"
+              aria-live="polite"
+              className="plan-import-status"
+              title={statusText || undefined}
             >
-              {status === "analyzing" ? (
-                <LoaderCircle size={14} className="spin" />
-              ) : (
-                <ScanSearch size={14} />
+              {statusText}
+            </Type>
+            <div className="plan-import-actions">
+              {status === "failed" && (
+                <ActionButton
+                  variant="neutralWeak"
+                  size="medium"
+                  onClick={onDrawBlank}
+                >
+                  빈 집에서 그리기
+                </ActionButton>
               )}
-              {status === "analyzing" ? "찾는 중" : "방 찾기"}
-            </button>
-          </div>
-
-          {warnings.map((warning) => (
-            <p key={warning} className="plan-import-warning">
-              {warningText[warning]}
-            </p>
-          ))}
-          {error && (
-            <p className="plan-import-error" role="alert">
-              {error}
-            </p>
-          )}
-
-          <div className="plan-import-stage">
-            {source ? (
-              <canvas
-                ref={canvasRef}
-                aria-label="도면 미리보기. 드래그해서 도면 영역을 지정합니다."
-                onPointerDown={startCrop}
-                onPointerMove={moveCrop}
-                onPointerUp={endCrop}
-                onPointerCancel={endCrop}
-              />
-            ) : (
-              <p className="plan-import-empty">
-                {status === "loading"
-                  ? "도면을 불러오는 중입니다."
-                  : "도면 이미지를 고르면 여기에 표시됩니다. 도면이 페이지 일부만 차지하면 그 부분만 드래그해서 지정하세요."}
-              </p>
-            )}
-          </div>
-
-          <footer className="plan-import-footer">
-            <span>
-              {found
-                ? `방 ${found.draft.rooms.length}개를 찾았습니다.`
-                : source
-                  ? `${source.name} · ${crop ? `선택 영역 ${crop.width}×${crop.height}px` : `${source.width}×${source.height}px`}`
-                  : ""}
-            </span>
-            <div>
-              <button type="button" onClick={onClose}>
-                취소
-              </button>
-              <button
-                type="button"
-                className="plan-import-primary"
+              {source && (status === "ready" || status === "failed") && (
+                <ActionButton
+                  variant="neutralWeak"
+                  size="medium"
+                  onClick={() =>
+                    findRooms(source, crop ?? fullCrop(source), clampArea(area))
+                  }
+                >
+                  {crop ? "고른 영역에서 찾기" : "다시 찾기"}
+                </ActionButton>
+              )}
+              <ActionButton
+                variant="brandSolid"
+                size="medium"
                 disabled={!found}
                 onClick={() => found && onImport(found.draft, clampArea(area))}
               >
                 이 배치로 시작
-              </button>
+              </ActionButton>
             </div>
-          </footer>
-        </div>
-      </div>
-    </div>
+          </ContentDialog.Footer>
+        </ContentDialog.Content>
+      </ContentDialog.Positioner>
+    </ContentDialog.Root>
   )
 }

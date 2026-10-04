@@ -69,6 +69,8 @@ export type RoomSource = {
 
 export type Project = {
   id: string
+  /** Present only for server snapshots. Local projects have no server revision. */
+  revision?: number
   name: string
   roomType: string
   dimensions: { width: number; depth: number; height: number }
@@ -88,6 +90,53 @@ export type ChatMessage = {
   id: string
   role: "assistant" | "user"
   text: string
+}
+
+export type LayoutCommand = {
+  type: "ADD" | "MOVE" | "ROTATE" | "REMOVE" | "CLEAR"
+  catalogId?: string | null
+  furnitureId?: string | null
+  x?: number | null
+  z?: number | null
+  rotation?: number | null
+}
+
+export type BrowserIntent = {
+  action: "ADD" | "MOVE" | "ROTATE" | "REMOVE" | "CLEAR" | "UNSUPPORTED"
+  catalogId: string | null
+  placement:
+    | "CENTER"
+    | "NEAR_WINDOW"
+    | "NEAR_TARGET"
+    | "LEFT"
+    | "RIGHT"
+    | "FRONT"
+    | "BACK"
+    | null
+  rotation: number | null
+  anchorCatalogId: string | null
+}
+
+export type CommandResponse = {
+  reply: string
+  project: Project
+  appliedActions: string[]
+  commands: LayoutCommand[]
+  requiresConfirmation: boolean
+  proposalId: string | null
+  expiresAt: string | null
+  proposedCommands: LayoutCommand[]
+  candidates: { furnitureId: string; name: string }[]
+}
+
+export type CommandReview = {
+  response: CommandResponse
+  message: string
+  focus?: Point2[]
+  browserIntent?: BrowserIntent
+  baseKey: string
+  status: "ready" | "applying" | "retry" | "stale"
+  error: string
 }
 
 export type ProjectLoadState =

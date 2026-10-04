@@ -39,10 +39,15 @@ export function createVrLocomotion(options: Options) {
 
   type ControllerState = {
     controller: THREE.XRTargetRaySpace
+    line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
     marker: THREE.Mesh
     holding: boolean
+    pressed: boolean
+    connected: boolean
     onStart: () => void
     onEnd: () => void
+    onConnected: () => void
+    onDisconnected: () => void
   }
   const controllers: ControllerState[] = []
 
@@ -101,13 +106,21 @@ export function createVrLocomotion(options: Options) {
 
     const state: ControllerState = {
       controller,
+      line,
       marker,
       holding: false,
+      pressed: false,
+      connected: true,
       onStart() {
+        if (!renderer.xr.getSession() || !state.connected) return
+        state.pressed = true
         setRayFrom(controller)
         state.holding = onSelectStart(raycaster.ray)
       },
       onEnd() {
+        if (!renderer.xr.getSession() || !state.connected || !state.pressed)
+          return
+        state.pressed = false
         setRayFrom(controller)
         if (state.holding) {
           onSelectEnd(raycaster.ray)
@@ -117,25 +130,58 @@ export function createVrLocomotion(options: Options) {
         const target = walkableFloorHit(controller)
         if (target) teleportTo(target)
       },
+      onConnected() {
+        state.connected = true
+      },
+      onDisconnected() {
+        state.connected = false
+        state.holding = false
+        state.pressed = false
+        state.marker.visible = false
+      },
     }
     controller.addEventListener("selectstart", state.onStart)
     controller.addEventListener("selectend", state.onEnd)
+    controller.addEventListener("connected", state.onConnected)
+    controller.addEventListener("disconnected", state.onDisconnected)
     controllers.push(state)
   }
 
+  let turnArmed = true
+  let desktopPose: {
+    position: THREE.Vector3
+    quaternion: THREE.Quaternion
+  } | null = null
+  function resetInput() {
+    turnArmed = true
+    for (const state of controllers) {
+      state.holding = false
+      state.pressed = false
+      state.marker.visible = false
+    }
+  }
   function moveToSpawn() {
+    desktopPose = {
+      position: camera.position.clone(),
+      quaternion: camera.quaternion.clone(),
+    }
+    resetInput()
     rig.position.copy(spawn)
     rig.rotation.set(0, 0, 0)
   }
   function resetRig() {
+    resetInput()
     rig.position.set(0, 0, 0)
     rig.rotation.set(0, 0, 0)
-    for (const state of controllers) state.marker.visible = false
+    if (desktopPose) {
+      camera.position.copy(desktopPose.position)
+      camera.quaternion.copy(desktopPose.quaternion)
+      desktopPose = null
+    }
   }
   renderer.xr.addEventListener("sessionstart", moveToSpawn)
   renderer.xr.addEventListener("sessionend", resetRig)
 
-  let turnArmed = true
   const clock = new THREE.Clock()
   const headDirection = new THREE.Vector3()
   const sideDirection = new THREE.Vector3()
@@ -171,7 +217,10 @@ export function createVrLocomotion(options: Options) {
     if (!session) return
 
     for (const state of controllers) {
-      const target = state.holding ? null : walkableFloorHit(state.controller)
+      const target =
+        state.holding || !state.connected
+          ? null
+          : walkableFloorHit(state.controller)
       state.marker.visible = target !== null
       if (target) state.marker.position.set(target.x, 0.01, target.z)
     }
@@ -196,9 +245,16 @@ export function createVrLocomotion(options: Options) {
   function dispose() {
     renderer.xr.removeEventListener("sessionstart", moveToSpawn)
     renderer.xr.removeEventListener("sessionend", resetRig)
+    resetRig()
     for (const state of controllers) {
       state.controller.removeEventListener("selectstart", state.onStart)
       state.controller.removeEventListener("selectend", state.onEnd)
+      state.controller.removeEventListener("connected", state.onConnected)
+      state.controller.removeEventListener("disconnected", state.onDisconnected)
+      state.controller.remove(state.line)
+      rig.remove(state.controller)
+      state.line.geometry.dispose()
+      state.line.material.dispose()
       state.marker.geometry.dispose()
       ;(state.marker.material as THREE.Material).dispose()
       scene.remove(state.marker)

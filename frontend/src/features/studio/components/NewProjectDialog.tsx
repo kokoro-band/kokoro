@@ -1,6 +1,17 @@
-import type { FormEvent } from "react"
-import { ArrowRight } from "lucide-react"
-import { ActionButton, ContentDialog, TextField } from "@seed-design/react"
+import { useState, type FormEvent } from "react"
+import { IconXmarkLine } from "@karrotmarket/react-monochrome-icon"
+import {
+  ActionButton,
+  ContentDialog,
+  Icon,
+  ResponsivePair,
+} from "@seed-design/react"
+import { TextField, TextFieldInput } from "seed-design/ui/text-field"
+import {
+  maxProjectNameGraphemes,
+  maxProjectNameLength,
+  projectNameError,
+} from "../input-limits"
 
 export function NewProjectDialog({
   open,
@@ -13,13 +24,14 @@ export function NewProjectDialog({
   busy: boolean
   onSubmit: (name: string) => Promise<boolean>
 }) {
+  const [name, setName] = useState("")
+  const error = projectNameError(name.trim())
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = event.currentTarget
-    const name = new FormData(form).get("project-name")
-    if (typeof name !== "string") return
+    if (busy || error) return
     if (await onSubmit(name)) {
-      form.reset()
+      setName("")
       onOpenChange(false)
     }
   }
@@ -33,40 +45,52 @@ export function NewProjectDialog({
             <ContentDialog.Header>
               <ContentDialog.Title>새 프로젝트</ContentDialog.Title>
               <ContentDialog.Description>
-                프로젝트 이름을 정한 뒤 도면을 업로드하세요.
+                이름을 정하면 바로 집 구조를 잡을 수 있어요.
               </ContentDialog.Description>
+              <ContentDialog.CloseButton aria-label="닫기">
+                <Icon svg={<IconXmarkLine />} size="x5" />
+              </ContentDialog.CloseButton>
             </ContentDialog.Header>
             <ContentDialog.Body>
-              <label htmlFor="project-name">프로젝트 이름</label>
-              <TextField.Root size="responsive">
-                <TextField.Input
-                  id="project-name"
-                  aria-label="프로젝트 이름"
+              <TextField
+                label="프로젝트 이름"
+                size="medium"
+                value={name}
+                onValueChange={({ value }) => setName(value)}
+                maxGraphemeCount={maxProjectNameGraphemes}
+                invalid={Boolean(name && error)}
+                errorMessage={name ? error : undefined}
+                required
+              >
+                <TextFieldInput
                   name="project-name"
+                  maxLength={maxProjectNameLength}
                   placeholder="예: 우리 집 거실"
-                  required
-                  maxLength={60}
+                  autoFocus
                 />
-              </TextField.Root>
+              </TextField>
             </ContentDialog.Body>
             <ContentDialog.Footer>
-              <ContentDialog.Action asChild>
+              <ResponsivePair gap="x2">
+                <ContentDialog.Action asChild>
+                  <ActionButton
+                    type="button"
+                    variant="neutralWeak"
+                    size="medium"
+                  >
+                    취소
+                  </ActionButton>
+                </ContentDialog.Action>
                 <ActionButton
-                  type="button"
-                  variant="neutralOutline"
+                  type="submit"
+                  variant="brandSolid"
                   size="medium"
+                  disabled={busy || Boolean(error)}
+                  loading={busy}
                 >
-                  취소
+                  만들기
                 </ActionButton>
-              </ContentDialog.Action>
-              <ActionButton
-                type="submit"
-                variant="brandSolid"
-                size="medium"
-                disabled={busy}
-              >
-                프로젝트 만들기 <ArrowRight size={16} />
-              </ActionButton>
+              </ResponsivePair>
             </ContentDialog.Footer>
           </form>
         </ContentDialog.Content>

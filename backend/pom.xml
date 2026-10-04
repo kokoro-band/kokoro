@@ -20,9 +20,28 @@
     <properties>
         <java.version>17</java.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- #125: remove only after the Boot BOM meets the audited security baseline. -->
+        <tomcat.version>11.0.26</tomcat.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Testcontainers transitively supplies this test-only dependency. -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commons-compress.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -83,6 +102,28 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../docs/contracts</directory>
+                <targetPath>contracts</targetPath>
+                <includes>
+                    <include>furniture-catalog.json</include>
+                    <include>furniture-source-assets.json</include>
+                </includes>
+            </resource>
+        </resources>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>${project.basedir}/../docs/contracts/fixtures</directory>
+                <targetPath>contracts</targetPath>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

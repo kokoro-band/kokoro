@@ -45,7 +45,7 @@ describe("normalizeApiError", () => {
 
     expect(error.status).toBe(404)
     expect(error.retryable).toBe(false)
-    expect(error.message).toBe("요청한 프로젝트를 찾을 수 없습니다.")
+    expect(error.message).toBe("프로젝트를 찾지 못했어요.")
   })
 
   it("uses bounded server details for other client errors", () => {

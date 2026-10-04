@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "unit": "m",
+  "priceKind": "example",
+  "currency": "KRW",
+  "items": [
+    {
+      "id": "sofa-cloud",
+      "name": "클라우드 소파",
+      "category": "소파",
+      "description": "차분한 패브릭 3인 소파",
+      "price": 890000,
+      "width": 2.2,
+      "depth": 0.92,
+      "color": "#D8C8B8",
+      "modelUrl": "/models/sofa-cloud.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "loungeSofa.glb",
+        "modelSha256": "1886b811c0d3ad0d8525a4fd43adf4112c497c8e0ed906f06877ca3517f4c7dd",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "sofa-moss",
+      "name": "모스 소파",
+      "category": "소파",
+      "description": "낮은 실루엣의 모듈 소파",
+      "price": 1240000,
+      "width": 2.1,
+      "depth": 0.95,
+      "color": "#697866",
+      "modelUrl": "/models/sofa-moss.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "loungeDesignSofa.glb",
+        "modelSha256": "b4f4e6850118e409da301df678228c703b6ac02e94fbb9dbde61543af817fa53",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "table-oak",
+      "name": "오크 테이블",
+      "category": "테이블",
+      "description": "공간의 중심이 되는 원목",
+      "price": 320000,
+      "width": 1.25,
+      "depth": 0.7,
+      "color": "#B98958",
+      "modelUrl": "/models/table-oak.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "table.glb",
+        "modelSha256": "ff1a94498d023957f4bc3ff6f55a7a82977d336dbf01a573b3364f03afe5ff61",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "table-white",
+      "name": "라운드 테이블",
+      "category": "테이블",
+      "description": "부드럽게 연결하는 원형 상판",
+      "price": 245000,
+      "width": 1,
+      "depth": 1,
+      "color": "#E6E1D8",
+      "modelUrl": "/models/table-white.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "tableRound.glb",
+        "modelSha256": "f8daea9124a542a00b7bdacfddac82dc468573d43e44d7b54dd6316e9695754b",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "chair-shell",
+      "name": "셸 체어",
+      "category": "의자",
+      "description": "가벼운 곡선의 라운지 체어",
+      "price": 185000,
+      "width": 0.65,
+      "depth": 0.65,
+      "color": "#4A665A",
+      "modelUrl": "/models/chair-shell.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "loungeChair.glb",
+        "modelSha256": "ddfe6bc4b3451bca61666d7b614552d6ed2a03d82fc76244b72ae3155874dc6c",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "chair-sand",
+      "name": "샌드 체어",
+      "category": "의자",
+      "description": "따뜻한 톤의 패브릭 체어",
+      "price": 210000,
+      "width": 0.65,
+      "depth": 0.65,
+      "color": "#D9B986",
+      "modelUrl": "/models/chair-sand.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "chairCushion.glb",
+        "modelSha256": "33544228984857f2cb502b58452fed72157335f9b1caf29e96da5c9094c53fdc",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "plant-olive",
+      "name": "올리브 화분",
+      "category": "장식",
+      "description": "햇빛이 드는 자리에 작은 초록",
+      "price": 68000,
+      "width": 0.55,
+      "depth": 0.55,
+      "color": "#69805E",
+      "modelUrl": "/models/plant-olive.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "pottedPlant.glb",
+        "modelSha256": "5b760eda2766f75fda36b2c5df652a1662f82981ef64cd8fa7fe7bcd386b3a15",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    },
+    {
+      "id": "lamp-arc",
+      "name": "아크 플로어 램프",
+      "category": "장식",
+      "description": "저녁의 분위기를 바꾸는 빛",
+      "price": 149000,
+      "width": 0.5,
+      "depth": 0.5,
+      "color": "#B7A788",
+      "modelUrl": "/models/lamp-arc.glb",
+      "provenance": {
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "lampRoundFloor.glb",
+        "modelSha256": "50fe1b5b588edf15bfa9cc880f71a02a4fda6036350b24733d0ef4de5cc5e908",
+        "license": "CC0-1.0",
+        "sourceUrl": "https://kenney.nl/assets/furniture-kit"
+      }
+    }
+  ],
+  "dimensionKind": "example",
+  "source": {
+    "name": "Kenney Furniture Kit 2.0",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-09-26",
+    "archiveSha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0"
+  }
+}

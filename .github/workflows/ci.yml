@@ -4,8 +4,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   pull_request:
@@ -83,7 +83,7 @@ jobs:
   ci-result:
     name: CI result
     if: always()
-    needs: [changes, frontend, backend]
+    needs: [changes, frontend, backend, e2e, local-ai-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -93,6 +93,8 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          LOCAL_AI_E2E_RESULT: ${{ needs.local-ai-e2e.result }}
           NEEDS_FRONTEND: ${{ needs.changes.outputs.frontend }}
           NEEDS_BACKEND: ${{ needs.changes.outputs.backend }}
         run: |
@@ -102,7 +104,78 @@ jobs:
             changes: process.env.CHANGES_RESULT,
             frontend: process.env.FRONTEND_RESULT,
             backend: process.env.BACKEND_RESULT,
+            e2e: process.env.E2E_RESULT,
+            localAiE2e: process.env.LOCAL_AI_E2E_RESULT,
             needsFrontend: process.env.NEEDS_FRONTEND,
             needsBackend: process.env.NEEDS_BACKEND,
           })
           JS
+
+  local-ai-e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, narrow]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@v1.21.0
+        with:
+          working-directory: frontend
+          node-version: 22
+          cache: true
+      - run: vp run typecheck:e2e
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run test:e2e:local-ai --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: local-ai-e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, narrow]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - uses: voidzero-dev/setup-vp@v1.21.0
+        with:
+          working-directory: frontend
+          node-version: 22
+          cache: true
+      - run: vp run typecheck:e2e
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run test:e2e --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          retention-days: 7
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            frontend/.e2e-artifacts/

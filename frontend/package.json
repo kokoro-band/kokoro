@@ -10,10 +10,15 @@
     "lint": "vp lint .",
     "format": "vp fmt \"**/*.{ts,tsx}\"",
     "test": "vp test",
+    "test:e2e": "node e2e/run.mjs",
+    "test:e2e:local-ai": "node e2e/run-local-ai.mjs",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck": "tsc --noEmit",
     "preview": "vp preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.0",
+    "@karrotmarket/react-monochrome-icon": "^1.27.0",
     "@seed-design/css": "^2.8.3",
     "@seed-design/react": "^2.5.0",
     "@tailwindcss/vite": "^4",
@@ -23,10 +28,12 @@
     "pretendard": "^1.3.9",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-hotkeys-hook": "^5.3.3",
     "tailwindcss": "^4",
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@seed-design/vite-plugin": "^2.1.0",
     "@types/node": "^24",
     "@types/react": "^19",
@@ -34,6 +41,7 @@
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6",
     "globals": "^17",
+    "happy-dom": "^20.14.5",
     "typescript": "~6",
     "vite": "catalog:",
     "vite-plus": "catalog:"

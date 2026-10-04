@@ -1,12 +1,14 @@
 import {
   mutationOptions,
   queryOptions,
+  type MutationOptions,
   type QueryClient,
 } from "@tanstack/react-query"
 
 import { ApiError } from "@/lib/http-client"
 
 import {
+  confirmCommand,
   createProject,
   getProject,
   saveProject,
@@ -14,7 +16,7 @@ import {
   sendCommand,
   uploadPlan,
 } from "./project-api"
-import type { Project, RoomModel } from "./types"
+import type { Point2, Project, RoomModel } from "./types"
 
 export const projectKeys = {
   all: ["projects"] as const,
@@ -43,6 +45,18 @@ export function projectQueryOptions(projectId: string) {
     queryKey: projectKeys.detail(projectId),
     queryFn: () => getProject(projectId),
   })
+}
+
+/** Run the mutation directly so queued writes can finish after the component unmounts. */
+export function executeProjectMutation<TData, TVariables>(
+  queryClient: QueryClient,
+  options: MutationOptions<TData, Error, TVariables>,
+  variables: TVariables
+) {
+  return queryClient
+    .getMutationCache()
+    .build(queryClient, options)
+    .execute(variables)
 }
 
 function cacheProject(queryClient: QueryClient, project: Project) {
@@ -102,8 +116,35 @@ export function sendCommandMutationOptions(
 ) {
   return mutationOptions({
     mutationKey: projectKeys.command(projectId),
-    mutationFn: ({ project, message }: { project: Project; message: string }) =>
-      sendCommand(project, message),
+    mutationFn: ({
+      project,
+      message,
+      focus,
+      furnitureId,
+    }: {
+      project: Project
+      message: string
+      focus?: Point2[]
+      furnitureId?: string
+    }) => sendCommand(project, message, focus, furnitureId),
+    retry: false,
+    onSuccess: (response) => cacheProject(queryClient, response.project),
+  })
+}
+
+export function confirmCommandMutationOptions(
+  queryClient: QueryClient,
+  projectId: string
+) {
+  return mutationOptions({
+    mutationKey: [...projectKeys.command(projectId), "confirm"],
+    mutationFn: ({
+      project,
+      proposalId,
+    }: {
+      project: Project
+      proposalId: string
+    }) => confirmCommand(project, proposalId),
     retry: false,
     onSuccess: (response) => cacheProject(queryClient, response.project),
   })

@@ -14,10 +14,45 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
   vi.stubEnv("VITE_API_MODE", "server")
-  vi.mocked(request).mockResolvedValue(sampleProject)
+  vi.mocked(request).mockImplementation(async (config) =>
+    config.url?.endsWith("/commands")
+      ? { project: { ...sampleProject, revision: 0 } }
+      : { ...sampleProject, revision: 0 }
+  )
 })
 
 describe("project API paths", () => {
+  it("starts a new local project empty and preserves repairable furniture across room save and reload", async () => {
+    vi.stubEnv("VITE_API_MODE", "local")
+    const storage = new Map<string, string>()
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    })
+    try {
+      const { createProject, saveRoom, saveProject, readSavedProject } =
+        await import("./project-api")
+      const empty = await createProject("빈 프로젝트")
+      expect(empty.furniture).toEqual([])
+      await saveRoom(empty, sampleRoom)
+      expect(readSavedProject().furniture).toEqual([])
+      const draft = {
+        ...empty,
+        furniture: [{ ...sampleProject.furniture[0], x: 30, z: 30 }],
+      }
+      const saved = await saveRoom(draft, sampleRoom)
+      expect(saved.furniture).toEqual(draft.furniture)
+      await saveProject({
+        ...saved,
+        furniture: [{ ...saved.furniture[0], x: 4 }],
+      })
+      expect(readSavedProject().furniture[0]).toMatchObject({ x: 4, z: 30 })
+      expect(readSavedProject().room).toEqual(sampleRoom)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("rejects IDs that can change the request path", async () => {
     const { getProject } = await import("./project-api")
 
@@ -30,7 +65,7 @@ describe("project API paths", () => {
   it("uses validated project paths for every project request", async () => {
     const { getProject, saveProject, saveRoom, sendCommand, uploadPlan } =
       await import("./project-api")
-    const project = structuredClone(sampleProject)
+    const project = { ...structuredClone(sampleProject), revision: 0 }
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
 
     await getProject(project.id)
@@ -51,6 +86,7 @@ describe("project API paths", () => {
     expect(vi.mocked(request).mock.calls[3][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
     expect(vi.mocked(request).mock.calls[2][0].data).toEqual({
       room: sampleRoom,
+      expectedRevision: 0,
     })
   })
 })

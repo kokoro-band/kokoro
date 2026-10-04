@@ -1,5 +1,12 @@
 name: CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   pull_request:
   push:
@@ -7,8 +14,28 @@ on:
       - main
 
 jobs:
-  frontend:
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: node --test .github/scripts/ci-changes.test.mjs
+      - id: filter
+        run: node .github/scripts/ci-changes.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -22,9 +49,18 @@ jobs:
       - run: vp check
       - run: vp test
       - run: vp run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
 
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -37,8 +73,47 @@ jobs:
           cache: maven
       - run: ./mvnw --batch-mode test
       - run: ./mvnw --batch-mode package -DskipTests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ github.sha }}
+          path: backend/target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  ci-result:
+    name: CI result
+    if: always()
+    needs: [changes, frontend, backend, e2e, local-ai-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check required results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          LOCAL_AI_E2E_RESULT: ${{ needs.local-ai-e2e.result }}
+          NEEDS_FRONTEND: ${{ needs.changes.outputs.frontend }}
+          NEEDS_BACKEND: ${{ needs.changes.outputs.backend }}
+        run: |
+          node --input-type=module <<'JS'
+          import { assertResults } from './.github/scripts/ci-changes.mjs'
+          assertResults({
+            changes: process.env.CHANGES_RESULT,
+            frontend: process.env.FRONTEND_RESULT,
+            backend: process.env.BACKEND_RESULT,
+            e2e: process.env.E2E_RESULT,
+            localAiE2e: process.env.LOCAL_AI_E2E_RESULT,
+            needsFrontend: process.env.NEEDS_FRONTEND,
+            needsBackend: process.env.NEEDS_BACKEND,
+          })
+          JS
 
   local-ai-e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -68,6 +143,8 @@ jobs:
             frontend/test-results/
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { randomUUID } from "node:crypto"
 import { ProcessGroups } from "./process-groups.mjs"
+import { startGeminiStub } from "./cloud-ai/provider-stub.mjs"
 import {
   isolatedEnvironment,
   playwrightArguments,
@@ -14,7 +15,11 @@ import {
   waitUntil,
 } from "./runtime.mjs"
 
-const testArguments = playwrightArguments(process.argv.slice(2))
+const supplied = process.argv.slice(2)
+const cloudAi = supplied[0] === "--cloud-ai"
+const testArguments = playwrightArguments(
+  cloudAi ? supplied.slice(1) : supplied
+)
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)))
 const backend = join(frontend, "../backend")
 const runId = `kokoro-e2e-${randomUUID()}`
@@ -26,6 +31,7 @@ const outputStreams = []
 const abort = new AbortController()
 let temporary
 let failed = false
+let provider
 
 function interrupt() {
   abort.abort()
@@ -135,6 +141,7 @@ try {
   while (webPort === apiPort) webPort = await unusedPort()
   const api = `http://127.0.0.1:${apiPort}`
   const web = `http://127.0.0.1:${webPort}`
+  if (cloudAi) provider = await startGeminiStub()
 
   await command("postgres-start", "docker", [
     "run",
@@ -202,6 +209,13 @@ try {
       "--server.address=127.0.0.1",
       `--server.port=${apiPort}`,
       `--app.frontend-origin=${web}`,
+      ...(cloudAi
+        ? [
+            "--app.ai.api-key=e2e-test-key-only",
+            `--app.ai.base-url=${provider.url}`,
+            "--app.ai.timeout-ms=400",
+          ]
+        : []),
     ],
     backend
   )
@@ -211,17 +225,24 @@ try {
     "vp",
     ["dev", "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"],
     frontend,
-    { VITE_API_MODE: "server", VITE_API_BASE_URL: `${api}/api` }
+    {
+      VITE_API_MODE: cloudAi ? "local" : "server",
+      VITE_API_BASE_URL: `${api}/api`,
+    }
   )
   await ready(web, client)
   await command(
     "playwright",
     "vp",
-    testArguments,
+    [
+      ...testArguments,
+      ...(cloudAi ? ["--config=playwright.cloud-ai.config.ts"] : []),
+    ],
     frontend,
     {
       KOKORO_E2E_WEB: web,
       KOKORO_E2E_API: `${api}/api`,
+      ...(cloudAi ? { KOKORO_E2E_PROVIDER: provider.url } : {}),
       CI: process.env.CI ? "true" : "",
     },
     600_000
@@ -230,6 +251,7 @@ try {
   failed = true
   console.error(error.message)
 } finally {
+  if (provider) await provider.close()
   await (shutdown ?? groups.stop()).catch((error) => {
     failed = true
     console.error(`Process cleanup failed: ${error.message}`)

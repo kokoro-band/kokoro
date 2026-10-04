@@ -130,6 +130,75 @@ class LayoutIntentApiTest {
         assertThat(furnitureIds(project(id))).containsExactlyInAnyOrder("sofa-a", "chair-a", "chair-b");
     }
 
+    private static String room(String openings) {
+        return """
+                {"room":{"version":2,"unit":"m","wallHeight":2.4,"bounds":{"width":8,"depth":6},
+                 "outline":[[0,0],[8,0],[8,6],[0,6]],
+                 "walls":[{"id":"top","a":[0,0],"b":[8,0],"thickness":0.2},{"id":"right","a":[8,0],"b":[8,6],"thickness":0.2},
+                          {"id":"bottom","a":[8,6],"b":[0,6],"thickness":0.2},{"id":"left","a":[0,6],"b":[0,0],"thickness":0.2}],
+                 "openings":[%s]}}""".formatted(openings);
+    }
+
+    private static final String WINDOW_ON_TOP = "{\"id\":\"win\",\"wallId\":\"top\",\"type\":\"window\",\"from\":3.5,\"to\":4.5,\"bottom\":0.9,\"top\":2.1}";
+    private static final String DOOR_ON_BOTTOM = "{\"id\":\"door\",\"wallId\":\"bottom\",\"type\":\"door\",\"from\":1.0,\"to\":1.9,\"bottom\":0,\"top\":2.1}";
+
+    private void saveRoom(String id, String openings) throws Exception {
+        mvc.perform(put("/api/projects/{id}/room", id).contentType(MediaType.APPLICATION_JSON).content(room(openings)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void addNearTheWindowProposesASpotBesideTheWindowAndConfirmApplies() throws Exception {
+        String id = projectWithFurniture();
+        saveRoom(id, WINDOW_ON_TOP);
+
+        JsonNode proposal = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"chair-sand\",\"anchorQuery\":\"창가\"}", null, 200);
+
+        JsonNode command = proposal.path("proposedCommands").get(0);
+        assertThat(command.path("type").asString()).isEqualTo("ADD");
+        assertThat(command.path("x").asDouble()).isBetween(3.0, 5.0);
+        assertThat(command.path("z").asDouble()).isLessThan(1.5);
+        assertThat(furnitureIds(project(id))).hasSize(3);
+
+        JsonNode confirmed = send(id, "/layout/commands/confirm", "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+        JsonNode added = null;
+        for (JsonNode item : confirmed.path("project").path("furniture")) {
+            if (item.path("catalogId").asString().equals("chair-sand")) added = item;
+        }
+        assertThat(added).isNotNull();
+        assertThat(added.path("x").asDouble()).isEqualTo(command.path("x").asDouble());
+        assertThat(added.path("z").asDouble()).isEqualTo(command.path("z").asDouble());
+    }
+
+    @Test
+    void roomWithoutTheRequestedAnchorIsRejectedWithACodeAndNothingChanges() throws Exception {
+        String id = projectWithFurniture();
+        saveRoom(id, DOOR_ON_BOTTOM);
+        long revision = project(id).path("revision").asLong();
+
+        JsonNode problem = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"chair-sand\",\"anchorQuery\":\"창가\"}", null, 400);
+
+        assertThat(problem.path("code").asString()).isEqualTo("NO_ANCHOR");
+        intents(id, "{\"type\":\"MOVE\",\"targetQuery\":\"소파\",\"anchorQuery\":\"벽\"}", null, 400);
+        assertThat(project(id).path("revision").asLong()).isEqualTo(revision);
+    }
+
+    @Test
+    void moveNearTheWindowKeepsTheRotationAndConfirmMovesIt() throws Exception {
+        String id = projectWithFurniture();
+        saveRoom(id, WINDOW_ON_TOP + "," + DOOR_ON_BOTTOM);
+
+        JsonNode proposal = intents(id, "{\"type\":\"MOVE\",\"targetQuery\":\"소파\",\"anchorQuery\":\"창문\",\"relation\":\"NEAR\"}", null, 200);
+        JsonNode confirmed = send(id, "/layout/commands/confirm", "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+
+        for (JsonNode item : confirmed.path("project").path("furniture")) {
+            if (item.path("id").asString().equals("sofa-a")) {
+                assertThat(item.path("z").asDouble()).isLessThan(2.0);
+                assertThat(item.path("rotation").asDouble()).isZero();
+            }
+        }
+    }
+
     private String projectWithFurniture() throws Exception {
         String created = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"의도 검증\",\"roomType\":\"거실\",\"dimensions\":{\"width\":8,\"depth\":6,\"height\":2.4}}"))

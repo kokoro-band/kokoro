@@ -72,6 +72,16 @@ describe("local layout intent contract", () => {
     if (valid) expect(parseLocalLayoutIntent(intent)).toEqual(intent)
     else expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
   })
+
+  it.each(["", null, 1])("rejects relation %j", (relation) => {
+    const intent = {
+      version: 1,
+      intents: [
+        { type: "MOVE", targetQuery: "소파", anchorQuery: "창문", relation },
+      ],
+    }
+    expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
+  })
 })
 
 describe("requestLocalLayoutIntent", () => {

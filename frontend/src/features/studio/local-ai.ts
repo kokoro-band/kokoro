@@ -6,9 +6,22 @@ export const localAiUrl = "http://127.0.0.1:11434"
 export const localAiModel = "qwen3:4b"
 export const LOCAL_AI_TIMEOUT_MS = 60_000
 
+export type LocalLayoutRelation = "NEAR" | "FAR_FROM"
+
 export type LocalLayoutIntentItem =
-  | { type: "ADD"; catalogId: string; count?: number; anchorQuery?: string }
-  | { type: "MOVE"; targetQuery: string; anchorQuery?: string }
+  | {
+      type: "ADD"
+      catalogId: string
+      count?: number
+      anchorQuery?: string
+      relation?: LocalLayoutRelation
+    }
+  | {
+      type: "MOVE"
+      targetQuery: string
+      anchorQuery?: string
+      relation?: LocalLayoutRelation
+    }
   | { type: "ROTATE"; targetQuery: string; rotation: number }
   | { type: "REMOVE"; targetQuery: string }
   | { type: "CLEAR" }
@@ -50,8 +63,11 @@ const intentFields: Record<
   LocalLayoutIntentItem["type"],
   { required: string[]; optional: string[] }
 > = {
-  ADD: { required: ["catalogId"], optional: ["count", "anchorQuery"] },
-  MOVE: { required: ["targetQuery"], optional: ["anchorQuery"] },
+  ADD: {
+    required: ["catalogId"],
+    optional: ["count", "anchorQuery", "relation"],
+  },
+  MOVE: { required: ["targetQuery"], optional: ["anchorQuery", "relation"] },
   ROTATE: { required: ["targetQuery", "rotation"], optional: [] },
   REMOVE: { required: ["targetQuery"], optional: [] },
   CLEAR: { required: [], optional: [] },
@@ -84,6 +100,12 @@ function isIntentItem(value: unknown): value is LocalLayoutIntentItem {
   for (const field of ["targetQuery", "anchorQuery"]) {
     if (field in value && !isQuery(value[field])) return false
   }
+  if (
+    "relation" in value &&
+    (!("anchorQuery" in value) ||
+      (value.relation !== "NEAR" && value.relation !== "FAR_FROM"))
+  )
+    return false
   if (
     "catalogId" in value &&
     (typeof value.catalogId !== "string" ||

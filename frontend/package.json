@@ -11,11 +11,13 @@
     "format": "vp fmt \"**/*.{ts,tsx}\"",
     "test": "vp test",
     "test:e2e": "node e2e/run.mjs",
+    "test:e2e:local-ai": "node e2e/run-local-ai.mjs",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck": "tsc --noEmit",
     "preview": "vp preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.0",
     "@karrotmarket/react-monochrome-icon": "^1.27.0",
     "@seed-design/css": "^2.8.3",
     "@seed-design/react": "^2.5.0",

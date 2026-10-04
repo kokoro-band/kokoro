@@ -1,6 +1,18 @@
 import { createServer } from "node:net"
 import { statfs } from "node:fs/promises"
 
+/** @param {string[]} args */
+export function playwrightArguments(args = []) {
+  const command = ["exec", "playwright", "test"]
+  if (args.length === 0) return command
+  if (
+    args.length !== 1 ||
+    !["--project=desktop", "--project=narrow"].includes(args[0])
+  )
+    throw new Error("Use no arguments, --project=desktop or --project=narrow")
+  return [...command, args[0]]
+}
+
 // Do not pass Spring overrides, production credentials, NODE_OPTIONS or JAVA_TOOL_OPTIONS.
 export function isolatedEnvironment(source = process.env) {
   return Object.fromEntries(

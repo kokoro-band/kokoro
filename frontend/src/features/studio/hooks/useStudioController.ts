@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
+import { proposeBrowserIntent } from "../browser-ai-command"
+import type { BrowserIntent } from "../browser-ai-intent"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
@@ -104,6 +106,10 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
+  const [assistantEngine, setAssistantEngine] = useState<"rules" | "webgpu">(
+    "rules"
+  )
+  const [browserAiStatus, setBrowserAiStatus] = useState("")
   const [input, setInput] = useState("")
   const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
     null
@@ -784,17 +790,31 @@ export function useStudioController() {
           Date.parse(review!.response.expiresAt ?? "") <= Date.now()
         )
           throw new CommandReviewExpiredError()
+        let browserIntent: BrowserIntent | undefined = review?.browserIntent
         const response = confirming
           ? await executeProjectMutation(
               queryClient,
               confirmCommandMutationOptions(queryClient, saved.id),
               { project: saved, proposalId: review!.response.proposalId! }
             )
-          : await executeProjectMutation(
-              queryClient,
-              sendCommandMutationOptions(queryClient, saved.id),
-              { project: saved, message: text, focus, furnitureId }
-            )
+          : !isServerMode && (browserIntent || assistantEngine === "webgpu")
+            ? await (async () => {
+                const intent =
+                  browserIntent ??
+                  (await import("../browser-ai").then((module) =>
+                    module.generateBrowserIntent(saved, text, (status) => {
+                      if (isCurrent(queue)) setBrowserAiStatus(status)
+                    })
+                  ))
+                if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
+                browserIntent = intent
+                return proposeBrowserIntent(saved, intent, focus, furnitureId)
+              })()
+            : await executeProjectMutation(
+                queryClient,
+                sendCommandMutationOptions(queryClient, saved.id),
+                { project: saved, message: text, focus, furnitureId }
+              )
         if (
           commandLayoutKey({ ...saved, furniture: [] }) !==
           commandLayoutKey({ ...response.project, furniture: [] })
@@ -819,6 +839,7 @@ export function useStudioController() {
               response,
               message: text,
               focus,
+              ...(browserIntent ? { browserIntent } : {}),
               baseKey: commandLayoutKey(saved),
               status:
                 commandLayoutKey(saved) === commandLayoutKey(projectRef.current)
@@ -900,8 +921,10 @@ export function useStudioController() {
     } finally {
       if (commandOperationRef.current === operation) {
         commandOperationRef.current = null
-        if (isCurrent(queue))
+        if (isCurrent(queue)) {
+          setBrowserAiStatus("")
           setBusy((current) => (current === "chat" ? null : current))
+        }
       }
     }
   }
@@ -1348,6 +1371,11 @@ export function useStudioController() {
     category,
     leftTab,
     messages,
+    assistantEngine,
+    browserAiStatus,
+    setAssistantEngine,
+    stopBrowserAi: () =>
+      void import("../browser-ai").then((module) => module.stopBrowserAi()),
     commandReview,
     cancelCommandReview,
     confirmCommandReview,

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test"
 import { statfs } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
+import process from "node:process"
 import {
   isolatedEnvironment,
+  playwrightArguments,
   requireDiskSpace,
   unusedPort,
   waitUntil,
@@ -10,6 +14,73 @@ import {
 vi.mock("node:fs/promises", () => ({ statfs: vi.fn() }))
 
 describe("isolated E2E runtime", () => {
+  it("detects even swallowed process calls in the invalid-CLI guard", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        fileURLToPath(
+          new URL("./fixtures/forbid-child-process.mjs", import.meta.url)
+        ),
+        "--input-type=module",
+        "-e",
+        'import { spawnSync } from "node:child_process"; try { spawnSync("docker", ["inspect"]); } catch {}',
+      ],
+      { encoding: "utf8", env: { PATH: "" }, timeout: 5000 }
+    )
+    expect(result.status).toBe(0)
+    expect(result.stderr).toContain("UNEXPECTED_CHILD_PROCESS")
+  })
+  it("rejects invalid CLI input before looking for Docker or creating servers", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        fileURLToPath(
+          new URL("./fixtures/forbid-child-process.mjs", import.meta.url)
+        ),
+        fileURLToPath(new URL("./run.mjs", import.meta.url)),
+        "--project=invalid",
+      ],
+      { encoding: "utf8", env: { PATH: "" }, timeout: 5000 }
+    )
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("--project=desktop or --project=narrow")
+    expect(result.stdout).toBe("")
+    expect(result.stderr).not.toContain("ENOENT")
+    expect(result.stderr).not.toContain("UNEXPECTED_CHILD_PROCESS")
+  })
+  it("runs every configured project by default", () => {
+    expect(playwrightArguments()).toEqual(["exec", "playwright", "test"])
+    expect(playwrightArguments([])).toEqual(["exec", "playwright", "test"])
+  })
+  it.each(["desktop", "narrow"])(
+    "selects only the explicit %s project",
+    (project) => {
+      expect(playwrightArguments([`--project=${project}`])).toEqual([
+        "exec",
+        "playwright",
+        "test",
+        `--project=${project}`,
+      ])
+    }
+  )
+  it.each([
+    ["--project=mobile"],
+    ["--project="],
+    ["--project=desktop", "--project=narrow"],
+    ["--project=desktop", "--project=desktop"],
+    ["--project=desktop", "--grep=login"],
+    ["--project=desktop;echo unsafe"],
+    ["--config=https://example.com"],
+    ["--project", "desktop"],
+    ["--"],
+    [" "],
+  ])("rejects unsupported or ambiguous arguments %j", (...args) => {
+    expect(() => playwrightArguments(args)).toThrow(
+      "--project=desktop or --project=narrow"
+    )
+  })
   it("refuses low disk space before any builds", async () => {
     vi.mocked(statfs).mockResolvedValue({ bavail: 100, bsize: 4096 } as Awaited<
       ReturnType<typeof statfs>

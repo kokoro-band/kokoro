@@ -8,11 +8,13 @@ import { randomUUID } from "node:crypto"
 import { ProcessGroups } from "./process-groups.mjs"
 import {
   isolatedEnvironment,
+  playwrightArguments,
   requireDiskSpace,
   unusedPort,
   waitUntil,
 } from "./runtime.mjs"
 
+const testArguments = playwrightArguments(process.argv.slice(2))
 const frontend = dirname(dirname(fileURLToPath(import.meta.url)))
 const backend = join(frontend, "../backend")
 const runId = `kokoro-e2e-${randomUUID()}`
@@ -215,7 +217,7 @@ try {
   await command(
     "playwright",
     "vp",
-    ["exec", "playwright", "test"],
+    testArguments,
     frontend,
     {
       KOKORO_E2E_WEB: web,

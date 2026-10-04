@@ -11,6 +11,7 @@
     "format": "vp fmt \"**/*.{ts,tsx}\"",
     "test": "vp test",
     "test:e2e": "node e2e/run.mjs",
+    "test:e2e:local-ai": "node e2e/run-local-ai.mjs",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck": "tsc --noEmit",
     "preview": "vp preview"

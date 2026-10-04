@@ -38,6 +38,35 @@ jobs:
       - run: ./mvnw --batch-mode test
       - run: ./mvnw --batch-mode package -DskipTests
 
+  local-ai-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, narrow]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@v1.21.0
+        with:
+          working-directory: frontend
+          node-version: 22
+          cache: true
+      - run: vp run typecheck:e2e
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run test:e2e:local-ai --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: local-ai-e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15

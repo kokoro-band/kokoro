@@ -203,11 +203,13 @@ test("stop ignores the late provider response and allows another request", async
   request,
 }) => {
   await send(page, "요청 중단 테스트")
+  let heldId = -1
   await expect
     .poll(async () => {
       const calls = await request
         .get(provider + "/calls")
         .then((response) => response.json())
+      heldId = calls.at(-1)?.id ?? -1
       return calls.at(-1)?.message
     })
     .toBe("요청 중단 테스트")
@@ -217,12 +219,16 @@ test("stop ignores the late provider response and allows another request", async
   await expect(page.locator(".assistant-log")).toContainText(
     "외부 AI 요청을 중단했어요"
   )
+  const released = await request.post(provider + "/release", {
+    data: { id: heldId },
+  })
+  expect(released.status()).toBe(204)
   await expect
     .poll(async () => {
       const calls = await request
         .get(provider + "/calls")
         .then((response) => response.json())
-      return calls.at(-1)?.completed
+      return calls.find((call: { id: number }) => call.id === heldId)?.completed
     })
     .toBe(true)
   await expect(confirmation(page)).toHaveCount(0)

@@ -3,10 +3,23 @@ import { createServer } from "node:http"
 /** Test-only Gemini wire boundary. The browser and Spring remain real. */
 export async function startGeminiStub() {
   const calls = []
+  const held = new Map()
+  const timers = new Set()
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/calls") {
       response.setHeader("Content-Type", "application/json")
       response.end(JSON.stringify(calls))
+      return
+    }
+    if (request.method === "POST" && request.url === "/release") {
+      let raw = ""
+      for await (const chunk of request) raw += chunk
+      const respond = held.get(JSON.parse(raw).id)
+      if (!respond) response.writeHead(404).end()
+      else {
+        respond()
+        response.writeHead(204).end()
+      }
       return
     }
     if (
@@ -27,6 +40,7 @@ export async function startGeminiStub() {
     const payload = JSON.parse(raw)
     const context = JSON.parse(payload.contents[0].parts[0].text)
     const call = {
+      id: calls.length,
       message: context.message,
       context,
       schema: payload.generationConfig.responseJsonSchema,
@@ -83,11 +97,17 @@ export async function startGeminiStub() {
       ],
     })
     const respond = () => {
+      held.delete(call.id)
       if (!response.destroyed) response.end(body)
       call.completed = true
     }
-    if (context.message.includes("응답 지연")) setTimeout(respond, 1000)
-    else if (context.message.includes("중단")) setTimeout(respond, 250)
+    if (context.message.includes("응답 지연")) {
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        respond()
+      }, 9000)
+      timers.add(timer)
+    } else if (context.message.includes("중단")) held.set(call.id, respond)
     else respond()
   })
   await new Promise((resolve, reject) => {
@@ -98,6 +118,9 @@ export async function startGeminiStub() {
     url: `http://127.0.0.1:${server.address().port}`,
     close: () =>
       new Promise((resolve) => {
+        for (const timer of timers) clearTimeout(timer)
+        timers.clear()
+        held.clear()
         server.closeAllConnections()
         server.close(resolve)
       }),

@@ -213,7 +213,7 @@ try {
         ? [
             "--app.ai.api-key=e2e-test-key-only",
             `--app.ai.base-url=${provider.url}`,
-            "--app.ai.timeout-ms=400",
+            "--app.ai.timeout-ms=8000",
           ]
         : []),
     ],

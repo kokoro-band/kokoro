@@ -171,6 +171,7 @@ function systemPrompt(catalog: CatalogItem[]) {
     "의도 type은 ADD, MOVE, ROTATE, REMOVE, CLEAR 중 하나다.",
     "ADD는 아래 카탈로그의 id를 catalogId로 쓰고 count(1~5)와 anchorQuery를 선택적으로 쓴다.",
     "MOVE는 targetQuery와 선택적 anchorQuery, ROTATE는 targetQuery와 rotation(도), REMOVE는 targetQuery를 쓴다.",
+    "ADD와 MOVE는 anchorQuery가 있을 때만 relation을 선택적으로 쓴다. 가까이는 NEAR, 멀리는 FAR_FROM이다. relation을 생략하면 NEAR로 처리한다.",
     "CLEAR는 모든 가구를 지우라는 명령에만 쓴다.",
     "targetQuery와 anchorQuery에는 사용자가 말한 표현을 그대로 쓴다. 좌표나 가구 ID를 지어내지 않는다.",
     `카탈로그(치수 m): ${JSON.stringify(items)}`,

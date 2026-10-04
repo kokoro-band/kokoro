@@ -85,6 +85,19 @@ describe("local layout intent contract", () => {
 })
 
 describe("requestLocalLayoutIntent", () => {
+  it("tells the model how to use relation", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      chatReply(JSON.stringify(moveIntent))
+    )
+    await requestLocalLayoutIntent("소파를 창문에서 멀리 옮겨줘", {
+      catalog,
+      fetch,
+    })
+    const prompt = JSON.parse(fetch.mock.calls[0][1]?.body as string)
+      .messages[0].content
+    expect(prompt).toMatch(/relation.*NEAR.*FAR_FROM/s)
+  })
+
   it("sends only catalog ids, names and footprints to the local model", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       chatReply(JSON.stringify(moveIntent))

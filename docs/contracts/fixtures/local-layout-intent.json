@@ -19,7 +19,7 @@
     { "id": "rotation-missing", "reason": "ROTATE에는 회전이 필요합니다.", "intent": { "version": 1, "intents": [{ "type": "ROTATE", "targetQuery": "의자" }] } },
     { "id": "bad-catalog-id", "reason": "카탈로그 ID 형식이 아닙니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "Sofa Cloud!" }] } },
     { "id": "count-too-large", "reason": "한 번에 최대 5개입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "count": 6 }] } },
-    { "id": "unknown-version", "reason": "지원하지 않는 계약 버전입니다.", "intent": { "version": 2, "intents": [{ "type": "CLEAR" }] } },
+    { "id": "unknown-version", "reason": "지원하지 않는 배치 요청 버전입니다.", "intent": { "version": 2, "intents": [{ "type": "CLEAR" }] } },
     { "id": "extra-field", "reason": "정의되지 않은 필드입니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR", "confirm": true }] } },
     { "id": "relation-without-anchor", "reason": "relation은 anchorQuery와 함께 써야 합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "relation": "NEAR" }] } },
     { "id": "unknown-relation", "reason": "허용하지 않는 relation 값입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "anchorQuery": "창문", "relation": "BESIDE" }] } }

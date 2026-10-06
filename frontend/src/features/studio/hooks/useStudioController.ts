@@ -538,10 +538,10 @@ export function useStudioController() {
     setSelectedId(id)
   }, [])
 
-  const previewFurniture = useCallback(function previewFurniture(
+  /** Shows a pose as an unsaved preview. `commitPreview` saves it as one edit. */
+  const showFurniturePose = useCallback(function showFurniturePose(
     id: string,
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
+    pose: (current: Furniture) => Furniture
   ) {
     if (
       recoveryOperationRef.current &&
@@ -550,12 +550,7 @@ export function useStudioController() {
       return false
     const current = projectRef.current.furniture.find((item) => item.id === id)
     if (!current) return false
-    const next = constrainFurniturePose(
-      projectRef.current,
-      current,
-      update,
-      focus
-    )
+    const next = pose(current)
     if (
       next.x === current.x &&
       next.z === current.z &&
@@ -575,6 +570,19 @@ export function useStudioController() {
     return true
   }, [])
 
+  const previewFurniture = useCallback(
+    function previewFurniture(
+      id: string,
+      update: Partial<Furniture>,
+      focus?: RoomLabel | null
+    ) {
+      return showFurniturePose(id, (current) =>
+        constrainFurniturePose(projectRef.current, current, update, focus)
+      )
+    },
+    [showFurniturePose]
+  )
+
   const moveFurniture = useCallback(
     function moveFurniture(
       id: string,
@@ -585,6 +593,37 @@ export function useStudioController() {
       return previewFurniture(id, { x, z }, focus)
     },
     [previewFurniture]
+  )
+
+  /**
+   * Wall-limits a pose without changing the project. A VR grab calls this
+   * every frame and moves only the 3D model, so React does not re-render.
+   */
+  const constrainPose = useCallback(function constrainPose(
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
+    focus?: RoomLabel | null
+  ) {
+    return constrainFurniturePose(projectRef.current, item, update, focus)
+  }, [])
+
+  /** Applies a released VR pose. It was wall-limited along the hand path, so
+   * a valid pose is kept exactly; an invalid one is swept like a drag. */
+  const placeFurniture = useCallback(
+    function placeFurniture(
+      id: string,
+      pose: Pick<Furniture, "x" | "z" | "rotation">,
+      focus?: RoomLabel | null
+    ) {
+      return showFurniturePose(id, (current) => {
+        const target = { ...current, ...pose }
+        return findFurniturePlacement(projectRef.current, target, focus) ===
+          target
+          ? target
+          : constrainFurniturePose(projectRef.current, current, pose, focus)
+      })
+    },
+    [showFurniturePose]
   )
 
   const commitPreview = useCallback(
@@ -1420,6 +1459,8 @@ export function useStudioController() {
       setNotice("전체 화면으로 바꾸지 못했어요.", "critical"),
     selectFurniture,
     moveFurniture,
+    constrainPose,
+    placeFurniture,
     previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
       if (selectedId) return previewFurniture(selectedId, update, focus)
       return false

@@ -164,7 +164,11 @@ function Studio() {
                 key={structureKey}
                 room={studio.project.room}
                 active={view === "structure"}
-                saving={applying || studio.conflict?.status === "applying"}
+                saving={
+                  applying ||
+                  studio.editingLocked ||
+                  studio.conflict?.status === "applying"
+                }
                 onDirtyChange={setStructureDirty}
                 onDraftChange={studio.rememberRoomDraft}
                 onApply={(nextRoom) => {

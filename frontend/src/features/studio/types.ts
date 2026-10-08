@@ -1,3 +1,5 @@
+import type { LocalLayoutIntent } from "./local-ai-types"
+
 export type ViewMode = "3d" | "2d" | "vr"
 export type Category = "전체" | "소파" | "테이블" | "의자" | "장식"
 
@@ -133,6 +135,9 @@ export type CommandReview = {
   response: CommandResponse
   message: string
   focus?: Point2[]
+  localIntent?: LocalLayoutIntent
+  intentSelections?: Record<string, string>
+  candidateIntentIndex?: number
   browserIntent?: BrowserIntent
   baseKey: string
   status: "ready" | "applying" | "retry" | "stale"

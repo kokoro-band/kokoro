@@ -83,7 +83,7 @@ jobs:
   ci-result:
     name: CI result
     if: always()
-    needs: [changes, frontend, backend, e2e, local-ai-e2e]
+    needs: [changes, frontend, backend, e2e, local-ai-e2e, ollama-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -94,6 +94,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
+          OLLAMA_E2E_RESULT: ${{ needs.ollama-e2e.result }}
           LOCAL_AI_E2E_RESULT: ${{ needs.local-ai-e2e.result }}
           NEEDS_FRONTEND: ${{ needs.changes.outputs.frontend }}
           NEEDS_BACKEND: ${{ needs.changes.outputs.backend }}
@@ -105,6 +106,7 @@ jobs:
             frontend: process.env.FRONTEND_RESULT,
             backend: process.env.BACKEND_RESULT,
             e2e: process.env.E2E_RESULT,
+            ollamaE2e: process.env.OLLAMA_E2E_RESULT,
             localAiE2e: process.env.LOCAL_AI_E2E_RESULT,
             needsFrontend: process.env.NEEDS_FRONTEND,
             needsBackend: process.env.NEEDS_BACKEND,
@@ -173,6 +175,51 @@ jobs:
         if: failure()
         with:
           name: e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          retention-days: 7
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            frontend/.e2e-artifacts/
+
+  ollama-e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, narrow]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      # #164 needs the intent API from #168. Keep current-backend E2E separate.
+      - uses: actions/checkout@v7
+        with:
+          ref: 134e96613a74cf3ca82bb51ea8b2fe4e1ab16743
+          path: .e2e-intent-api
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - uses: voidzero-dev/setup-vp@v1.21.0
+        with:
+          working-directory: frontend
+          node-version: 22
+          cache: true
+      - run: vp run typecheck:e2e
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run test:e2e:ollama --project=${{ matrix.project }}
+        env:
+          KOKORO_E2E_BACKEND: ${{ github.workspace }}/.e2e-intent-api/backend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ollama-e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
           include-hidden-files: true
           retention-days: 7
           path: |

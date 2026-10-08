@@ -20,6 +20,7 @@ import type {
   Project,
   RoomModel,
 } from "./types"
+import type { LocalLayoutIntent } from "./local-ai"
 import { commandLayoutKey, CommandReviewExpiredError } from "./command-review"
 import {
   assertFurnitureWrite,
@@ -507,6 +508,31 @@ const localProposals = new Map<
   }
 >()
 
+/** Server coordinates and persistence are resolved only by the proposal/confirm API. */
+export async function sendLayoutIntent(
+  project: Project,
+  intent: LocalLayoutIntent,
+  selections?: Record<string, string>,
+  signal?: AbortSignal
+): Promise<CommandResponse> {
+  const response = await request<CommandResponse>({
+    url: `${projectPath(project.id)}/layout/intents`,
+    signal,
+    method: "POST",
+    data: {
+      intent,
+      ...(selections ? { selections } : {}),
+      expectedRevision: requireProjectRevision(project),
+    },
+  })
+  validateCommandResponse(response, project)
+  if (!response.requiresConfirmation && !response.candidates?.length)
+    throw new Error("확인할 제안이 올바르지 않아요. 배치는 그대로예요.")
+  if (commandLayoutKey(response.project) !== commandLayoutKey(project))
+    throw new Error("제안 응답의 배치가 달라 적용하지 않았어요.")
+  return response
+}
+
 export async function confirmCommand(
   project: Project,
   proposalId: string
@@ -541,9 +567,11 @@ export async function confirmCommand(
   }
 }
 
-export async function fetchFurnitureCatalog(): Promise<CatalogItem[]> {
+export async function fetchFurnitureCatalog(
+  signal?: AbortSignal
+): Promise<CatalogItem[]> {
   if (!isServerMode) return catalog
   return parseFurnitureCatalog(
-    await request<unknown>({ url: "/furniture-catalog" })
+    await request<unknown>({ url: "/furniture-catalog", signal })
   )
 }

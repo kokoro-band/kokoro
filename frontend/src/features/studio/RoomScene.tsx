@@ -17,7 +17,9 @@ import {
 } from "./room-geometry"
 import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
-import { createVrLocomotion } from "./vr-locomotion"
+import { furnitureModelKey, planFurnitureSync } from "./scene-furniture-sync"
+import { holdStep, startHold, type Hold } from "./vr-grab"
+import { createVrLocomotion, type VrHand } from "./vr-locomotion"
 import {
   bindSceneInteraction,
   type CursorTool,
@@ -51,6 +53,9 @@ type SceneRuntime = {
   interaction: ReturnType<typeof bindSceneInteraction> | null
   doors: DoorState[]
   doorHighlights: Map<string, THREE.BoxHelper>
+  /** Built furniture models by id, with the key of the look they were built for. */
+  models: Map<string, { group: THREE.Group; key: string }>
+  outline: THREE.BoxHelper | null
 }
 
 type Props = {
@@ -68,6 +73,18 @@ type Props = {
     focus?: RoomLabel | null
   ) => boolean
   onMoveEnd: () => void
+  /** Wall-limits a pose without saving it. Used every frame of a VR grab. */
+  onConstrainPose: (
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
+    focus?: RoomLabel | null
+  ) => Furniture
+  /** Applies the pose of a released VR grab as a preview for onMoveEnd. */
+  onPlace: (
+    id: string,
+    pose: Pick<Furniture, "x" | "z" | "rotation">,
+    focus?: RoomLabel | null
+  ) => boolean
   doorStates: Record<string, boolean>
   highlightedDoorId: string | null
   onDoorChange: (id: string, open: boolean) => void
@@ -97,10 +114,18 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
   }
   group.add(fallback)
   group.userData.furnitureId = item.id
+  placeFurnitureModel(group, item, bounds)
+  return { group, catalogItem }
+}
+
+function placeFurnitureModel(
+  group: THREE.Group,
+  item: Furniture,
+  bounds: Bounds
+) {
   group.position.set(item.x - bounds.width / 2, 0, item.z - bounds.depth / 2)
   // Stored positive angles use the same X/Z axes as the placement validator.
   group.rotation.y = -THREE.MathUtils.degToRad(item.rotation)
-  return { group, catalogItem }
 }
 
 function disposeGroup(group: THREE.Group) {
@@ -126,6 +151,8 @@ export function RoomScene({
   onSelect,
   onMove,
   onMoveEnd,
+  onConstrainPose,
+  onPlace,
   doorStates,
   highlightedDoorId,
   onDoorChange,
@@ -134,6 +161,14 @@ export function RoomScene({
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<SceneRuntime | null>(null)
   const doorAnglesRef = useRef(new Map<string, number>())
+  // A VR grab reads the saved pose without restarting the renderer.
+  const furnitureRef = useRef(furniture)
+  useEffect(
+    function rememberFurniture() {
+      furnitureRef.current = furniture
+    },
+    [furniture]
+  )
 
   useEffect(
     function initializeRoomRenderer() {
@@ -383,7 +418,7 @@ export function RoomScene({
                 controls.connect(renderer.domElement)
               },
             })
-      runtimeRef.current = {
+      const runtime: SceneRuntime = {
         renderer,
         scene,
         furnitureGroup,
@@ -391,39 +426,103 @@ export function RoomScene({
         interaction,
         doors,
         doorHighlights,
+        models: new Map(),
+        outline: null,
       }
+      runtimeRef.current = runtime
 
       let vrButton: HTMLElement | null = null
       let stopLocalizingVrEntry: (() => void) | null = null
       let locomotion: ReturnType<typeof createVrLocomotion> | null = null
-      let xrSelectedId: string | null = null
-      function grabInVr(ray: THREE.Ray) {
+      // A grab moves only the 3D model each frame, limited by the walls, and
+      // saves once on release. Updating React state per frame stuttered on Quest.
+      let grab: { item: Furniture; hold: Hold; changed: boolean } | null = null
+      function floorPoint(ray: THREE.Ray): [number, number] | null {
+        return ray.intersectPlane(floorPlane, hitPoint)
+          ? [hitPoint.x, hitPoint.z]
+          : null
+      }
+      function showPose(item: Furniture) {
+        const model = runtime.models.get(item.id)
+        if (!model) return
+        placeFurnitureModel(model.group, item, bounds)
+        if (runtime.outline?.object === model.group) runtime.outline.update()
+      }
+      function grabInVr(ray: THREE.Ray, hand: VrHand) {
         raycaster.ray.copy(ray)
         const hit = pickScene()
         if (hit?.kind === "door") {
           toggleDoor(hit.id)
-          xrSelectedId = null
+          hand.pulse(0.25, 20)
           return true
         }
-        xrSelectedId = hit?.id ?? null
-        if (xrSelectedId) onSelect(xrSelectedId)
-        return xrSelectedId !== null
+        const item = hit
+          ? furnitureRef.current.find((entry) => entry.id === hit.id)
+          : undefined
+        if (!hit || !item) return false
+        grab = {
+          item,
+          hold: startHold(
+            item.id,
+            hit.center,
+            floorPoint(ray) ?? hit.center,
+            item.rotation
+          ),
+          changed: false,
+        }
+        onSelect(item.id)
+        hand.pulse(0.5, 40)
+        return true
       }
-      function placeInVr(ray: THREE.Ray) {
-        if (!xrSelectedId) return false
+      function holdInVr(hand: VrHand, deltaSeconds: number) {
+        if (!grab) return
+        const step = holdStep(
+          grab.hold,
+          floorPoint(hand.ray),
+          hand.stickX,
+          grab.item.rotation,
+          deltaSeconds
+        )
+        grab.hold = step.held
+        const update: Partial<Pick<Furniture, "x" | "z" | "rotation">> = {}
+        if (step.move) {
+          update.x = step.move[0] + bounds.width / 2
+          update.z = step.move[1] + bounds.depth / 2
+        }
+        if (step.rotate !== undefined) update.rotation = step.rotate
+        if (update.x === undefined && update.rotation === undefined) return
+        const previous = grab.item
+        const next = onConstrainPose(previous, update, focusRoom)
         if (
-          ray.intersectPlane(floorPlane, hitPoint) &&
-          onMove(
-            xrSelectedId,
-            hitPoint.x + bounds.width / 2,
-            hitPoint.z + bounds.depth / 2,
-            focusRoom
-          )
-        ) {
+          next.x === previous.x &&
+          next.z === previous.z &&
+          next.rotation === previous.rotation
+        )
+          return
+        grab.item = next
+        grab.changed = true
+        showPose(next)
+        if (next.rotation !== previous.rotation) hand.pulse(0.25, 20)
+      }
+      function placeInVr(_ray: THREE.Ray, hand: VrHand) {
+        if (!grab) return false
+        const { item, changed } = grab
+        grab = null
+        if (changed) {
+          const pose = { x: item.x, z: item.z, rotation: item.rotation }
+          onPlace(item.id, pose, focusRoom)
           onMoveEnd()
         }
-        xrSelectedId = null
+        hand.pulse(0.4, 30)
         return true
+      }
+      function cancelInVr() {
+        if (!grab) return
+        const saved = furnitureRef.current.find(
+          (entry) => entry.id === grab?.item.id
+        )
+        grab = null
+        if (saved) showPose(saved)
       }
       if (mode === "vr") {
         vrButton = VRButton.createButton(renderer)
@@ -446,6 +545,8 @@ export function RoomScene({
                 Math.abs(z) < bounds.depth / 2,
           onSelectStart: grabInVr,
           onSelectEnd: placeInVr,
+          onHold: holdInVr,
+          onCancel: cancelInVr,
         })
       }
 
@@ -506,6 +607,8 @@ export function RoomScene({
       focusRoom,
       onMove,
       onMoveEnd,
+      onConstrainPose,
+      onPlace,
       onSelect,
       onDoorChange,
       xrEntryContainer,
@@ -523,6 +626,8 @@ export function RoomScene({
       focusRoom,
       onMove,
       onMoveEnd,
+      onConstrainPose,
+      onPlace,
       onSelect,
       onDoorChange,
       xrEntryContainer,
@@ -541,6 +646,8 @@ export function RoomScene({
       focusRoom,
       onMove,
       onMoveEnd,
+      onConstrainPose,
+      onPlace,
       onSelect,
       onDoorChange,
       xrEntryContainer,
@@ -558,6 +665,8 @@ export function RoomScene({
       focusRoom,
       onMove,
       onMoveEnd,
+      onConstrainPose,
+      onPlace,
       onSelect,
       onDoorChange,
       xrEntryContainer,
@@ -568,26 +677,58 @@ export function RoomScene({
     function synchronizeFurnitureModels() {
       const runtime = runtimeRef.current
       if (!runtime) return
-      disposeGroup(runtime.furnitureGroup)
-      runtime.furnitureGroup.clear()
-      furniture.forEach((item) => {
-        const { group, catalogItem } = makeFurnitureModel(item, runtime.bounds)
-        let outline: THREE.BoxHelper | null = null
-        if (item.id === selectedId) {
-          outline = new THREE.BoxHelper(group, sceneColors.selection)
-          runtime.furnitureGroup.add(outline)
-        }
-        runtime.furnitureGroup.add(group)
+      const { models, furnitureGroup, bounds } = runtime
 
-        if (!catalogItem) return
+      function removeOutline() {
+        if (!runtime?.outline) return
+        furnitureGroup.remove(runtime.outline)
+        runtime.outline.geometry.dispose()
+        runtime.outline.material.dispose()
+        runtime.outline = null
+      }
+      function removeModel(id: string) {
+        const model = models.get(id)
+        if (!model) return
+        if (runtime?.outline?.object === model.group) removeOutline()
+        furnitureGroup.remove(model.group)
+        disposeGroup(model.group)
+        models.delete(id)
+      }
+
+      // Drags and VR grabs only change poses. Rebuilding every model on each
+      // frame made held furniture stutter, so unchanged models are moved.
+      const plan = planFurnitureSync(
+        new Map([...models].map(([id, model]) => [id, model.key])),
+        furniture
+      )
+      plan.remove.forEach(removeModel)
+      for (const item of plan.rebuild) {
+        removeModel(item.id)
+        const { group, catalogItem } = makeFurnitureModel(item, bounds)
+        models.set(item.id, { group, key: furnitureModelKey(item) })
+        furnitureGroup.add(group)
+        if (!catalogItem) continue
         void upgradeFurnitureModel(
           group,
           catalogItem,
-          () => group.parent === runtime.furnitureGroup,
+          () => group.parent === furnitureGroup,
           disposeGroup,
-          () => outline?.update()
+          () => runtime.outline?.update()
         )
-      })
+      }
+      for (const item of plan.place) {
+        const model = models.get(item.id)
+        if (model) placeFurnitureModel(model.group, item, bounds)
+      }
+
+      const selected = selectedId ? models.get(selectedId)?.group : undefined
+      if (runtime.outline && runtime.outline.object !== selected)
+        removeOutline()
+      if (selected && !runtime.outline) {
+        runtime.outline = new THREE.BoxHelper(selected, sceneColors.selection)
+        furnitureGroup.add(runtime.outline)
+      }
+      runtime.outline?.update()
     },
     [
       furniture,
@@ -597,6 +738,8 @@ export function RoomScene({
       focusRoom,
       onMove,
       onMoveEnd,
+      onConstrainPose,
+      onPlace,
       onSelect,
       onDoorChange,
       xrEntryContainer,

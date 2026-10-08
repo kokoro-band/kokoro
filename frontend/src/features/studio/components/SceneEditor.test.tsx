@@ -96,6 +96,8 @@ async function setup() {
           onSelect={() => {}}
           onMove={() => true}
           onMoveEnd={() => {}}
+          onConstrainPose={(item) => item}
+          onPlace={() => true}
         />
         <NewProjectDialog
           open={dialog}

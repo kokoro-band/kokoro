@@ -332,6 +332,8 @@ export function ArrangeView({
       onSelect={selectFurniture}
       onMove={studio.moveFurniture}
       onMoveEnd={studio.commitPreview}
+      onConstrainPose={studio.constrainPose}
+      onPlace={studio.placeFurniture}
       minimap={
         <HouseMap
           room={houseRoom}

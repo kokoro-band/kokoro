@@ -10,6 +10,57 @@ import { requestLocalLayoutIntent } from "./local-ai"
 describe.runIf(process.env.KOKORO_LIVE_AI === "1")("local Ollama model", () => {
   const timeout = 120_000
 
+  it.each([
+    {
+      command: "소파를 치워줘",
+      expected: { type: "REMOVE", targetQuery: "소파" },
+    },
+    {
+      command: "모스 소파를 문에서 멀리 하나 놓아줘",
+      expected: {
+        type: "ADD",
+        catalogId: "sofa-moss",
+        count: 1,
+        anchorQuery: "문",
+        relation: "FAR_FROM",
+      },
+    },
+    {
+      command: "모스 소파를 문에서 멀리 옮겨줘",
+      expected: {
+        type: "MOVE",
+        targetQuery: "모스 소파",
+        anchorQuery: "문",
+        relation: "FAR_FROM",
+      },
+    },
+    {
+      command: "의자를 치워줘",
+      expected: { type: "REMOVE", targetQuery: "의자" },
+    },
+    {
+      command: "창문 가까이에 셸 체어 두 개 추가해줘",
+      expected: {
+        type: "ADD",
+        catalogId: "chair-shell",
+        count: 2,
+        anchorQuery: "창문",
+        relation: "NEAR",
+      },
+    },
+    {
+      command: "소파를 치우지 말고 창가로 옮겨줘",
+      expected: { type: "MOVE", targetQuery: "소파", anchorQuery: "창가" },
+    },
+  ])(
+    "preserves the requested action in $command",
+    async ({ command, expected }) => {
+      const intent = await requestLocalLayoutIntent(command, { catalog })
+      expect(intent.intents).toEqual([expect.objectContaining(expected)])
+    },
+    timeout
+  )
+
   it(
     "adds a catalog item by name",
     async () => {

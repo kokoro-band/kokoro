@@ -169,11 +169,15 @@ function systemPrompt(catalog: CatalogItem[]) {
     "너는 한국어 가구 배치 명령을 JSON 의도로 바꾸는 변환기다.",
     '{"version":1,"intents":[...]} 형태의 JSON만 답한다.',
     "의도 type은 ADD, MOVE, ROTATE, REMOVE, CLEAR 중 하나다.",
+    "먼저 사용자 명령의 동사로 동작을 고른다. 놓아줘/배치해줘/추가해줘는 새 가구를 만드는 ADD, 옮겨줘/이동해줘는 기존 가구의 MOVE, 회전해줘는 ROTATE, 치워줘/빼줘/삭제해줘는 REMOVE다.",
+    "가까이/옆에/멀리 같은 위치 표현은 ADD나 MOVE에 붙는 조건이며 동작을 바꾸지 않는다. '문에서 멀리 화분을 하나 놓아줘'는 ADD이고 '화분을 문에서 멀리 옮겨줘'는 MOVE다.",
+    "특정 가구를 치워 달라는 요청은 그 가구만 REMOVE한다. '의자를 치워줘'는 REMOVE이며 ADD가 아니다. 모든 가구를 치워 달라는 요청만 CLEAR다.",
     "ADD는 아래 카탈로그의 id를 catalogId로 쓰고 count(1~5)와 anchorQuery를 선택적으로 쓴다.",
     "MOVE는 targetQuery와 선택적 anchorQuery, ROTATE는 targetQuery와 rotation(도), REMOVE는 targetQuery를 쓴다.",
     "ADD와 MOVE는 anchorQuery가 있을 때만 relation을 선택적으로 쓴다. 가까이는 NEAR, 멀리는 FAR_FROM이다. relation을 생략하면 NEAR로 처리한다.",
     "CLEAR는 모든 가구를 지우라는 명령에만 쓴다.",
     "targetQuery와 anchorQuery에는 사용자가 말한 표현을 그대로 쓴다. 좌표나 가구 ID를 지어내지 않는다.",
+    "anchorQuery에는 기준물 표현만 쓴다. '문에서 멀리'는 anchorQuery '문'과 relation FAR_FROM으로 나누고, '창문 가까이에'는 anchorQuery '창문'과 relation NEAR로 나눈다.",
     `카탈로그(치수 m): ${JSON.stringify(items)}`,
   ].join("\n")
 }

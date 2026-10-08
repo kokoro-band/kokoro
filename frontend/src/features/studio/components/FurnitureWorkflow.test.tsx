@@ -26,7 +26,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function setup(overrides: Partial<Project> = {}) {
+async function setup(overrides: Partial<Project> = {}, isMobile = false) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   const project: Project = {
     ...sampleProject,
@@ -52,7 +52,7 @@ async function setup(overrides: Partial<Project> = {}) {
         <ArrangeView
           studio={studio}
           roomIndex={roomIndex}
-          isMobile={false}
+          isMobile={isMobile}
           onRoomChange={setRoomIndex}
           onOpenStructure={() => {}}
         />
@@ -314,6 +314,19 @@ describe("moving furniture between rooms", () => {
     expect(ui.controller.current!.notice?.text).toBe(
       "셸 체어를 침실로 옮겼어요."
     )
+  })
+
+  it("exposes destination rooms to assistive technology inside the mobile sheet", async () => {
+    const ui = await setup({ ...twoRooms(), furniture: [chair] }, true)
+    await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    await ui.click("선택한 가구")
+    await ui.click("다른 방으로 옮기기")
+    const destination = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((item) => item.textContent?.trim() === "침실")
+    expect(destination, "침실 menu item").toBeDefined()
+    expect(destination!.closest('[aria-hidden="true"]')).toBeNull()
+    expect(destination!.closest(".mobile-sheet")).not.toBeNull()
   })
 
   it("keeps the layout when the destination has no room for it", async () => {

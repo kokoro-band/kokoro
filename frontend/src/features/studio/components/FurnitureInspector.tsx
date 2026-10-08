@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type RefObject } from "react"
 import {
   IconArrowRightLine,
   IconTrashcanLine,
@@ -35,6 +35,7 @@ export function FurnitureInspector({
   issue,
   moveTargets = [],
   onMoveToRoom,
+  menuContainer,
 }: {
   selected: Furniture
   bounds: { width: number; depth: number }
@@ -49,6 +50,8 @@ export function FurnitureInspector({
   /** 이 가구를 옮길 수 있는 다른 방들. */
   moveTargets?: { index: number; name: string }[]
   onMoveToRoom?: (index: number) => void
+  /** 모달 시트 안에서는 메뉴도 시트 안에 그려야 보조기기가 읽을 수 있어요. */
+  menuContainer?: RefObject<HTMLElement | null>
 }) {
   const item = catalog.find((entry) => entry.id === selected.catalogId)
   const [adjusted, setAdjusted] = useState(false)
@@ -164,7 +167,7 @@ export function FurnitureInspector({
                 다른 방으로 옮기기
               </ActionButton>
             </MenuTrigger>
-            <MenuContent>
+            <MenuContent positionerContainer={menuContainer}>
               <MenuGroup>
                 {moveTargets.map((target) => (
                   <MenuItem

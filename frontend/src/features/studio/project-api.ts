@@ -7,10 +7,12 @@ import {
   projectNameError,
 } from "./input-limits"
 import { withObjectParticle } from "./format"
+import { parseFurnitureCatalog } from "./furniture-catalog"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
 import { sampleRoom } from "./sample-room"
 import type {
+  CatalogItem,
   CommandResponse,
   Furniture,
   LayoutCommand,
@@ -537,4 +539,11 @@ export async function confirmCommand(
     proposalId,
     expiresAt: new Date(proposal.expires).toISOString(),
   }
+}
+
+export async function fetchFurnitureCatalog(): Promise<CatalogItem[]> {
+  if (!isServerMode) return catalog
+  return parseFurnitureCatalog(
+    await request<unknown>({ url: "/furniture-catalog" })
+  )
 }

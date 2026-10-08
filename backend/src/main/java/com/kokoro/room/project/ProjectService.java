@@ -49,6 +49,7 @@ public class ProjectService {
     private final FloorPlanJobRepository floorPlanJobRepository;
     private final FloorPlanFileCleanup floorPlanFileCleanup;
     private final FurnitureRegistry furnitureRegistry;
+    private final RelativePlacementPlanner relativePlacementPlanner;
     private final FloorPlanJobDispatcher floorPlanJobDispatcher;
     private final FloorPlanJobCoordinator floorPlanJobCoordinator;
     private final FurniturePlacementValidator furniturePlacementValidator;
@@ -63,7 +64,8 @@ public class ProjectService {
                           FurniturePlacementValidator furniturePlacementValidator,
                           CurrentUser currentUser, LayoutCommandInterpreter layoutCommandInterpreter,
                           RoomModelValidator roomModelValidator, LayoutProposalRepository layoutProposalRepository,
-                          FloorPlanFileCleanup floorPlanFileCleanup, FurnitureRegistry furnitureRegistry) {
+                          FloorPlanFileCleanup floorPlanFileCleanup, FurnitureRegistry furnitureRegistry,
+                          RelativePlacementPlanner relativePlacementPlanner) {
         this.projectRepository = projectRepository;
         this.floorPlanStorage = floorPlanStorage;
         this.floorPlanJobRepository = floorPlanJobRepository;
@@ -76,6 +78,7 @@ public class ProjectService {
         this.layoutProposalRepository = layoutProposalRepository;
         this.floorPlanFileCleanup = floorPlanFileCleanup;
         this.furnitureRegistry = furnitureRegistry;
+        this.relativePlacementPlanner = relativePlacementPlanner;
         if (projectRepository.findById("living-room-01").isEmpty()) {
             RenovationProject sample = new RenovationProject(
                     "living-room-01",
@@ -306,13 +309,25 @@ public class ProjectService {
         int synced = 0;
         for (int index = 0; index < intents.size(); index++) {
             LocalLayoutIntent.Intent intent = intents.get(index);
-            if (intent.type() == LocalLayoutIntent.Type.MOVE || intent.anchorQuery() != null) {
-                throw new ResponseStatusException(BAD_REQUEST, "상대 위치 지정은 아직 지원하지 않습니다.");
-            }
             switch (intent.type()) {
                 case CLEAR -> commands.add(new LayoutCommand(LayoutActionType.CLEAR, null, null, null, null, null));
                 case ADD -> {
                     JsonNode definition = furnitureRegistry.require(intent.catalogId());
+                    if (intent.anchorQuery() != null) {
+                        FurnitureItem template = new FurnitureItem("planned", intent.catalogId(),
+                                definition.path("name").asString(), definition.path("category").asString(), 0.0, 0.0, 0.0,
+                                definition.path("color").asString());
+                        List<RelativePlacementPlanner.Placement> spots = relativePlacementPlanner.placeNew(
+                                project.dimensions(), project.room(), working, template, intent.count(),
+                                AnchorQuery.kind(intent.anchorQuery()), proximity(intent));
+                        for (int copy = 0; copy < spots.size(); copy++) {
+                            RelativePlacementPlanner.Placement spot = spots.get(copy);
+                            commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(),
+                                    plannedId(working, project.revision(), intent.catalogId(), index, copy),
+                                    spot.x(), spot.z(), spot.rotation()));
+                        }
+                        break;
+                    }
                     double[] ratio = DEFAULT_ADD_RATIOS.getOrDefault(intent.catalogId(), new double[] {0.5, 0.5});
                     for (int copy = 0; copy < intent.count(); copy++) {
                         double shift = copy * (definition.path("width").doubleValue() + 0.1);
@@ -339,6 +354,17 @@ public class ProjectService {
                                 false, project, null, null, List.of(), candidates);
                     } else {
                         target = matches.get(0);
+                    }
+                    if (intent.type() == LocalLayoutIntent.Type.MOVE) {
+                        if (intent.anchorQuery() == null) {
+                            throw new LayoutIntentException("NO_ANCHOR", "이동할 위치의 기준(창문이나 문)이 필요합니다.");
+                        }
+                        RelativePlacementPlanner.Placement spot = relativePlacementPlanner.moveExisting(
+                                project.dimensions(), project.room(), working, target,
+                                AnchorQuery.kind(intent.anchorQuery()), proximity(intent));
+                        commands.add(new LayoutCommand(LayoutActionType.MOVE, target.catalogId(), target.id(),
+                                spot.x(), spot.z(), null));
+                        break;
                     }
                     Integer rotation = null;
                     if (intent.type() == LocalLayoutIntent.Type.ROTATE) {
@@ -373,6 +399,11 @@ public class ProjectService {
     private static final Map<String, double[]> DEFAULT_ADD_RATIOS = Map.of(
             "sofa-cloud", new double[] {0.24, 0.67}, "table-oak", new double[] {0.54, 0.48},
             "chair-shell", new double[] {0.68, 0.34}, "plant-olive", new double[] {0.84, 0.74});
+
+    private static RelativePlacementPlanner.Proximity proximity(LocalLayoutIntent.Intent intent) {
+        return intent.relation() == LocalLayoutIntent.Relation.FAR_FROM
+                ? RelativePlacementPlanner.Proximity.FAR_FROM : RelativePlacementPlanner.Proximity.NEAR;
+    }
 
     /**
      * Added furniture gets its id when the proposal is made, so the dry run, later intents of the same request
@@ -429,7 +460,13 @@ public class ProjectService {
                         actions.add(target.name() + " 회전");
                     }
                 }
-                case MOVE -> throw new ResponseStatusException(BAD_REQUEST, "상대 위치 지정은 아직 지원하지 않습니다.");
+                case MOVE -> {
+                    FurnitureItem target = next.stream().filter(item -> item.id().equals(command.furnitureId()))
+                            .findFirst().orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "대상 가구를 찾을 수 없습니다."));
+                    next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
+                            target.category(), command.x(), command.z(), target.rotation(), target.color()));
+                    actions.add(target.name() + " 이동");
+                }
             }
         }
     }

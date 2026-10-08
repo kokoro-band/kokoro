@@ -287,12 +287,12 @@ HTTP 개발 주소는 정확한 loopback 표기만 허용합니다. 자세한 �
 }
 ```
 
-브라우저의 로컬 모델이 만든 배치 의도(`docs/contracts/local-layout-intent.md`)를 받아 검증하고 확인이 필요한 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 항상 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다.
+브라우저의 로컬 모델이 만든 배치 요청(`docs/contracts/local-layout-intent.md`)을 서버가 검사하고 사용자 확인이 필요한 배치 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 항상 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다.
 
-- 형식이 계약과 다르면 `400`입니다. 정의되지 않은 필드(예: `x`, `z`)도 거절합니다.
+- 데이터 형식이 JSON 스키마와 다르면 `400`입니다. 정의되지 않은 필드(예: `x`, `z`)도 거절합니다.
 - 서버 카탈로그에 등록되지 않은 `catalogId`와 대상 표현에 맞는 가구가 없는 경우는 `400`입니다.
-- `targetQuery`가 여러 가구와 맞으면 제안 대신 `candidates`를 반환하고 `proposalId`는 없습니다. 사용자가 고른 `furnitureId`를 `selections`에 의도의 0부터 시작하는 순번을 키로 담아 다시 요청합니다.
-- `MOVE`와 `anchorQuery`가 있는 의도는 상대 위치 계산(#62)이 연결되기 전까지 `400`입니다. `relation`(`NEAR`, `FAR_FROM`)은 `anchorQuery`와 함께일 때만 받으며 값이 다르거나 단독이면 `400`입니다. 회전은 정수 각도만 받으며 소수는 `400`입니다.
+- `targetQuery`가 여러 가구와 맞으면 제안 대신 `candidates`를 반환하고 `proposalId`는 없습니다. 사용자가 고른 `furnitureId`를 `selections`에 배치 요청 항목의 0부터 시작하는 순번을 키로 담아 다시 요청합니다.
+- `MOVE`와 `anchorQuery`가 있는 배치 요청 항목은 상대 위치 계산(#62)이 연결되기 전까지 `400`입니다. `relation`(`NEAR`, `FAR_FROM`)은 `anchorQuery`와 함께일 때만 받으며 값이 다르거나 단독이면 `400`입니다. 회전은 정수 각도만 받으며 소수는 `400`입니다.
 - `ADD`는 서버 카탈로그의 이름과 분류와 색상을 쓰고 위치는 기본 위치입니다. 배치가 검증기를 통과하지 못하면 제안을 만들지 않고 기존 오류 코드로 `400`입니다.
 - `expectedRevision`이 현재 버전과 다르면 `409`입니다. 확인 단계의 만료와 버전 검사는 기존 제안과 같습니다.
 

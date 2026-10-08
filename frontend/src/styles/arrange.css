@@ -149,6 +149,23 @@
   border-bottom: 1px solid var(--line);
 }
 
+.assistant-engine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--seed-dimension-x2);
+  padding: var(--seed-dimension-x3) var(--seed-dimension-x4) 0;
+}
+
+.assistant-engine + p[role="status"] {
+  margin: 0;
+  padding: var(--seed-dimension-x2) var(--seed-dimension-x4);
+  color: var(--seed-color-fg-neutral-muted);
+}
+
+.assistant-stop {
+  padding: 0 var(--seed-dimension-x4) var(--seed-dimension-x3);
+}
+
 .assistant-log {
   display: flex;
   flex: 1;

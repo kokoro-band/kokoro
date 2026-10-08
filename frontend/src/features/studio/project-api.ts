@@ -7,10 +7,12 @@ import {
   projectNameError,
 } from "./input-limits"
 import { withObjectParticle } from "./format"
+import { parseFurnitureCatalog } from "./furniture-catalog"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
 import { sampleRoom } from "./sample-room"
 import type {
+  CatalogItem,
   CommandResponse,
   Furniture,
   LayoutCommand,
@@ -303,11 +305,15 @@ export async function sendCommand(
   ]
   const moving = normalized.includes("옮") || normalized.includes("이동")
   const rotating = normalized.includes("회전")
+  const removing =
+    normalized.includes("삭제") ||
+    normalized.includes("지워") ||
+    normalized.includes("빼줘")
   const matchesTarget = (word: string) =>
     normalized.includes(word) ||
     (word === "화분" && normalized.includes("식물")) ||
     (word === "테이블" && normalized.includes("책상"))
-  if (moving || rotating) {
+  if (moving || rotating || removing) {
     const matches = project.furniture.filter((item) =>
       targets.some(
         (target) =>
@@ -343,6 +349,13 @@ export async function sendCommand(
             catalog.find((entry) => entry.id === target.id)?.category
       )
       if ((moving || rotating) && !existing) continue
+      if (removing) {
+        if (existing) {
+          furniture = furniture.filter((item) => item.id !== existing.id)
+          actions.push(`${existing.name} 삭제`)
+        }
+        continue
+      }
       if (existing && (moving || rotating)) {
         furniture = furniture.map((item) =>
           item.id === existing.id
@@ -406,7 +419,9 @@ export async function sendCommand(
     ...emptyCommandResponse(project),
     reply: actions.length
       ? `${actions.join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
-      : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
+      : removing
+        ? "삭제할 가구를 찾지 못했어요. 현재 가구 이름을 확인해 주세요."
+        : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
     project: { ...project, furniture },
     commands,
     appliedActions: actions,
@@ -416,28 +431,13 @@ export async function sendCommand(
       (command) => command.type === "CLEAR" || command.type === "REMOVE"
     )
   ) {
-    for (const [id, proposal] of localProposals)
-      if (proposal.expires <= Date.now()) localProposals.delete(id)
-    if (localProposals.size >= 50)
-      localProposals.delete(localProposals.keys().next().value!)
-    const proposalId = crypto.randomUUID()
-    const expires = Date.now() + 5 * 60_000
-    localProposals.set(proposalId, {
-      baseKey: commandLayoutKey(project),
-      expires,
-      result: structuredClone(result),
-      consumed: false,
-    })
-    return {
-      ...result,
-      reply: "가구를 지우기 전에 내용을 확인해 주세요.",
+    return proposeLocalCommand(
       project,
-      appliedActions: [],
-      requiresConfirmation: true,
-      proposalId,
-      expiresAt: new Date(expires).toISOString(),
-      proposedCommands: commands,
-    }
+      result.project,
+      commands,
+      "가구를 지우기 전에 내용을 확인해 주세요.",
+      actions
+    )
   }
   return result
 }
@@ -453,6 +453,47 @@ function emptyCommandResponse(project: Project): CommandResponse {
     expiresAt: null,
     proposedCommands: [],
     candidates: [],
+  }
+}
+
+/** A local preview stays in memory until the existing confirmation path saves it. */
+export function proposeLocalCommand(
+  project: Project,
+  proposed: Project,
+  commands: LayoutCommand[],
+  reply: string,
+  appliedActions: string[]
+): CommandResponse {
+  if (isServerMode)
+    throw new Error("서버 모드에서는 로컬 제안을 만들 수 없어요.")
+  assertFurnitureCount(proposed.furniture.length)
+  if (!commands.length || proposed.id !== project.id)
+    throw new Error("확인할 배치 변경이 없어요.")
+  for (const [id, proposal] of localProposals)
+    if (proposal.expires <= Date.now()) localProposals.delete(id)
+  if (localProposals.size >= 50)
+    localProposals.delete(localProposals.keys().next().value!)
+  const proposalId = crypto.randomUUID()
+  const expires = Date.now() + 5 * 60_000
+  localProposals.set(proposalId, {
+    baseKey: commandLayoutKey(project),
+    expires,
+    result: structuredClone({
+      ...emptyCommandResponse(project),
+      reply,
+      commands,
+      appliedActions,
+      project: proposed,
+    }),
+    consumed: false,
+  })
+  return {
+    ...emptyCommandResponse(project),
+    reply,
+    requiresConfirmation: true,
+    proposalId,
+    expiresAt: new Date(expires).toISOString(),
+    proposedCommands: commands,
   }
 }
 
@@ -498,4 +539,11 @@ export async function confirmCommand(
     proposalId,
     expiresAt: new Date(proposal.expires).toISOString(),
   }
+}
+
+export async function fetchFurnitureCatalog(): Promise<CatalogItem[]> {
+  if (!isServerMode) return catalog
+  return parseFurnitureCatalog(
+    await request<unknown>({ url: "/furniture-catalog" })
+  )
 }

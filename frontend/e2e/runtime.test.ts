@@ -31,25 +31,28 @@ describe("isolated E2E runtime", () => {
     expect(result.status).toBe(0)
     expect(result.stderr).toContain("UNEXPECTED_CHILD_PROCESS")
   })
-  it("rejects invalid CLI input before looking for Docker or creating servers", () => {
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--import",
-        fileURLToPath(
-          new URL("./fixtures/forbid-child-process.mjs", import.meta.url)
-        ),
-        fileURLToPath(new URL("./run.mjs", import.meta.url)),
-        "--project=invalid",
-      ],
-      { encoding: "utf8", env: { PATH: "" }, timeout: 5000 }
-    )
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain("--project=desktop or --project=narrow")
-    expect(result.stdout).toBe("")
-    expect(result.stderr).not.toContain("ENOENT")
-    expect(result.stderr).not.toContain("UNEXPECTED_CHILD_PROCESS")
-  })
+  it.each(["run.mjs", "run-local-ai.mjs"])(
+    "%s rejects invalid CLI input before creating servers",
+    (runner) => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          fileURLToPath(
+            new URL("./fixtures/forbid-child-process.mjs", import.meta.url)
+          ),
+          fileURLToPath(new URL(`./${runner}`, import.meta.url)),
+          "--project=invalid",
+        ],
+        { encoding: "utf8", env: { PATH: "" }, timeout: 5000 }
+      )
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("--project=desktop or --project=narrow")
+      expect(result.stdout).toBe("")
+      expect(result.stderr).not.toContain("ENOENT")
+      expect(result.stderr).not.toContain("UNEXPECTED_CHILD_PROCESS")
+    }
+  )
   it("runs every configured project by default", () => {
     expect(playwrightArguments()).toEqual(["exec", "playwright", "test"])
     expect(playwrightArguments([])).toEqual(["exec", "playwright", "test"])

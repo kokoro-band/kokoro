@@ -90,3 +90,47 @@ describe("project API paths", () => {
     })
   })
 })
+
+describe("furniture catalog source", () => {
+  it("loads the catalog the server registered in server mode", async () => {
+    const item = {
+      id: "bench-server",
+      name: "서버 벤치",
+      category: "의자",
+      description: "서버에만 있는 벤치",
+      price: 120000,
+      width: 1.4,
+      depth: 0.4,
+      color: "#123456",
+    }
+    vi.mocked(request).mockResolvedValue({
+      version: 1,
+      unit: "m",
+      dimensionKind: "example",
+      priceKind: "example",
+      currency: "KRW",
+      sourceAssetCount: 1,
+      items: [item],
+    })
+    const { fetchFurnitureCatalog } = await import("./project-api")
+
+    await expect(fetchFurnitureCatalog()).resolves.toEqual([item])
+    expect(request).toHaveBeenCalledWith({ url: "/furniture-catalog" })
+  })
+
+  it("rejects a malformed server catalog instead of guessing", async () => {
+    vi.mocked(request).mockResolvedValue({ version: 2, items: [] })
+    const { fetchFurnitureCatalog } = await import("./project-api")
+
+    await expect(fetchFurnitureCatalog()).rejects.toThrow()
+  })
+
+  it("uses the bundled contract catalog without a server", async () => {
+    vi.stubEnv("VITE_API_MODE", "local")
+    const { fetchFurnitureCatalog } = await import("./project-api")
+    const { catalog } = await import("./data")
+
+    await expect(fetchFurnitureCatalog()).resolves.toEqual(catalog)
+    expect(request).not.toHaveBeenCalled()
+  })
+})

@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
+import { proposeBrowserIntent } from "../browser-ai-command"
+import type { BrowserIntent } from "../browser-ai-intent"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
@@ -104,6 +106,10 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
+  const [assistantEngine, setAssistantEngine] = useState<"rules" | "webgpu">(
+    "rules"
+  )
+  const [browserAiStatus, setBrowserAiStatus] = useState("")
   const [input, setInput] = useState("")
   const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
     null
@@ -532,10 +538,10 @@ export function useStudioController() {
     setSelectedId(id)
   }, [])
 
-  const previewFurniture = useCallback(function previewFurniture(
+  /** Shows a pose as an unsaved preview. `commitPreview` saves it as one edit. */
+  const showFurniturePose = useCallback(function showFurniturePose(
     id: string,
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
+    pose: (current: Furniture) => Furniture
   ) {
     if (
       recoveryOperationRef.current &&
@@ -544,12 +550,7 @@ export function useStudioController() {
       return false
     const current = projectRef.current.furniture.find((item) => item.id === id)
     if (!current) return false
-    const next = constrainFurniturePose(
-      projectRef.current,
-      current,
-      update,
-      focus
-    )
+    const next = pose(current)
     if (
       next.x === current.x &&
       next.z === current.z &&
@@ -569,6 +570,19 @@ export function useStudioController() {
     return true
   }, [])
 
+  const previewFurniture = useCallback(
+    function previewFurniture(
+      id: string,
+      update: Partial<Furniture>,
+      focus?: RoomLabel | null
+    ) {
+      return showFurniturePose(id, (current) =>
+        constrainFurniturePose(projectRef.current, current, update, focus)
+      )
+    },
+    [showFurniturePose]
+  )
+
   const moveFurniture = useCallback(
     function moveFurniture(
       id: string,
@@ -579,6 +593,37 @@ export function useStudioController() {
       return previewFurniture(id, { x, z }, focus)
     },
     [previewFurniture]
+  )
+
+  /**
+   * Wall-limits a pose without changing the project. A VR grab calls this
+   * every frame and moves only the 3D model, so React does not re-render.
+   */
+  const constrainPose = useCallback(function constrainPose(
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
+    focus?: RoomLabel | null
+  ) {
+    return constrainFurniturePose(projectRef.current, item, update, focus)
+  }, [])
+
+  /** Applies a released VR pose. It was wall-limited along the hand path, so
+   * a valid pose is kept exactly; an invalid one is swept like a drag. */
+  const placeFurniture = useCallback(
+    function placeFurniture(
+      id: string,
+      pose: Pick<Furniture, "x" | "z" | "rotation">,
+      focus?: RoomLabel | null
+    ) {
+      return showFurniturePose(id, (current) => {
+        const target = { ...current, ...pose }
+        return findFurniturePlacement(projectRef.current, target, focus) ===
+          target
+          ? target
+          : constrainFurniturePose(projectRef.current, current, pose, focus)
+      })
+    },
+    [showFurniturePose]
   )
 
   const commitPreview = useCallback(
@@ -784,17 +829,31 @@ export function useStudioController() {
           Date.parse(review!.response.expiresAt ?? "") <= Date.now()
         )
           throw new CommandReviewExpiredError()
+        let browserIntent: BrowserIntent | undefined = review?.browserIntent
         const response = confirming
           ? await executeProjectMutation(
               queryClient,
               confirmCommandMutationOptions(queryClient, saved.id),
               { project: saved, proposalId: review!.response.proposalId! }
             )
-          : await executeProjectMutation(
-              queryClient,
-              sendCommandMutationOptions(queryClient, saved.id),
-              { project: saved, message: text, focus, furnitureId }
-            )
+          : !isServerMode && (browserIntent || assistantEngine === "webgpu")
+            ? await (async () => {
+                const intent =
+                  browserIntent ??
+                  (await import("../browser-ai").then((module) =>
+                    module.generateBrowserIntent(saved, text, (status) => {
+                      if (isCurrent(queue)) setBrowserAiStatus(status)
+                    })
+                  ))
+                if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
+                browserIntent = intent
+                return proposeBrowserIntent(saved, intent, focus, furnitureId)
+              })()
+            : await executeProjectMutation(
+                queryClient,
+                sendCommandMutationOptions(queryClient, saved.id),
+                { project: saved, message: text, focus, furnitureId }
+              )
         if (
           commandLayoutKey({ ...saved, furniture: [] }) !==
           commandLayoutKey({ ...response.project, furniture: [] })
@@ -819,6 +878,7 @@ export function useStudioController() {
               response,
               message: text,
               focus,
+              ...(browserIntent ? { browserIntent } : {}),
               baseKey: commandLayoutKey(saved),
               status:
                 commandLayoutKey(saved) === commandLayoutKey(projectRef.current)
@@ -900,8 +960,10 @@ export function useStudioController() {
     } finally {
       if (commandOperationRef.current === operation) {
         commandOperationRef.current = null
-        if (isCurrent(queue))
+        if (isCurrent(queue)) {
+          setBrowserAiStatus("")
           setBusy((current) => (current === "chat" ? null : current))
+        }
       }
     }
   }
@@ -1348,6 +1410,11 @@ export function useStudioController() {
     category,
     leftTab,
     messages,
+    assistantEngine,
+    browserAiStatus,
+    setAssistantEngine,
+    stopBrowserAi: () =>
+      void import("../browser-ai").then((module) => module.stopBrowserAi()),
     commandReview,
     cancelCommandReview,
     confirmCommandReview,
@@ -1392,6 +1459,8 @@ export function useStudioController() {
       setNotice("전체 화면으로 바꾸지 못했어요.", "critical"),
     selectFurniture,
     moveFurniture,
+    constrainPose,
+    placeFurniture,
     previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
       if (selectedId) return previewFurniture(selectedId, update, focus)
       return false

@@ -21,6 +21,10 @@ export class ProcessGroups {
     try {
       this.kill(pid, signal)
     } catch (error) {
+      // A denied existence probe does not prove the group has disappeared.
+      // macOS can briefly return EPERM while a signalled group exits. Keep it
+      // tracked and probe again; denied termination signals still fail cleanup.
+      if (signal === 0 && error.code === "EPERM") return
       if (error.code !== "ESRCH") throw error
       this.groups.delete(pid)
     }

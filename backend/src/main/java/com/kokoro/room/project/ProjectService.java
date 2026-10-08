@@ -317,10 +317,13 @@ public class ProjectService {
                         FurnitureItem template = new FurnitureItem("planned", intent.catalogId(),
                                 definition.path("name").asString(), definition.path("category").asString(), 0.0, 0.0, 0.0,
                                 definition.path("color").asString());
-                        for (RelativePlacementPlanner.Placement spot : relativePlacementPlanner.placeNew(
+                        List<RelativePlacementPlanner.Placement> spots = relativePlacementPlanner.placeNew(
                                 project.dimensions(), project.room(), working, template, intent.count(),
-                                AnchorQuery.kind(intent.anchorQuery()), proximity(intent))) {
-                            commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(), null,
+                                AnchorQuery.kind(intent.anchorQuery()), proximity(intent));
+                        for (int copy = 0; copy < spots.size(); copy++) {
+                            RelativePlacementPlanner.Placement spot = spots.get(copy);
+                            commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(),
+                                    plannedId(working, project.revision(), intent.catalogId(), index, copy),
                                     spot.x(), spot.z(), spot.rotation()));
                         }
                         break;
@@ -328,13 +331,14 @@ public class ProjectService {
                     double[] ratio = DEFAULT_ADD_RATIOS.getOrDefault(intent.catalogId(), new double[] {0.5, 0.5});
                     for (int copy = 0; copy < intent.count(); copy++) {
                         double shift = copy * (definition.path("width").doubleValue() + 0.1);
-                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(), null,
+                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(),
+                                plannedId(working, project.revision(), intent.catalogId(), index, copy),
                                 Math.round((bounds.width() * ratio[0] + shift) * 100) / 100.0,
                                 Math.round(bounds.depth() * ratio[1] * 100) / 100.0, 0));
                     }
                 }
                 default -> {
-                    List<FurnitureItem> matches = project.furniture().stream()
+                    List<FurnitureItem> matches = working.stream()
                             .filter(item -> matchesQuery(item, intent.targetQuery())).toList();
                     String picked = chosen.get(String.valueOf(index));
                     FurnitureItem target;
@@ -401,6 +405,20 @@ public class ProjectService {
                 ? RelativePlacementPlanner.Proximity.FAR_FROM : RelativePlacementPlanner.Proximity.NEAR;
     }
 
+    /**
+     * Added furniture gets its id when the proposal is made, so the dry run, later intents of the same request
+     * and the confirm all see the same id. It depends only on the project revision and the intent position, so
+     * asking again after choosing a candidate produces the same id.
+     */
+    private static String plannedId(List<FurnitureItem> layout, long revision, String catalogId, int index, int copy) {
+        String id = "%s-r%d-%d-%d".formatted(catalogId, revision, index, copy);
+        while (true) {
+            String candidate = id;
+            if (layout.stream().noneMatch(item -> item.id().equals(candidate))) return candidate;
+            id = id + "x";
+        }
+    }
+
     private static boolean matchesQuery(FurnitureItem item, String query) {
         String q = compact(query);
         String name = compact(item.name());
@@ -422,7 +440,8 @@ public class ProjectService {
                 }
                 case ADD -> {
                     JsonNode definition = furnitureRegistry.require(command.catalogId());
-                    FurnitureItem item = furniture(unique(command.catalogId()), command.catalogId(),
+                    FurnitureItem item = furniture(command.furnitureId() != null ? command.furnitureId() : unique(command.catalogId()),
+                            command.catalogId(),
                             definition.path("name").asString(), definition.path("category").asString(),
                             command.x(), command.z(), command.rotation() == null ? 0 : command.rotation(),
                             definition.path("color").asString());

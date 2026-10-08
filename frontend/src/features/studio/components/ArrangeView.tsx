@@ -304,6 +304,10 @@ export function ArrangeView({
       roomName={room?.name ?? null}
       chatBusy={studio.busy === "chat"}
       busy={busy}
+      engine={studio.assistantEngine}
+      browserAiStatus={studio.browserAiStatus}
+      onEngineChange={studio.setAssistantEngine}
+      onStopAi={studio.stopBrowserAi}
       onInputChange={studio.setInput}
       onSend={send}
       inputRef={assistantInputRef}
@@ -328,6 +332,8 @@ export function ArrangeView({
       onSelect={selectFurniture}
       onMove={studio.moveFurniture}
       onMoveEnd={studio.commitPreview}
+      onConstrainPose={studio.constrainPose}
+      onPlace={studio.placeFurniture}
       minimap={
         <HouseMap
           room={houseRoom}

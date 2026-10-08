@@ -6,6 +6,7 @@ import process from "node:process"
 import {
   isolatedEnvironment,
   playwrightArguments,
+  serverTestSetup,
   requireDiskSpace,
   unusedPort,
   waitUntil,
@@ -83,6 +84,38 @@ describe("isolated E2E runtime", () => {
     expect(() => playwrightArguments(args)).toThrow(
       "--project=desktop or --project=narrow"
     )
+  })
+  it("keeps regular server tests on the current backend", () => {
+    expect(
+      serverTestSetup([], "/repo/frontend", { KOKORO_E2E_BACKEND: "/other" })
+    ).toEqual({
+      backend: "/repo/backend",
+      args: ["exec", "playwright", "test"],
+    })
+  })
+  it("runs Ollama integration only against an explicit dependency backend", () => {
+    expect(
+      serverTestSetup(["--ollama", "--project=narrow"], "/repo/frontend", {
+        KOKORO_E2E_BACKEND: "/dependency/backend",
+      })
+    ).toEqual({
+      backend: "/dependency/backend",
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--project=narrow",
+        "--config=playwright.ollama.config.ts",
+      ],
+    })
+    expect(() => serverTestSetup(["--ollama"], "/repo/frontend", {})).toThrow(
+      "absolute backend path"
+    )
+    expect(() =>
+      serverTestSetup(["--ollama"], "/repo/frontend", {
+        KOKORO_E2E_BACKEND: "../backend",
+      })
+    ).toThrow("absolute backend path")
   })
   it("refuses low disk space before any builds", async () => {
     vi.mocked(statfs).mockResolvedValue({ bavail: 100, bsize: 4096 } as Awaited<

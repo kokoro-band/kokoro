@@ -34,3 +34,10 @@
 - 앞선 전체 서버 E2E와 로컬 AI E2E의 동시 실행은 시간 제한과 브라우저 응답 오류로 중단됐고 Spring의 thread-starvation 경고도 있었습니다. 다음 실행은 Chromium 실행 파일이 없어 시작 단계에서 실패했습니다. 저장소의 Playwright 1.63.0이 요구하는 Chromium을 다시 설치한 뒤 직렬로 검증했습니다. 중단된 전체 서버 40개를 통과한 것으로 기록하지 않습니다.
 - 로그와 초기 실패 산출물 및 최종 서버 HTML 보고서는 로컬 `frontend/.e2e-artifacts/issue-164/`에 보존합니다.
 - 실제 `qwen3:4b`의 한국어 품질과 설치 및 브라우저의 로컬 네트워크 접근 허용, main 병합과 CI 및 운영 배포와 실제 헤드셋은 이번 검증에 포함하지 않습니다. 실제 모델 검사는 #163의 개발자 PC 명령과 #61의 평가 범위입니다.
+
+## PR CI 구성
+
+기존 서버 E2E는 현재 브랜치의 백엔드로 실행합니다. Ollama 통합 검사는 별도 `ollama-e2e` 작업에서 #168의 고정 커밋 `134e96613a74cf3ca82bb51ea8b2fe4e1ab16743` 백엔드로 desktop과 narrow를 실행하며, 실패와 취소 및 누락은 `CI result`를 실패시킵니다. #168 병합 후 이 고정 의존성을 현재 백엔드로 전환해야 합니다.
+
+- CI 판정 RED: `node --test .github/scripts/ci-changes.test.mjs`에서 Ollama 작업 실패와 취소 및 생략을 성공으로 판정한 3개 테스트가 실패했습니다. GREEN: 27개 통과.
+- 실행 경로 RED: `vp test e2e/runtime.test.ts`에서 현재 백엔드 유지와 명시적 의존 백엔드 선택 2개가 실패했습니다. GREEN: 현재 백엔드와 별도 Ollama 설정을 구분하고 상대 경로나 미지정 의존성을 거절합니다.

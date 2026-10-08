@@ -287,11 +287,11 @@ HTTP 개발 주소는 정확한 loopback 표기만 허용합니다. 자세한 �
 }
 ```
 
-브라우저의 로컬 모델이 만든 배치 의도(`docs/contracts/local-layout-intent.md`)를 받아 검증하고 확인이 필요한 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 항상 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다.
+브라우저의 로컬 모델이 만든 배치 요청(`docs/contracts/local-layout-intent.md`)을 서버가 검사하고 사용자 확인이 필요한 배치 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 항상 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다.
 
-- 형식이 계약과 다르면 `400`입니다. 정의되지 않은 필드(예: `x`, `z`)도 거절합니다.
+- 데이터 형식이 JSON 스키마와 다르면 `400`입니다. 정의되지 않은 필드(예: `x`, `z`)도 거절합니다.
 - 서버 카탈로그에 등록되지 않은 `catalogId`와 대상 표현에 맞는 가구가 없는 경우는 `400`입니다.
-- `targetQuery`가 여러 가구와 맞으면 제안 대신 `candidates`를 반환하고 `proposalId`는 없습니다. 사용자가 고른 `furnitureId`를 `selections`에 의도의 0부터 시작하는 순번을 키로 담아 다시 요청합니다.
+- `targetQuery`가 여러 가구와 맞으면 제안 대신 `candidates`를 반환하고 `proposalId`는 없습니다. 사용자가 고른 `furnitureId`를 `selections`에 배치 요청 항목의 0부터 시작하는 순번을 키로 담아 다시 요청합니다.
 - `anchorQuery`가 있는 `ADD`와 `MOVE`는 서버가 창문이나 문을 기준으로 위치를 계산합니다(`docs/contracts/relative-placement.md`). `anchorQuery`에 "창"이 들어 있으면 창문, "문"이 들어 있으면 문이며 `relation`(`NEAR` 기본, `FAR_FROM`)이 가까이와 멀리를 정합니다. `relation`은 `anchorQuery`와 함께일 때만 받고 값이 다르거나 단독이면 `400`입니다. `MOVE`에 `anchorQuery`가 없으면 위치를 정할 수 없어 `400`입니다.
 - 위치 계산이 실패하면 제안을 만들지 않고 `400`이며 본문의 `code`로 구분합니다. `NO_ANCHOR`는 요청한 창문이나 문이 방에 없거나 기준 표현을 알 수 없는 경우, `NO_VALID_PLACEMENT`는 조건에 맞는 빈 자리가 없는 경우입니다. 대상 가구가 여럿이면 기존처럼 `candidates`를 돌려줍니다. 회전은 정수 각도만 받으며 소수는 `400`입니다.
 - `ADD`는 서버 카탈로그의 이름과 분류와 색상을 쓰고 위치는 기본 위치입니다. 배치가 검증기를 통과하지 못하면 제안을 만들지 않고 기존 오류 코드로 `400`입니다.

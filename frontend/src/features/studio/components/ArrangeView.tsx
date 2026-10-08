@@ -20,7 +20,10 @@ import {
 import { Type } from "@/components/kokoro/Type"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
-import { roomCenter } from "@/features/studio/house-navigation"
+import {
+  roomCenter,
+  roomForFurniture,
+} from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
 
@@ -148,6 +151,17 @@ export function ArrangeView({
       dockPlaceRef.current?.focus()
   }
 
+  const selectedRoom = selected ? roomForFurniture(rooms, selected) : -1
+  const moveTargets = rooms.flatMap((entry, index) =>
+    index === selectedRoom ? [] : [{ index, name: entry.name }]
+  )
+  /** 옮긴 방으로 따라가되 선택은 그대로 둡니다. */
+  const moveToRoom = (index: number) => {
+    const target = rooms[index]
+    if (!target || !studio.moveSelectedToRoom(target)) return
+    if (roomIndex !== null) onRoomChange(index)
+  }
+
   const deleteSelected = () => {
     if (!selected) return
     const listItems = () =>
@@ -269,6 +283,8 @@ export function ArrangeView({
       onPreview={(update) => studio.previewSelected(update, room)}
       onCommitPreview={studio.commitPreview}
       onDelete={deleteSelected}
+      moveTargets={moveTargets}
+      onMoveToRoom={moveToRoom}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
     />
   ) : (

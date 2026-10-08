@@ -55,4 +55,14 @@ class LocalLayoutIntentTest {
         assertThat(intents.get(1).relation()).isEqualTo(LocalLayoutIntent.Relation.NEAR);
         assertThat(intents.get(2).relation()).isNull();
     }
+
+    @Test
+    void integersBeyondTheIntRangeAreContractErrors() {
+        for (String json : new String[] {
+                "{\"version\":2147483648,\"intents\":[{\"type\":\"CLEAR\"}]}",
+                "{\"version\":1,\"intents\":[{\"type\":\"ADD\",\"catalogId\":\"chair-shell\",\"count\":2147483648}]}"}) {
+            assertThatThrownBy(() -> LocalLayoutIntent.parse(MAPPER.readTree(json))).as(json)
+                    .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        }
+    }
 }

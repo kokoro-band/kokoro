@@ -301,6 +301,9 @@ public class ProjectService {
         Map<String, String> chosen = selections == null ? Map.of() : selections;
         RoomBounds bounds = bounds(project);
         List<LayoutCommand> commands = new ArrayList<>();
+        // The layout as it would look after the commands so far, so later intents see earlier ones.
+        List<FurnitureItem> working = new ArrayList<>(project.furniture());
+        int synced = 0;
         for (int index = 0; index < intents.size(); index++) {
             LocalLayoutIntent.Intent intent = intents.get(index);
             if (intent.type() == LocalLayoutIntent.Type.MOVE || intent.anchorQuery() != null) {
@@ -313,13 +316,14 @@ public class ProjectService {
                     double[] ratio = DEFAULT_ADD_RATIOS.getOrDefault(intent.catalogId(), new double[] {0.5, 0.5});
                     for (int copy = 0; copy < intent.count(); copy++) {
                         double shift = copy * (definition.path("width").doubleValue() + 0.1);
-                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(), null,
+                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(),
+                                plannedId(working, project.revision(), intent.catalogId(), index, copy),
                                 Math.round((bounds.width() * ratio[0] + shift) * 100) / 100.0,
                                 Math.round(bounds.depth() * ratio[1] * 100) / 100.0, 0));
                     }
                 }
                 default -> {
-                    List<FurnitureItem> matches = project.furniture().stream()
+                    List<FurnitureItem> matches = working.stream()
                             .filter(item -> matchesQuery(item, intent.targetQuery())).toList();
                     String picked = chosen.get(String.valueOf(index));
                     FurnitureItem target;
@@ -347,6 +351,8 @@ public class ProjectService {
                             target.catalogId(), target.id(), null, null, rotation));
                 }
             }
+            applyProposalCommands(working, commands.subList(synced, commands.size()), new ArrayList<>());
+            synced = commands.size();
         }
 
         // Dry run: reject a proposal that would not be applicable, then store it for the one-time confirm.
@@ -367,6 +373,20 @@ public class ProjectService {
     private static final Map<String, double[]> DEFAULT_ADD_RATIOS = Map.of(
             "sofa-cloud", new double[] {0.24, 0.67}, "table-oak", new double[] {0.54, 0.48},
             "chair-shell", new double[] {0.68, 0.34}, "plant-olive", new double[] {0.84, 0.74});
+
+    /**
+     * Added furniture gets its id when the proposal is made, so the dry run, later intents of the same request
+     * and the confirm all see the same id. It depends only on the project revision and the intent position, so
+     * asking again after choosing a candidate produces the same id.
+     */
+    private static String plannedId(List<FurnitureItem> layout, long revision, String catalogId, int index, int copy) {
+        String id = "%s-r%d-%d-%d".formatted(catalogId, revision, index, copy);
+        while (true) {
+            String candidate = id;
+            if (layout.stream().noneMatch(item -> item.id().equals(candidate))) return candidate;
+            id = id + "x";
+        }
+    }
 
     private static boolean matchesQuery(FurnitureItem item, String query) {
         String q = compact(query);
@@ -389,7 +409,8 @@ public class ProjectService {
                 }
                 case ADD -> {
                     JsonNode definition = furnitureRegistry.require(command.catalogId());
-                    FurnitureItem item = furniture(unique(command.catalogId()), command.catalogId(),
+                    FurnitureItem item = furniture(command.furnitureId() != null ? command.furnitureId() : unique(command.catalogId()),
+                            command.catalogId(),
                             definition.path("name").asString(), definition.path("category").asString(),
                             command.x(), command.z(), command.rotation() == null ? 0 : command.rotation(),
                             definition.path("color").asString());

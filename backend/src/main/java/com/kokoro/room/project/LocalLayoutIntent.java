@@ -31,7 +31,8 @@ public final class LocalLayoutIntent {
     public static List<Intent> parse(JsonNode root) {
         if (root == null || !root.isObject()) throw invalid("의도 형식이 올바르지 않습니다.");
         onlyKeys(root, Set.of("version", "intents"));
-        if (!root.path("version").isIntegralNumber() || root.path("version").intValue() != 1) {
+        if (!root.path("version").isIntegralNumber() || !root.path("version").canConvertToInt()
+                || root.path("version").intValue() != 1) {
             throw invalid("지원하지 않는 의도 버전입니다.");
         }
         JsonNode items = root.path("intents");
@@ -52,7 +53,7 @@ public final class LocalLayoutIntent {
                 int count = 1;
                 if (item.has("count")) {
                     JsonNode value = item.path("count");
-                    if (!value.isIntegralNumber() || value.intValue() < 1 || value.intValue() > 5) {
+                    if (!value.isIntegralNumber() || !value.canConvertToInt() || value.intValue() < 1 || value.intValue() > 5) {
                         throw invalid("추가 수량은 1개 이상 5개 이하여야 합니다.");
                     }
                     count = value.intValue();

@@ -46,9 +46,9 @@ export function AssistantPanel({
   roomName: string | null
   chatBusy: boolean
   busy: boolean
-  engine?: "rules" | "webgpu"
+  engine?: "rules" | "webgpu" | "ollama"
   browserAiStatus?: string
-  onEngineChange?: (engine: "rules" | "webgpu") => void
+  onEngineChange?: (engine: "rules" | "webgpu" | "ollama") => void
   onStopAi?: () => void
   onInputChange: (input: string) => void
   onSend: (text: string) => void
@@ -97,13 +97,15 @@ export function AssistantPanel({
           size="medium"
         >
           {isServerMode
-            ? "서버 배치"
+            ? engine === "ollama"
+              ? "Ollama 배치"
+              : "서버 배치"
             : engine === "webgpu"
               ? "브라우저 AI"
               : "규칙 기반 데모"}
         </Badge>
       </div>
-      {!isServerMode && onEngineChange && (
+      {onEngineChange && (
         <div
           className="assistant-engine"
           role="group"
@@ -121,21 +123,23 @@ export function AssistantPanel({
           <ActionButton
             type="button"
             size="small"
-            variant={engine === "webgpu" ? "neutralSolid" : "neutralWeak"}
+            variant={engine !== "rules" ? "neutralSolid" : "neutralWeak"}
             disabled={busy}
-            onClick={() => onEngineChange("webgpu")}
+            onClick={() => onEngineChange(isServerMode ? "ollama" : "webgpu")}
           >
-            이 기기에서 AI 실행
+            {isServerMode ? "이 PC의 Ollama 사용" : "이 기기에서 AI 실행"}
           </ActionButton>
         </div>
       )}
-      {!isServerMode && engine === "webgpu" && (
+      {engine !== "rules" && (
         <Type variant="description" as="p" role="status">
           {browserAiStatus ||
-            "첫 요청에 약 570MB 모델 파일을 다운로드합니다. 제안을 확인한 뒤 적용할 수 있어요."}
+            (engine === "webgpu"
+              ? "첫 요청에 약 570MB 모델 파일을 다운로드합니다. 제안을 확인한 뒤 적용할 수 있어요."
+              : "Ollama와 qwen3:4b가 필요해요. 이 PC에서 요청을 해석하고 서버가 검증한 제안을 확인한 뒤 적용해요.")}
         </Type>
       )}
-      {!isServerMode && engine === "webgpu" && chatBusy && onStopAi && (
+      {engine !== "rules" && chatBusy && onStopAi && (
         <div className="assistant-stop">
           <ActionButton
             type="button"
@@ -173,7 +177,7 @@ export function AssistantPanel({
         className="assistant-suggestions"
       >
         <div className="assistant-suggestions-row" aria-label="요청 예시">
-          {(engine === "webgpu" ? webGpuSuggestions : ruleSuggestions).map(
+          {(engine !== "rules" ? webGpuSuggestions : ruleSuggestions).map(
             (text) => (
               <Chip.Root
                 key={text}

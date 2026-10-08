@@ -36,6 +36,7 @@ import {
 import { withObjectParticle } from "@/features/studio/format"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
 } from "@/features/studio/furniture-motion"
 import type {
@@ -692,7 +693,11 @@ export function useStudioController() {
         ? round(position[1])
         : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
-    const placed = findFurniturePlacement(projectRef.current, item, focus)
+    // Prefer free floor; a crowded room still accepts a wall-safe overlap,
+    // which the placement list then reports for the user to resolve.
+    const placed =
+      findFreePlacement(projectRef.current, item, focus) ??
+      findFurniturePlacement(projectRef.current, item, focus)
     if (!placed) {
       setNotice("이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.", "critical")
       return

@@ -212,6 +212,15 @@ describe("furniture search and real local workflow", () => {
     expect(ui.summary().textContent).toContain("가구 1개")
   })
 
+  it("places consecutive catalog additions on free floor instead of stacking them", async () => {
+    const ui = await setup()
+    await ui.click("클라우드 소파 거실에 놓기")
+    await ui.click("셸 체어 거실에 놓기")
+    const [sofa, chair] = ui.saved().furniture
+    expect([chair.x, chair.z]).not.toEqual([sofa.x, sofa.z])
+    expect(ui.container.textContent).not.toContain("다른 가구와 겹쳐 있어요")
+  })
+
   it("commits keyboard rotation and restores it with one undo", async () => {
     const ui = await setup()
     await ui.click("셸 체어 거실에 놓기")

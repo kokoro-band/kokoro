@@ -1,4 +1,5 @@
 import {
+  doorClearances,
   footprint,
   insideRoom,
   overlaps,
@@ -16,7 +17,12 @@ const radius = (box: Box, axis: Point2) =>
   Math.abs(dot(box.x, axis)) * box.width +
   Math.abs(dot(box.z, axis)) * box.depth
 
-function constraints(project: Project, focus?: RoomLabel | null) {
+/** `clearOf` also keeps the item off other furniture and door clearances. */
+function constraints(
+  project: Project,
+  focus?: RoomLabel | null,
+  clearOf?: Furniture
+) {
   const bounds = project.room?.bounds ?? project.dimensions
   const outline: Point2[] = project.room?.outline.length
     ? project.room.outline
@@ -43,15 +49,26 @@ function constraints(project: Project, focus?: RoomLabel | null) {
       )
     ),
   ]
+  const blockers = clearOf
+    ? [
+        ...doorClearances(project),
+        ...project.furniture.flatMap((other) => {
+          const box = other.id === clearOf.id ? null : footprint(other)
+          return box ? [box] : []
+        }),
+      ]
+    : []
   return {
     bounds,
     obstacles,
+    blockers,
     valid(item: Furniture) {
       const box = footprint(item)
       return (
         !!box &&
         polygons.every((polygon) => insideRoom(polygon, box)) &&
-        !walls.some((wall) => overlaps(box, wall))
+        !walls.some((wall) => overlaps(box, wall)) &&
+        !blockers.some((blocker) => overlaps(box, blocker))
       )
     },
   }
@@ -164,7 +181,25 @@ export function findFurniturePlacement(
   item: Furniture,
   focus?: RoomLabel | null
 ): Furniture | null {
-  const scene = constraints(project, focus)
+  return searchPlacement(constraints(project, focus), item)
+}
+
+/**
+ * Nearest position that is wall-safe and also clear of other furniture and
+ * door clearances. Every new placement (catalog and assistant) uses this.
+ */
+export function findFreePlacement(
+  project: Project,
+  item: Furniture,
+  focus?: RoomLabel | null
+): Furniture | null {
+  return searchPlacement(constraints(project, focus, item), item)
+}
+
+function searchPlacement(
+  scene: ReturnType<typeof constraints>,
+  item: Furniture
+): Furniture | null {
   if (scene.valid(item)) return item
   const box = footprint(item)
   if (
@@ -174,7 +209,7 @@ export function findFurniturePlacement(
   )
     return null
   const candidates: Furniture[] = []
-  for (const wall of scene.obstacles) {
+  for (const wall of [...scene.obstacles, ...scene.blockers]) {
     for (const sign of [-1, 1]) {
       const distance = dot(subtract(box.center, wall.center), wall.z)
       const shift = sign * (radius(box, wall.z) + wall.depth + SKIN) - distance

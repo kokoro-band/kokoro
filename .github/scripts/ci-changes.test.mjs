@@ -52,6 +52,7 @@ const result = {
   backend: "skipped",
   e2e: "success",
   localAiE2e: "success",
+  ollamaE2e: "success",
   needsFrontend: "true",
   needsBackend: "false",
 }
@@ -70,7 +71,7 @@ test("missing filter output is not treated as unnecessary", () => {
   assert.throws(() => assertResults({ ...result, needsFrontend: "" }))
 })
 
-for (const job of ["e2e", "localAiE2e"]) {
+for (const job of ["e2e", "localAiE2e", "ollamaE2e"]) {
   for (const status of ["failure", "cancelled", "skipped"]) {
     test(`required ${job} ${status} fails the aggregate`, () => {
       assert.throws(() => assertResults({ ...result, [job]: status }))

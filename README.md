@@ -59,6 +59,8 @@ vp dev
 
 Spring 서버에 연결하려면 `frontend/.env.example`을 참고해 `VITE_API_MODE=server`를 설정합니다.
 
+서버 저장 모드의 **AI 배치**에서 `이 PC의 Ollama 사용`을 선택하면 `qwen3:4b`가 요청을 해석하고 Spring이 배치 제안을 검증합니다. 적용 전 확인하거나 취소할 수 있고 적용한 배치는 서버에 저장됩니다. 이 경로는 의도 API PR #168이 필요합니다. Ollama 설치와 브라우저 접근 설정 및 지원 범위는 [서버 연결 검증 안내](docs/qa/ollama-server-integration.md)를 참고합니다.
+
 ## 백엔드 실행
 
 Java 17 이상과 실행 중인 Docker가 필요합니다. 저장소의 Maven Wrapper와 PostgreSQL Compose 구성을 사용합니다.

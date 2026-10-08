@@ -257,7 +257,7 @@ it("ignores an old command result and cleanup after opening another project", as
   expect(app.get().busy).toBe("chat")
 })
 
-it("checks the snapshot again when a queued confirmation finally starts", async () => {
+it("blocks an edit in the same event as confirmation", async () => {
   const app = await setup()
   await app.propose()
   act(() => app.get().saveProject())
@@ -272,8 +272,9 @@ it("checks the snapshot again when a queued confirmation finally starts", async 
   await flush()
   expect(
     http.calls.filter((call) => call.config.url?.endsWith("/confirm"))
-  ).toHaveLength(0)
-  expect(app.get().commandReview?.status).toBe("stale")
+  ).toHaveLength(1)
+  expect(app.get().project).toEqual(app.initial)
+  expect(app.get().commandReview?.status).toBe("applying")
 })
 
 it("fails closed for an incomplete confirmation response", async () => {

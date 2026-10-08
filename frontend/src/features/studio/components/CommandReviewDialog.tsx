@@ -42,6 +42,10 @@ export function CommandReviewDialog({
   onRequestAgain: () => void
 }) {
   const applying = review?.status === "applying"
+  const unresolved =
+    applying ||
+    (review?.status === "retry" &&
+      Boolean(review.response.requiresConfirmation))
   const stale =
     review?.status === "stale" ||
     Boolean(review && review.baseKey !== commandLayoutKey(project))
@@ -52,10 +56,10 @@ export function CommandReviewDialog({
     <ContentDialog.Root
       open={Boolean(review)}
       onOpenChange={(open) => {
-        if (!open && !applying) onCancel()
+        if (!open && !unresolved) onCancel()
       }}
-      closeOnEscape={!applying}
-      closeOnInteractOutside={!applying}
+      closeOnEscape={!unresolved}
+      closeOnInteractOutside={!unresolved}
     >
       <ContentDialog.Backdrop />
       <ContentDialog.Positioner>
@@ -123,7 +127,7 @@ export function CommandReviewDialog({
               <ActionButton
                 variant="neutralWeak"
                 size="medium"
-                disabled={applying}
+                disabled={unresolved}
                 onClick={onCancel}
               >
                 취소

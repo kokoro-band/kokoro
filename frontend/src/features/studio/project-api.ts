@@ -319,10 +319,59 @@ export async function sendCommand(
     normalized.includes("삭제") ||
     normalized.includes("지워") ||
     normalized.includes("빼줘")
+  const aliases: Record<string, string[]> = {
+    화분: ["화분", "식물"],
+    테이블: ["테이블", "책상"],
+  }
+  const wordsFor = (word: string) => aliases[word] ?? [word]
+  // "소파 옆에 화분"의 소파는 기준 가구라서 새로 놓거나 바꾸지 않습니다.
+  const anchorTarget = targets.find((target) =>
+    wordsFor(target.word).some(
+      (word) =>
+        normalized.includes(`${word}옆`) || normalized.includes(`${word}의옆`)
+    )
+  )
   const matchesTarget = (word: string) =>
-    normalized.includes(word) ||
-    (word === "화분" && normalized.includes("식물")) ||
-    (word === "테이블" && normalized.includes("책상"))
+    word !== anchorTarget?.word &&
+    wordsFor(word).some((alias) => normalized.includes(alias))
+  const categoryOf = (catalogId: string) =>
+    catalog.find((entry) => entry.id === catalogId)?.category
+  const anchors = anchorTarget
+    ? project.furniture.filter(
+        (item) => inFocus(item) && item.category === categoryOf(anchorTarget.id)
+      )
+    : []
+  if (anchorTarget && !removing && anchors.length !== 1)
+    return {
+      ...emptyCommandResponse(project),
+      reply: anchors.length
+        ? `기준이 될 ${withObjectParticle(anchorTarget.word)} 하나로 정할 수 없어요. 배치는 유지했어요.`
+        : `기준이 될 ${withObjectParticle(anchorTarget.word)} ${focus?.length ? "이 방에서 " : ""}찾지 못했어요. 배치는 유지했어요.`,
+    }
+  /** Free spot touching one side of the anchor, or null when none is near. */
+  const besideAnchor = (item: Furniture) => {
+    const anchor = anchors[0]
+    const a = catalog.find((entry) => entry.id === anchor.catalogId)
+    const b = catalog.find((entry) => entry.id === item.catalogId)
+    if (!a || !b) return null
+    const turned = Math.round(anchor.rotation / 90) % 2 === 1
+    const dx = ((turned ? a.depth : a.width) + b.width) / 2 + 0.1
+    const dz = ((turned ? a.width : a.depth) + b.depth) / 2 + 0.1
+    const spots: Point2[] = [
+      [anchor.x + dx, anchor.z],
+      [anchor.x - dx, anchor.z],
+      [anchor.x, anchor.z + dz],
+      [anchor.x, anchor.z - dz],
+    ]
+    for (const [x, z] of spots) {
+      const placed = place({ ...item, x, z })
+      if (placed && Math.hypot(placed.x - x, placed.z - z) <= 0.75)
+        return placed
+    }
+    return null
+  }
+  const position = (item: Furniture) =>
+    anchorTarget ? besideAnchor(item) : place(item)
   if (moving || rotating || removing) {
     const matches = project.furniture.filter(
       (item) =>
@@ -330,8 +379,7 @@ export async function sendCommand(
         targets.some(
           (target) =>
             matchesTarget(target.word) &&
-            item.category ===
-              catalog.find((entry) => entry.id === target.id)?.category
+            item.category === categoryOf(target.id)
         )
     )
     if (!furnitureId && matches.length > 1)
@@ -386,7 +434,7 @@ export async function sendCommand(
                 360,
             }
           : { ...existing, x, z }
-        const placed = place(target)
+        const placed = rotating ? place(target) : position(target)
         // A turn keeps its spot; it must not quietly slide somewhere else.
         if (
           !placed ||
@@ -402,7 +450,7 @@ export async function sendCommand(
           `${existing.name} ${rotating ? "방향을" : "위치를"} 조정했어요`
         )
       } else {
-        const placed = place(makeFurniture(target.id, x, z))
+        const placed = position(makeFurniture(target.id, x, z))
         if (!placed) {
           blocked.push(target.word)
           continue

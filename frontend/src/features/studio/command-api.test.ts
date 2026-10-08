@@ -237,3 +237,52 @@ describe("local commands use the catalog placement rules", () => {
     expect(placementIssues(response.project)).toEqual([])
   })
 })
+
+describe("local commands placed beside existing furniture", () => {
+  async function livingRoom() {
+    const api = await localApi()
+    const { buildRoomModel } = await import("./room-builder")
+    const { placementIssues } = await import("./placement-issues")
+    const room = buildRoomModel({
+      rooms: [{ id: "a", name: "거실", x: 0, z: 0, width: 6, depth: 5 }],
+      wallHeight: 2.4,
+    })
+    const project = {
+      ...structuredClone(sampleProject),
+      dimensions: { width: 6, depth: 5, height: 2.4 },
+      room,
+      furniture: [] as ReturnType<typeof api.makeFurniture>[],
+    }
+    return { api, project, focus: room.rooms[0].polygon, placementIssues }
+  }
+
+  it("adds only the plant next to the existing sofa", async () => {
+    const { api, project, focus, placementIssues } = await livingRoom()
+    const sofa = api.makeFurniture("sofa-cloud", 2, 2.5)
+    const chair = api.makeFurniture("chair-shell", 4.5, 1)
+    project.furniture = [sofa, chair]
+    const response = await api.sendCommand(
+      project,
+      "소파 옆에 화분을 놓아줘",
+      focus
+    )
+    const added = response.project.furniture.slice(2)
+    expect(added.map((item) => item.catalogId)).toEqual(["plant-olive"])
+    expect(Math.hypot(added[0].x - sofa.x, added[0].z - sofa.z)).toBeLessThan(
+      1.8
+    )
+    expect(placementIssues(response.project)).toEqual([])
+    expect(response.reply).not.toContain("소파를 놓았어요")
+  })
+
+  it("explains instead of adding the reference furniture when it is missing", async () => {
+    const { api, project, focus } = await livingRoom()
+    const response = await api.sendCommand(
+      project,
+      "소파 옆에 화분을 놓아줘",
+      focus
+    )
+    expect(response.project.furniture).toEqual([])
+    expect(response.reply).toContain("기준이 될 소파")
+  })
+})

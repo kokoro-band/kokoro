@@ -27,7 +27,7 @@ function constraints(project: Project, focus?: RoomLabel | null) {
         [0, bounds.depth],
       ]
   const polygons = focus ? [outline, focus.polygon] : [outline]
-  const walls = project.room?.walls.map(wallBox) ?? []
+  const walls = solidWalls(project.room)
   // Zero-thickness polygon edges still take part in the sweep, including
   // concave notches and room labels that do not have a physical wall.
   const obstacles = [
@@ -55,6 +55,45 @@ function constraints(project: Project, focus?: RoomLabel | null) {
       )
     },
   }
+}
+
+/**
+ * Wall pieces left around door openings. Arranging is planning, so furniture
+ * may pass a doorway whether its door is drawn open or closed. Windows stay
+ * solid.
+ */
+function solidWalls(room: Project["room"]): Box[] {
+  return (room?.walls ?? []).flatMap((wall) => {
+    const box = wallBox(wall)
+    const length = box.width * 2
+    const doors = (room?.openings ?? [])
+      .filter(
+        (opening) => opening.type === "door" && opening.wallId === wall.id
+      )
+      .map((opening) => [
+        Math.min(opening.from, opening.to),
+        Math.max(opening.from, opening.to),
+      ])
+      .sort((a, b) => a[0] - b[0])
+    const pieces: Box[] = []
+    let start = 0
+    for (const [from, to] of [...doors, [length, length]]) {
+      const end = Math.min(from, length)
+      if (end - start > EPSILON) {
+        const middle = (start + end) / 2
+        pieces.push({
+          ...box,
+          center: [
+            wall.a[0] + box.x[0] * middle,
+            wall.a[1] + box.x[1] * middle,
+          ],
+          width: (end - start) / 2,
+        })
+      }
+      start = Math.max(start, to)
+    }
+    return pieces
+  })
 }
 
 /** Earliest contact during the entire translation, not just its endpoint. */

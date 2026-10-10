@@ -5,7 +5,7 @@ import {
   findFurniturePlacement,
 } from "./furniture-motion"
 import { footprint, insideRoom, overlaps, wallBox } from "./placement-issues"
-import type { Furniture, Project, RoomModel } from "./types"
+import type { Furniture, Project, RoomModel, Wall } from "./types"
 
 const room: RoomModel = {
   version: 2,
@@ -77,6 +77,38 @@ describe("wall-safe furniture editing", () => {
     expect(moved.x).toBeCloseTo(2.67, 5)
     expectSafe(moved, model)
   })
+  it("passes a doorway but not the solid wall beside it or a window", () => {
+    const wall: Wall = { id: "inner", a: [3, 0], b: [3, 6], thickness: 0.2 }
+    const opening = { id: "gap", wallId: "inner", from: 2.5, to: 3.5 }
+    const withOpening = (type: "door" | "window") =>
+      project({
+        ...room,
+        walls: [wall],
+        openings: [{ ...opening, type, bottom: 0, top: 2.1 }],
+      })
+    const door = withOpening("door")
+    // The 0.65 m chair fits the 1 m doorway and ends on the far side.
+    expect(constrainFurniturePose(door, chair(4, 3), { x: 2 })).toMatchObject({
+      x: 2,
+      z: 3,
+    })
+    // Off the doorway the same move still stops at the wall face.
+    expect(constrainFurniturePose(door, chair(4, 1), { x: 2 }).x).toBeCloseTo(
+      3.425,
+      3
+    )
+    // Too far to one side, the chair catches the door jamb.
+    expect(
+      constrainFurniturePose(door, chair(4, 3.3), { x: 2 }).x
+    ).toBeGreaterThan(3.4)
+    expect(
+      constrainFurniturePose(withOpening("window"), chair(4, 3), { x: 2 }).x
+    ).toBeCloseTo(3.425, 3)
+    // The example home's bedroom door, from the living room side.
+    const home = { ...sampleProject, furniture: [] }
+    expect(constrainFurniturePose(home, chair(4, 3.85), { x: 2.4 }).x).toBe(2.4)
+  })
+
   it("slides along walls and releases immediately when moved away", () => {
     const moved = constrainFurniturePose(project(), chair(2, 2), {
       x: -2,

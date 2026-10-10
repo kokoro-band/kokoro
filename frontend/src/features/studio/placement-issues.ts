@@ -122,7 +122,7 @@ function houseOutline(project: Project): Point2[] {
       ]
 }
 
-/** Floor in front of each door that furniture should leave clear. */
+/** Keep 0.8 m clear directly in front of the opening, within its width. */
 export function doorClearances(project: Project): Box[] {
   const { room } = project
   const outline = houseOutline(project)
@@ -149,7 +149,7 @@ export function doorClearances(project: Project): Box[] {
         ],
         x: box.x,
         z: normal,
-        width: Math.abs(opening.to - opening.from) / 2 + DOOR_CLEARANCE,
+        width: Math.abs(opening.to - opening.from) / 2,
         depth: DOOR_CLEARANCE / 2,
       },
     ]

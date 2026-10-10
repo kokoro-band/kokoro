@@ -1,35 +1,17 @@
 import intentSchemaSource from "../../../../docs/contracts/local-layout-intent.schema.json?raw"
 
 import type { CatalogItem } from "./types"
+import type { LocalLayoutIntent, LocalLayoutIntentItem } from "./local-ai-types"
 
 export const localAiUrl = "http://127.0.0.1:11434"
 export const localAiModel = "qwen3:4b"
 export const LOCAL_AI_TIMEOUT_MS = 60_000
 
-export type LocalLayoutRelation = "NEAR" | "FAR_FROM"
-
-export type LocalLayoutIntentItem =
-  | {
-      type: "ADD"
-      catalogId: string
-      count?: number
-      anchorQuery?: string
-      relation?: LocalLayoutRelation
-    }
-  | {
-      type: "MOVE"
-      targetQuery: string
-      anchorQuery?: string
-      relation?: LocalLayoutRelation
-    }
-  | { type: "ROTATE"; targetQuery: string; rotation: number }
-  | { type: "REMOVE"; targetQuery: string }
-  | { type: "CLEAR" }
-
-export type LocalLayoutIntent = {
-  version: 1
-  intents: LocalLayoutIntentItem[]
-}
+export type {
+  LocalLayoutIntent,
+  LocalLayoutIntentItem,
+  LocalLayoutRelation,
+} from "./local-ai-types"
 
 export type LocalAiErrorKind =
   | "model-missing"

@@ -33,6 +33,7 @@ export function assertResults({
   backend,
   e2e,
   localAiE2e,
+  ollamaE2e,
   needsFrontend,
   needsBackend,
 }) {
@@ -42,6 +43,7 @@ export function assertResults({
     ["backend", needsBackend, backend],
     ["e2e", String(needsFrontend === "true" || needsBackend === "true"), e2e],
     ["local-ai-e2e", needsFrontend, localAiE2e],
+    ["ollama-e2e", String(needsFrontend === "true" || needsBackend === "true"), ollamaE2e],
   ]) {
     if (needed !== "true" && needed !== "false")
       throw new Error(`${name} 실행 조건이 없습니다.`)

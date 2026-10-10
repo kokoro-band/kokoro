@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
 import { proposeBrowserIntent } from "../browser-ai-command"
+import { requestLocalLayoutIntent, type LocalLayoutIntent } from "../local-ai"
 import type { BrowserIntent } from "../browser-ai-intent"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
   isServerMode,
+  fetchFurnitureCatalog,
+  sendLayoutIntent,
   getProject,
   makeFurniture,
   readActiveProjectId,
@@ -89,6 +92,32 @@ function round(value: number) {
   return Math.round(value * 10) / 10
 }
 
+// The current intent API identifies an ambiguous intent in its numbered reply.
+// Never guess an index for a multi-intent request if that format is absent.
+function localCandidateIndex(
+  intent: LocalLayoutIntent,
+  reply: string,
+  candidates: number
+) {
+  if (!candidates) return undefined
+  const match = /^(\d+)번째 명령/.exec(reply)
+  const index = match
+    ? Number(match[1]) - 1
+    : intent.intents.length === 1
+      ? 0
+      : -1
+  if (index < 0 || index >= intent.intents.length)
+    throw new Error("대상 명령을 확인할 수 없어요. 한 가구씩 요청해 주세요.")
+  return index
+}
+
+function isConfirmationPending(review: CommandReview | null) {
+  return Boolean(
+    review?.response.requiresConfirmation &&
+    (review.status === "applying" || review.status === "retry")
+  )
+}
+
 export function useStudioController() {
   const [initial] = useState(() =>
     isServerMode
@@ -106,15 +135,16 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
-  const [assistantEngine, setAssistantEngine] = useState<"rules" | "webgpu">(
-    "rules"
-  )
+  const [assistantEngine, setAssistantEngine] = useState<
+    "rules" | "webgpu" | "ollama"
+  >("rules")
   const [browserAiStatus, setBrowserAiStatus] = useState("")
   const [input, setInput] = useState("")
   const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
     null
   )
   const commandReviewRef = useRef<CommandReview | null>(null)
+  const localAiAbortRef = useRef<AbortController | null>(null)
   const commandOperationRef = useRef<symbol | null>(null)
   const setCommandReview = useCallback(function setCommandReview(
     next: CommandReview | null
@@ -122,6 +152,9 @@ export function useStudioController() {
     commandReviewRef.current = next
     setCommandReviewState(next)
   }, [])
+  const editingLocked = isConfirmationPending(commandReview)
+  useEffect(() => () => localAiAbortRef.current?.abort(), [])
+
   const [notice, setNoticeState] = useState<Notice | null>(() =>
     initial.recovery
       ? {
@@ -298,6 +331,8 @@ export function useStudioController() {
   /** Cancel queued writes and remember when the in-flight request finishes. */
   const closeQueue = useCallback(
     function closeQueue() {
+      localAiAbortRef.current?.abort()
+      localAiAbortRef.current = null
       return closingWritesRef.current.add(currentQueue())
     },
     [currentQueue]
@@ -328,6 +363,7 @@ export function useStudioController() {
       commandOperationRef.current = null
       setCommandReview(null)
       setBusy(null)
+      setBrowserAiStatus("")
       setSaveError(null)
       setConflict(null)
       recoveryOperationRef.current = null
@@ -520,6 +556,7 @@ export function useStudioController() {
   )
 
   function commitFurniture(next: Furniture[]) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (
       recoveryOperationRef.current &&
       conflictRef.current?.status === "applying"
@@ -543,6 +580,7 @@ export function useStudioController() {
     id: string,
     pose: (current: Furniture) => Furniture
   ) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     if (
       recoveryOperationRef.current &&
       conflictRef.current?.status === "applying"
@@ -628,6 +666,7 @@ export function useStudioController() {
 
   const commitPreview = useCallback(
     function commitPreview() {
+      if (isConfirmationPending(commandReviewRef.current)) return
       const base = transientBaseRef.current
       transientBaseRef.current = null
       if (!base || base === projectRef.current.furniture) {
@@ -645,6 +684,7 @@ export function useStudioController() {
     update: Partial<Furniture>,
     focus?: RoomLabel | null
   ) {
+    if (isConfirmationPending(commandReviewRef.current)) return null
     if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(
       (item) => item.id === selectedId
@@ -671,6 +711,7 @@ export function useStudioController() {
   }
 
   function deleteSelected() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     commitFurniture(project.furniture.filter((item) => item.id !== selectedId))
     setSelectedId(null)
@@ -681,6 +722,7 @@ export function useStudioController() {
     position?: [number, number],
     focus?: RoomLabel | null
   ) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const step = project.furniture.length
     const item = makeFurniture(
@@ -703,6 +745,7 @@ export function useStudioController() {
   }
 
   function undo() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const previous = past.at(-1)
     if (!previous) return
@@ -713,6 +756,7 @@ export function useStudioController() {
   }
 
   function redo() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const next = future[0]
     if (!next) return
@@ -723,6 +767,7 @@ export function useStudioController() {
   }
 
   async function handleSave() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current) {
       setConflict({ ...conflictRef.current, open: true })
       return
@@ -750,6 +795,7 @@ export function useStudioController() {
   }
 
   function restoreSaved(noticeId?: number) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (noticeId !== undefined && !isActiveSaveFailure(noticeId, "rejected"))
       return
     const queue = currentQueue()
@@ -802,6 +848,9 @@ export function useStudioController() {
     if (!review && commandReviewRef.current) return
     const queue = currentQueue()
     if (queue.closed) return
+    const engine = assistantEngine
+    const abort = new AbortController()
+    localAiAbortRef.current = abort
     const operation = Symbol("command")
     commandOperationRef.current = operation
     if (review) setCommandReview({ ...review, status: "applying", error: "" })
@@ -830,30 +879,63 @@ export function useStudioController() {
         )
           throw new CommandReviewExpiredError()
         let browserIntent: BrowserIntent | undefined = review?.browserIntent
+        let localIntent: LocalLayoutIntent | undefined = review?.localIntent
+        // A candidate review always has an index; see localCandidateIndex.
+        const selections =
+          localIntent && furnitureId
+            ? {
+                ...review!.intentSelections,
+                [review!.candidateIntentIndex!]: furnitureId,
+              }
+            : review?.intentSelections
         const response = confirming
           ? await executeProjectMutation(
               queryClient,
               confirmCommandMutationOptions(queryClient, saved.id),
               { project: saved, proposalId: review!.response.proposalId! }
             )
-          : !isServerMode && (browserIntent || assistantEngine === "webgpu")
+          : isServerMode && (localIntent || engine === "ollama")
             ? await (async () => {
-                const intent =
-                  browserIntent ??
-                  (await import("../browser-ai").then((module) =>
-                    module.generateBrowserIntent(saved, text, (status) => {
-                      if (isCurrent(queue)) setBrowserAiStatus(status)
-                    })
-                  ))
-                if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
-                browserIntent = intent
-                return proposeBrowserIntent(saved, intent, focus, furnitureId)
+                if (!localIntent) {
+                  if (isCurrent(queue))
+                    setBrowserAiStatus(
+                      "이 PC의 Ollama에서 요청을 해석하고 있어요."
+                    )
+                  const catalog = await fetchFurnitureCatalog(abort.signal)
+                  abort.signal.throwIfAborted()
+                  localIntent = await requestLocalLayoutIntent(text, {
+                    catalog,
+                    signal: abort.signal,
+                  })
+                }
+                abort.signal.throwIfAborted()
+                if (!isCurrent(queue)) throw new WriteCancelledError()
+                setBrowserAiStatus("서버가 배치 제안을 검증하고 있어요.")
+                return sendLayoutIntent(
+                  saved,
+                  localIntent,
+                  selections,
+                  abort.signal
+                )
               })()
-            : await executeProjectMutation(
-                queryClient,
-                sendCommandMutationOptions(queryClient, saved.id),
-                { project: saved, message: text, focus, furnitureId }
-              )
+            : !isServerMode && (browserIntent || engine === "webgpu")
+              ? await (async () => {
+                  const intent =
+                    browserIntent ??
+                    (await import("../browser-ai").then((module) =>
+                      module.generateBrowserIntent(saved, text, (status) => {
+                        if (isCurrent(queue)) setBrowserAiStatus(status)
+                      })
+                    ))
+                  if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
+                  browserIntent = intent
+                  return proposeBrowserIntent(saved, intent, focus, furnitureId)
+                })()
+              : await executeProjectMutation(
+                  queryClient,
+                  sendCommandMutationOptions(queryClient, saved.id),
+                  { project: saved, message: text, focus, furnitureId }
+                )
         if (
           commandLayoutKey({ ...saved, furniture: [] }) !==
           commandLayoutKey({ ...response.project, furniture: [] })
@@ -879,6 +961,17 @@ export function useStudioController() {
               message: text,
               focus,
               ...(browserIntent ? { browserIntent } : {}),
+              ...(localIntent
+                ? {
+                    localIntent,
+                    intentSelections: selections,
+                    candidateIntentIndex: localCandidateIndex(
+                      localIntent,
+                      response.reply,
+                      response.candidates.length
+                    ),
+                  }
+                : {}),
               baseKey: commandLayoutKey(saved),
               status:
                 commandLayoutKey(saved) === commandLayoutKey(projectRef.current)
@@ -945,6 +1038,11 @@ export function useStudioController() {
         })
         return
       }
+      if (abort.signal.aborted) {
+        setInput((current) => current || text)
+        setNotice("모델 요청을 중단했어요. 배치는 그대로예요.")
+        return
+      }
       setInput((current) => current || text)
       setMessages((current) => [
         ...current,
@@ -958,6 +1056,7 @@ export function useStudioController() {
         },
       ])
     } finally {
+      if (localAiAbortRef.current === abort) localAiAbortRef.current = null
       if (commandOperationRef.current === operation) {
         commandOperationRef.current = null
         if (isCurrent(queue)) {
@@ -969,7 +1068,11 @@ export function useStudioController() {
   }
 
   function cancelCommandReview() {
-    if (commandOperationRef.current) return
+    if (
+      commandOperationRef.current ||
+      isConfirmationPending(commandReviewRef.current)
+    )
+      return
     setCommandReview(null)
   }
 
@@ -1018,7 +1121,13 @@ export function useStudioController() {
 
   function requestCommandAgain() {
     const review = commandReviewRef.current
-    if (!review || commandOperationRef.current || busy) return
+    if (
+      !review ||
+      commandOperationRef.current ||
+      busy ||
+      isConfirmationPending(review)
+    )
+      return
     setCommandReview(null)
     void handleChat(review.message, review.focus)
   }
@@ -1035,6 +1144,7 @@ export function useStudioController() {
   }
 
   async function handleUpload(file?: File) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current || recoveryOperationRef.current) return
     if (!file) return
     setNotice("")
@@ -1155,6 +1265,7 @@ export function useStudioController() {
   }
 
   async function handleCreate(name: string) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     const trimmedName = name.trim()
     if (!trimmedName) return false
     const inputError = projectNameError(trimmedName)
@@ -1197,6 +1308,7 @@ export function useStudioController() {
   }
 
   function openSampleProject() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (!confirmLeave()) return
     if (isServerMode) {
       void loadServerProject(sampleProject.id)
@@ -1211,6 +1323,7 @@ export function useStudioController() {
   }
 
   async function applyRoom(room: RoomModel) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     if (conflictRef.current || recoveryOperationRef.current) {
       if (conflictRef.current?.status !== "applying")
         pendingRoomRef.current = room
@@ -1273,6 +1386,7 @@ export function useStudioController() {
 
   const rememberRoomDraft = useCallback(
     function rememberRoomDraft(room: RoomModel | null) {
+      if (isConfirmationPending(commandReviewRef.current)) return
       if (conflictRef.current?.status === "applying") return
       pendingRoomRef.current = room
       currentQueue()
@@ -1412,9 +1526,12 @@ export function useStudioController() {
     messages,
     assistantEngine,
     browserAiStatus,
+    editingLocked,
     setAssistantEngine,
-    stopBrowserAi: () =>
-      void import("../browser-ai").then((module) => module.stopBrowserAi()),
+    stopBrowserAi: () => {
+      if (assistantEngine === "ollama") localAiAbortRef.current?.abort()
+      else void import("../browser-ai").then((module) => module.stopBrowserAi())
+    },
     commandReview,
     cancelCommandReview,
     confirmCommandReview,
@@ -1440,8 +1557,8 @@ export function useStudioController() {
     },
     saveFailed: saveError !== null,
     saveRejected: saveError === "rejected",
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
+    canUndo: !editingLocked && past.length > 0,
+    canRedo: !editingLocked && future.length > 0,
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
     openSampleProject,
     exportProject,

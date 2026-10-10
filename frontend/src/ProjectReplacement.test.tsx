@@ -104,6 +104,9 @@ describe("replacing the only local project", () => {
     const ui = await setup(mine)
     await ui.click("우리 집 프로젝트 메뉴")
     await ui.click("예제 집 열기")
+    // The app cannot open an export yet, so the copy must not promise a return.
+    expect(ui.dialogText()).toContain("다시 열 수 없어요")
+    expect(ui.dialogText()).not.toContain("나중에 다시 보려면")
     await ui.click("JSON으로 내보내기")
     expect(create).toHaveBeenCalled()
     expect(ui.savedName()).toBe("우리 집")

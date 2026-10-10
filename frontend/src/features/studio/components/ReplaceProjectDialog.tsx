@@ -36,7 +36,7 @@ export function ReplaceProjectDialog({
           <ContentDialog.Body>
             <div className="replace-project-body">
               <Type variant="body" as="p">
-                {`계속하면 ‘${projectName}’ 대신 ${target === "sample" ? "예제 집" : "새 프로젝트"}이 저장되고, 되돌리기로 돌아올 수 없어요. 나중에 다시 보려면 먼저 JSON으로 내보내 두세요.`}
+                {`계속하면 ‘${projectName}’ 대신 ${target === "sample" ? "예제 집" : "새 프로젝트"}이 저장되고, 되돌리기로 돌아올 수 없어요. 배치 기록을 남기려면 먼저 JSON으로 내보내 두세요. 내보낸 파일은 아직 이 앱에서 다시 열 수 없어요.`}
               </Type>
               <ActionButton
                 variant="neutralWeak"

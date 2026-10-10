@@ -681,10 +681,7 @@ export function useStudioController() {
     [persistLayout, syncSaveState]
   )
 
-  function updateSelected(
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
-  ) {
+  function updateSelected(update: Partial<Furniture>) {
     if (isConfirmationPending(commandReviewRef.current)) return null
     if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(

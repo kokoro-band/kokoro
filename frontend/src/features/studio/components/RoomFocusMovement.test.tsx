@@ -202,6 +202,20 @@ describe("room focus is a view, not a movement boundary", () => {
     expect(ui.saved("chair-01").z).toBe(3)
   })
 
+  it("returns to the item's room on undo and follows it again on redo", async () => {
+    const ui = await setup(living)
+    await ui.select("chair-01")
+    await ui.commit("세로", "1.5")
+    expect(ui.roomIndex()).toBe(kitchen)
+    await ui.click("실행 취소")
+    expect(ui.saved("chair-01").z).toBe(3)
+    expect(ui.roomIndex()).toBe(living)
+    expect(ui.controller.current!.selectedId).toBe("chair-01")
+    await ui.click("다시 실행")
+    expect(ui.saved("chair-01").z).toBe(1.5)
+    expect(ui.roomIndex()).toBe(kitchen)
+  })
+
   it("follows an arrow-key nudge that carries the item into the next room", async () => {
     const ui = await setup(living)
     await ui.select("chair-01")

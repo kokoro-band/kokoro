@@ -126,6 +126,15 @@ export function ArrangeView({
     commitStudioPreview()
     setMoveCommits((count) => count + 1)
   }, [commitStudioPreview])
+  // 실행 취소와 다시 실행도 가구를 다른 방으로 되돌릴 수 있어 같이 따라갑니다.
+  const undo = () => {
+    studio.undo()
+    setMoveCommits((count) => count + 1)
+  }
+  const redo = () => {
+    studio.redo()
+    setMoveCommits((count) => count + 1)
+  }
   useEffect(function followCommittedMove() {
     if (followedCommit.current === moveCommits) return
     followedCommit.current = moveCommits
@@ -357,8 +366,8 @@ export function ArrangeView({
       canUndo={studio.canUndo}
       canRedo={studio.canRedo}
       onModeChange={studio.setMode}
-      onUndo={studio.undo}
-      onRedo={studio.redo}
+      onUndo={undo}
+      onRedo={redo}
       onFullscreenError={studio.reportFullscreenError}
       onSelect={selectFurniture}
       onMove={studio.moveFurniture}

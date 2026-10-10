@@ -146,7 +146,7 @@ export function placementIssues(project: Project): PlacementIssue[] {
         ],
         x: box.x,
         z: normal,
-        width: Math.abs(opening.to - opening.from) / 2 + DOOR_CLEARANCE,
+        width: Math.abs(opening.to - opening.from) / 2,
         depth: DOOR_CLEARANCE / 2,
       },
     ]

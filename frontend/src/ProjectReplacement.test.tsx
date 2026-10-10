@@ -121,6 +121,18 @@ describe("replacing the only local project", () => {
     expect(ui.savedName()).toBe("우리 집")
   })
 
+  // Fixes the current result: cancelling either step keeps the saved project.
+  it("keeps a clean saved project when the new-project warning is cancelled", async () => {
+    const ui = await setup(mine)
+    const before = localStorage.getItem(storageKey)
+    await ui.click("우리 집 프로젝트 메뉴")
+    await ui.click("새 프로젝트")
+    await ui.click("취소")
+    expect(ui.dialogText()).not.toContain("이름을 정하면")
+    expect(localStorage.getItem(storageKey)).toBe(before)
+    expect(ui.find("우리 집 프로젝트 메뉴")).toBeDefined()
+  })
+
   it("opens the example directly when the saved project is the untouched example", async () => {
     const ui = await setup(structuredClone(sampleProject))
     await ui.click(`${sampleProject.name} 프로젝트 메뉴`)

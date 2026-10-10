@@ -26,7 +26,6 @@ import { MeterField } from "./MeterField"
 export function FurnitureInspector({
   selected,
   bounds,
-  roomName,
   onPlace,
   onPreview,
   onCommitPreview,
@@ -39,8 +38,7 @@ export function FurnitureInspector({
 }: {
   selected: Furniture
   bounds: { width: number; depth: number }
-  roomName: string | null
-  /** 입력한 위치로 옮기고, 방 안쪽으로 맞췄다면 true를 돌려줍니다. */
+  /** 입력한 위치로 옮기고, 벽이나 집 경계에 맞췄다면 true를 돌려줍니다. */
   onPlace: (update: { x?: number; z?: number }) => boolean
   onPreview: (update: Partial<Furniture>) => void
   onCommitPreview: () => void
@@ -119,7 +117,7 @@ export function FurnitureInspector({
         </div>
         <Type variant="caption" as="p" role="status">
           {adjusted
-            ? `${roomName ?? "집"}의 벽이나 경계에 닿아 들어갈 수 있는 위치에 맞췄어요.`
+            ? "벽이나 집 바깥 경계에 닿아 들어갈 수 있는 위치에 맞췄어요."
             : "평면도 왼쪽 위 모서리에서 잰 거리예요."}
         </Type>
       </section>

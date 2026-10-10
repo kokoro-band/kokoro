@@ -21,7 +21,8 @@ const radius = (box: Box, axis: Point2) =>
 function constraints(
   project: Project,
   focus?: RoomLabel | null,
-  clearOf?: Furniture
+  clearOf?: Furniture,
+  manual = false
 ) {
   const bounds = project.room?.bounds ?? project.dimensions
   const outline: Point2[] = project.room?.outline.length
@@ -33,7 +34,25 @@ function constraints(
         [0, bounds.depth],
       ]
   const polygons = focus ? [outline, focus.polygon] : [outline]
-  const walls = solidWalls(project.room)
+  // Manual edits cross internal walls; insertion still avoids every wall.
+  const walls = solidWalls(project.room).filter(
+    (wall) =>
+      !manual ||
+      outline.some((a, index) => {
+        const edge = subtract(outline[(index + 1) % outline.length], a)
+        const offset = subtract(wall.center, a)
+        const length = Math.hypot(...edge)
+        return (
+          length > EPSILON &&
+          Math.abs(edge[0] * offset[1] - edge[1] * offset[0]) <
+            EPSILON * length &&
+          Math.abs(edge[0] * wall.x[1] - edge[1] * wall.x[0]) <
+            EPSILON * length &&
+          dot(offset, edge) >= 0 &&
+          dot(offset, edge) <= length * length
+        )
+      })
+  )
   // Zero-thickness polygon edges still take part in the sweep, including
   // concave notches and room labels that do not have a physical wall.
   const obstacles = [
@@ -299,7 +318,7 @@ export function constrainFurniturePose(
   const target = { ...current, ...update }
   if (![target.x, target.z, target.rotation].every(Number.isFinite))
     return current
-  const scene = constraints(project, focus)
+  const scene = constraints(project, focus, undefined, true)
   if (!scene.valid(current)) {
     return findFurniturePlacement(project, target, focus) ?? current
   }

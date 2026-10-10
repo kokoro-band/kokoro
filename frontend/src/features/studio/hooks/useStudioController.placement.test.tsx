@@ -77,43 +77,52 @@ async function setup() {
 }
 
 describe("manual placement controller", () => {
-  it("saves a wall-safe drag and keeps one undo entry even when dragging against the wall repeatedly", async () => {
+  it("saves a drag across internal walls as one undo entry", async () => {
     const studio = await setup()
     await act(async () => {
       studio().moveFurniture("chair", 5, 2)
       for (let i = 0; i < 10; i++) studio().moveFurniture("chair", 5, 2)
       studio().commitPreview()
     })
-    expect(studio().project.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(studio().project.furniture[0].x).toBe(5)
     const saved = JSON.parse(
       localStorage.getItem("kokoro-remodel-project-v1")!
     ) as Project
-    expect(saved.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(saved.furniture[0].x).toBe(5)
     expect(placementIssues(saved)).toEqual([])
     await act(async () => studio().undo())
     expect(studio().project.furniture[0].x).toBe(1)
     expect(studio().canUndo).toBe(false)
     await act(async () => studio().redo())
-    expect(studio().project.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(studio().project.furniture[0].x).toBe(5)
   })
   it("constrains inspector, keyboard and rotation edits through the same controller", async () => {
     const studio = await setup()
     await act(async () => studio().selectFurniture("chair"))
-    await act(async () => studio().updateSelected({ x: 5 }))
-    expect(studio().selected?.x).toBeCloseTo(2.575, 5)
+    await act(async () => studio().updateSelected({ x: 3 }))
+    expect(studio().selected?.x).toBe(3)
     await act(async () => {
-      expect(studio().previewSelected({ x: 6 })).toBe(false)
+      expect(studio().previewSelected({ x: 4 })).toBe(true)
       studio().commitPreview()
     })
     await act(async () => studio().updateSelected({ rotation: 45 }))
-    expect(studio().selected?.rotation).toBe(0)
+    expect(studio().selected?.rotation).toBe(45)
     expect(placementIssues(studio().project)).toEqual([])
   })
-  it("works out a held VR pose against the walls without touching the project", async () => {
+  it("keeps coordinate entry and keyboard nudges exact near internal walls", async () => {
+    const studio = await setup()
+    await act(async () => studio().selectFurniture("chair"))
+    await act(async () => studio().updateSelected({ rotation: 45 }))
+    await act(async () => studio().updateSelected({ x: 2.49 }))
+    expect(studio().selected?.x).toBe(2.49)
+    await act(async () => studio().previewSelected({ x: 2.54 }))
+    expect(studio().selected?.x).toBe(2.54)
+  })
+  it("moves a held VR pose across internal walls without touching the project", async () => {
     const studio = await setup()
     const chair = studio().project.furniture[0]
     const pose = studio().constrainPose(chair, { x: 5 })
-    expect(pose.x).toBeCloseTo(2.575, 5)
+    expect(pose.x).toBe(5)
     const turned = studio().constrainPose(pose, { rotation: 45 })
     expect(
       placementIssues({ ...studio().project, furniture: [turned] })
@@ -147,13 +156,13 @@ describe("manual placement controller", () => {
     })
     expect(studio().canUndo).toBe(false)
   })
-  it("never saves a released VR pose inside a wall", async () => {
+  it("saves a released VR pose overlapping an internal wall with a repair warning", async () => {
     const studio = await setup()
     await act(async () => {
       studio().placeFurniture("chair", { x: 3, z: 2, rotation: 0 })
       studio().commitPreview()
     })
-    expect(placementIssues(studio().project)).toEqual([])
+    expect(placementIssues(studio().project)[0].reason).toContain("벽")
   })
   it("places a newly added item outside the wall", async () => {
     const studio = await setup()

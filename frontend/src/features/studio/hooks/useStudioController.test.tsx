@@ -324,7 +324,7 @@ describe("useStudioController project switching", () => {
     expect(app.get().busy).toBeNull()
   })
 
-  it("serializes wall-constrained drags without losing the latest draft or undo boundaries", async () => {
+  it("serializes cross-wall drags without losing the latest draft or undo boundaries", async () => {
     const initial: Project = {
       ...structuredClone(projectA),
       dimensions: { width: 6, depth: 6, height: 2.4 },
@@ -364,7 +364,7 @@ describe("useStudioController project switching", () => {
     })
     await flush()
     const first = calls("saveProject")[0].arg as Project
-    expect(first.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(first.furniture[0].x).toBe(5)
     act(() => {
       app.get().moveFurniture("chair", 5, 3)
       app.get().commitPreview()
@@ -376,7 +376,7 @@ describe("useStudioController project switching", () => {
     await flush()
     expect(calls("saveProject")).toHaveLength(2)
     const second = calls("saveProject")[1].arg as Project
-    expect(second.furniture[0].x).toBeCloseTo(2.575, 5)
+    expect(second.furniture[0].x).toBe(5)
     expect(second.furniture[0].z).toBe(3)
     calls("saveProject")[1].resolve(second)
     await flush()

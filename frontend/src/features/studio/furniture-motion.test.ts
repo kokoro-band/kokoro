@@ -4,7 +4,13 @@ import {
   constrainFurniturePose,
   findFurniturePlacement,
 } from "./furniture-motion"
-import { footprint, insideRoom, overlaps, wallBox } from "./placement-issues"
+import {
+  footprint,
+  insideRoom,
+  overlaps,
+  placementIssues,
+  wallBox,
+} from "./placement-issues"
 import type { Furniture, Project, RoomModel, Wall } from "./types"
 
 const room: RoomModel = {
@@ -60,7 +66,7 @@ describe("wall-safe furniture editing", () => {
     expect(moved.x).toBeCloseTo(0.1 + (1.1 + 0.46) / Math.sqrt(2), 5)
     expectSafe(moved)
   })
-  it("cannot tunnel across a thin internal wall even when the endpoint is clear", () => {
+  it("moves across internal walls and warns only when the final footprint overlaps", () => {
     const model = {
       ...room,
       walls: [
@@ -74,10 +80,18 @@ describe("wall-safe furniture editing", () => {
       ],
     }
     const moved = constrainFurniturePose(project(model), chair(1, 2), { x: 5 })
-    expect(moved.x).toBeCloseTo(2.67, 5)
+    expect(moved.x).toBe(5)
+    const overlapping = constrainFurniturePose(project(model), moved, { x: 3 })
+    expect(overlapping.x).toBe(3)
+    expect(
+      placementIssues({ ...project(model), furniture: [overlapping] })[0].reason
+    ).toContain("벽")
+    expect(
+      constrainFurniturePose(project(model), overlapping, { x: 1 }).x
+    ).toBe(1)
     expectSafe(moved, model)
   })
-  it("passes a doorway but not the solid wall beside it or a window", () => {
+  it("moves through internal doors, solid wall sections and windows", () => {
     const wall: Wall = { id: "inner", a: [3, 0], b: [3, 6], thickness: 0.2 }
     const opening = { id: "gap", wallId: "inner", from: 2.5, to: 3.5 }
     const withOpening = (type: "door" | "window") =>
@@ -92,18 +106,13 @@ describe("wall-safe furniture editing", () => {
       x: 2,
       z: 3,
     })
-    // Off the doorway the same move still stops at the wall face.
-    expect(constrainFurniturePose(door, chair(4, 1), { x: 2 }).x).toBeCloseTo(
-      3.425,
-      3
-    )
-    // Too far to one side, the chair catches the door jamb.
-    expect(
-      constrainFurniturePose(door, chair(4, 3.3), { x: 2 }).x
-    ).toBeGreaterThan(3.4)
+    // Manual placement crosses internal walls anywhere.
+    expect(constrainFurniturePose(door, chair(4, 1), { x: 2 }).x).toBe(2)
+    // Door jambs do not block movement either.
+    expect(constrainFurniturePose(door, chair(4, 3.3), { x: 2 }).x).toBe(2)
     expect(
       constrainFurniturePose(withOpening("window"), chair(4, 3), { x: 2 }).x
-    ).toBeCloseTo(3.425, 3)
+    ).toBe(2)
     // The example home's bedroom door, from the living room side.
     const home = { ...sampleProject, furniture: [] }
     expect(constrainFurniturePose(home, chair(4, 3.85), { x: 2.4 }).x).toBe(2.4)
@@ -136,7 +145,7 @@ describe("wall-safe furniture editing", () => {
     expect(moved.z).toBeCloseTo(before.z, 5)
     expectSafe(moved)
   })
-  it("blocks diagonal walls and concave boundary crossings", () => {
+  it("crosses diagonal internal walls but blocks concave boundary crossings", () => {
     const diagonal = {
       ...room,
       walls: [
@@ -152,7 +161,7 @@ describe("wall-safe furniture editing", () => {
       x: 4,
       z: 1,
     })
-    expect(moved.z - moved.x).toBeGreaterThan(0.79)
+    expect(moved).toMatchObject({ x: 4, z: 1 })
     expectSafe(moved, diagonal)
     const concave: RoomModel = {
       ...room,

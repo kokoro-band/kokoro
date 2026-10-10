@@ -118,6 +118,76 @@ describe("wall-safe furniture editing", () => {
     expect(constrainFurniturePose(home, chair(4, 3.85), { x: 2.4 }).x).toBe(2.4)
   })
 
+  it("snaps to either internal wall face, holds slight pressure, and releases deliberate crossing", () => {
+    const model = {
+      ...room,
+      walls: [
+        ...room.walls,
+        { id: "divider", a: [3, 0], b: [3, 6], thickness: 0.2 } as Wall,
+      ],
+    }
+    for (const side of [-1, 1]) {
+      const start = chair(3 + side, 2)
+      const face = 3 + side * 0.425
+      const snapped = constrainFurniturePose(project(model), start, {
+        x: face + side * 0.06,
+      })
+      expect(snapped.x).toBeCloseTo(face, 5)
+      const held = constrainFurniturePose(project(model), snapped, {
+        x: face - side * 0.06,
+        z: 3,
+      })
+      expect(held).toMatchObject({ z: 3 })
+      expect(held.x).toBeCloseTo(face, 5)
+      expectSafe(held, model)
+      const released = constrainFurniturePose(project(model), held, {
+        x: face - side * 0.15,
+      })
+      expect(released.x).toBeCloseTo(face - side * 0.15, 5)
+      expect(
+        placementIssues({ ...project(model), furniture: [released] })[0].reason
+      ).toContain("벽")
+      expect(
+        constrainFurniturePose(project(model), snapped, {
+          x: face + side * 0.02,
+        }).x
+      ).toBeCloseTo(face + side * 0.02, 5)
+      expect(
+        constrainFurniturePose(project(model), released, { x: 3 - side }).x
+      ).toBe(3 - side)
+    }
+  })
+
+  it("uses the rotated footprint when snapping and leaves a doorway free", () => {
+    const wall: Wall = { id: "divider", a: [3, 0], b: [3, 6], thickness: 0.2 }
+    const model = { ...room, walls: [wall] }
+    const item = { ...chair(1, 2), rotation: 45 }
+    const box = footprint(item)!
+    const face = 3 - 0.1 - (box.width + box.depth) / Math.sqrt(2)
+    const moved = constrainFurniturePose(project(model), item, {
+      x: face - 0.05,
+    })
+    expect(moved.x).toBeCloseTo(face, 5)
+    expectSafe(moved, model)
+    const doorway: RoomModel = {
+      ...model,
+      openings: [
+        {
+          id: "door",
+          wallId: wall.id,
+          type: "door",
+          from: 2.5,
+          to: 3.5,
+          bottom: 0,
+          top: 2.1,
+        },
+      ],
+    }
+    expect(
+      constrainFurniturePose(project(doorway), chair(1, 3), { x: 2.52 }).x
+    ).toBe(2.52)
+  })
+
   it("slides along walls and releases immediately when moved away", () => {
     const moved = constrainFurniturePose(project(), chair(2, 2), {
       x: -2,

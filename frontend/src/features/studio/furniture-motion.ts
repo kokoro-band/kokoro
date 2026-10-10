@@ -233,6 +233,46 @@ function snap(
   return next
 }
 
+/** A shallow wall magnet releases once the requested footprint pushes past 10 cm. */
+function magnetize(
+  current: Furniture,
+  target: Furniture,
+  walls: Box[],
+  scene: ReturnType<typeof constraints>
+) {
+  const before = footprint(current)
+  const box = footprint(target)
+  if (!before || !box) return target
+  const delta = subtract(box.center, before.center)
+  let best = SNAP_DISTANCE + EPSILON
+  let next = target
+  for (const wall of walls) {
+    const distance = dot(subtract(before.center, wall.center), wall.z)
+    if (Math.abs(distance) < radius(before, wall.z) + wall.depth - EPSILON)
+      continue
+    const normal: Point2 = distance < 0 ? [-wall.z[0], -wall.z[1]] : wall.z
+    if (dot(delta, normal) >= -EPSILON) continue
+    const offset = subtract(box.center, wall.center)
+    if (
+      Math.abs(dot(offset, wall.x)) >=
+      wall.width + radius(box, wall.x) - EPSILON
+    )
+      continue
+    const gap = dot(offset, normal) - radius(box, wall.z) - wall.depth
+    if (Math.abs(gap) > best) continue
+    const aligned = {
+      ...target,
+      x: target.x - normal[0] * gap,
+      z: target.z - normal[1] * gap,
+    }
+    if (scene.valid(aligned)) {
+      best = Math.abs(gap)
+      next = aligned
+    }
+  }
+  return next
+}
+
 /** Find a wall-safe position for newly added or previously invalid furniture. */
 export function findFurniturePlacement(
   project: Project,
@@ -336,6 +376,7 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
+  next = magnetize(current, next, solidWalls(project.room), scene)
   next = snap(
     next,
     subtract([target.x, target.z], [current.x, current.z]),

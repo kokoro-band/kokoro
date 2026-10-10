@@ -210,6 +210,9 @@ describe("save recovery through the real App and SEED UI", () => {
     await ui.click("거실 비어 있어요")
     await ui.click("가구 놓기")
     await ui.click("셸 체어 거실에 놓기")
+    // Adding no longer covers the canvas; the inspector opens on request.
+    expect(document.querySelector(".mobile-sheet[data-open]")).toBeNull()
+    await ui.click("자세히")
     expect(document.querySelector(".mobile-sheet[data-open]")).not.toBeNull()
     await ui.reject(0, new ApiError("changed", 409, false))
     expect(ui.text()).toContain("서버 내용이 바뀌었어요")

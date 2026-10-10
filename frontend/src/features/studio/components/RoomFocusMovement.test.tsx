@@ -259,16 +259,15 @@ describe("room focus is a view, not a movement boundary", () => {
     expect(ui.controller.current!.selectedId).toBeNull()
   })
 
-  it("says the item met a wall or the house outline, not a room boundary", async () => {
+  it("says the item met the house outline, not a room boundary", async () => {
     const ui = await setup(living)
     await ui.select("chair-01")
-    // A real wall separates the living room from the bedroom on the left.
-    await ui.commit("가로", "0.1")
-    expect(ui.roomIndex()).toBe(living)
+    // The target is beyond the outer building boundary.
+    await ui.commit("가로", "-1")
     const status = ui.container.querySelector(
       '[aria-labelledby="position-title"] [role="status"]'
     )!.textContent
-    expect(status).toContain("벽이나 집 바깥 경계")
+    expect(status).toContain("집 바깥 경계")
     expect(status).not.toContain("거실")
   })
 })

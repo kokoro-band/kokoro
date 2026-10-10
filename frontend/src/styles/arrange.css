@@ -22,6 +22,11 @@
   border-bottom: 1px solid var(--line);
 }
 
+.placement-issues-others {
+  justify-content: space-between;
+  width: 100%;
+}
+
 .placement-mobile-notice {
   flex: none;
   margin: var(--seed-dimension-x2) var(--seed-dimension-x3);

@@ -353,7 +353,8 @@ export function constrainFurniturePose(
   project: Project,
   current: Furniture,
   update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-  focus?: RoomLabel | null
+  focus?: RoomLabel | null,
+  magnetic = true
 ): Furniture {
   const target = { ...current, ...update }
   if (![target.x, target.z, target.rotation].every(Number.isFinite))
@@ -376,7 +377,7 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
-  next = magnetize(current, next, solidWalls(project.room), scene)
+  if (magnetic) next = magnetize(current, next, solidWalls(project.room), scene)
   next = snap(
     next,
     subtract([target.x, target.z], [current.x, current.z]),

@@ -1457,7 +1457,12 @@ export function useStudioController() {
     replacesSavedWork:
       !isServerMode &&
       (Boolean(project.room) || project.furniture.length > 0) &&
-      !untouchedSampleKeys.has(commandLayoutKey(project)),
+      !(
+        untouchedSampleKeys.has(commandLayoutKey(project)) &&
+        // An uploaded plan keeps the example layout but is still the user's.
+        project.floorPlan.fileName === sampleProject.floorPlan.fileName &&
+        project.floorPlan.size === sampleProject.floorPlan.size
+      ),
     saveProject: () => void handleSave(),
     retryFailedSave,
     restoreSavedProject: restoreSaved,

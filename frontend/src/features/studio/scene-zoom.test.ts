@@ -133,6 +133,15 @@ describe("zooming while editing furniture", () => {
     expect(scene.onCommit).not.toHaveBeenCalled()
   })
 
+  it("starts a pinch from where the first finger is, not where it landed", () => {
+    const scene = setup()
+    scene.touch("pointerdown", 1, 100, 100)
+    scene.touch("pointermove", 1, 200, 100)
+    scene.touch("pointerdown", 2, 300, 100)
+    scene.touch("pointermove", 1, 201, 100)
+    expect(scene.zoomCamera).toHaveBeenLastCalledWith(100 / 99)
+  })
+
   it("does not let a second finger take over a held piece of furniture", () => {
     const scene = setup()
     scene.hit.current = { id: "chair", center: [0, 0] }

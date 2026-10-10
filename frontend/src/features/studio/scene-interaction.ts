@@ -176,6 +176,8 @@ export function bindSceneInteraction({
       if (before > 0 && after > 0) zoomCamera(before / after)
       return
     }
+    // A lone finger keeps its place current, so a pinch starts from there.
+    if (touched) touches.set(event.pointerId, [event.clientX, event.clientY])
     if (doorGesture) {
       if (
         event.pointerId === doorGesture.pointerId &&

@@ -14,6 +14,7 @@ export function bindSceneInteraction({
   onMove,
   onCommit,
   onToggleDoor = () => {},
+  onPickFloor = () => {},
   setCameraEnabled,
   resetCameraGesture,
 }: {
@@ -25,6 +26,8 @@ export function bindSceneInteraction({
   onMove: (id: string, point: Point) => boolean
   onCommit: () => void
   onToggleDoor?: (id: string) => void
+  /** A click, not a drag, on floor that has no furniture or door on it. */
+  onPickFloor?: (point: Point) => void
   setCameraEnabled: (enabled: boolean) => void
   resetCameraGesture: () => void
 }) {
@@ -39,6 +42,11 @@ export function bindSceneInteraction({
   let doorGesture: {
     pointerId: number
     id: string
+    start: Point
+    cancelled: boolean
+  } | null = null
+  let floorGesture: {
+    pointerId: number
     start: Point
     cancelled: boolean
   } | null = null
@@ -100,6 +108,8 @@ export function bindSceneInteraction({
       return
     }
     stop(event)
+    // A second finger makes it a multi-touch gesture, never a click.
+    if (!event.isPrimary) floorGesture = null
     if (gesture || doorGesture || event.button !== 0 || !event.isPrimary) return
     const hit = pick(event)
     if (hit?.kind === "door") {
@@ -114,6 +124,13 @@ export function bindSceneInteraction({
       return
     }
     onSelect(hit?.id ?? null)
+    floorGesture = hit
+      ? null
+      : {
+          pointerId: event.pointerId,
+          start: [event.clientX, event.clientY],
+          cancelled: false,
+        }
     if (tool !== "move" || !hit) return
     const point = pointAt(event)
     if (!point) return
@@ -142,6 +159,14 @@ export function bindSceneInteraction({
         doorGesture.cancelled = true
       return
     }
+    if (
+      floorGesture?.pointerId === event.pointerId &&
+      Math.hypot(
+        event.clientX - floorGesture.start[0],
+        event.clientY - floorGesture.start[1]
+      ) >= 3
+    )
+      floorGesture.cancelled = true
     if (!gesture) {
       cursor()
       if (pick(event)?.kind === "door") element.style.cursor = "pointer"
@@ -191,15 +216,30 @@ export function bindSceneInteraction({
       return
     }
     if (gesture?.pointerId === event.pointerId) finishFurniture()
+    if (floorGesture?.pointerId === event.pointerId) {
+      const previous = floorGesture
+      floorGesture = null
+      const point =
+        !previous.cancelled &&
+        Math.hypot(
+          event.clientX - previous.start[0],
+          event.clientY - previous.start[1]
+        ) < 3
+          ? pointAt(event)
+          : null
+      if (point) onPickFloor(point)
+    }
   }
 
   function cancel(event: PointerEvent) {
+    if (floorGesture?.pointerId === event.pointerId) floorGesture = null
     if (doorGesture?.pointerId === event.pointerId) finishDoor()
     if (gesture?.pointerId === event.pointerId) finishFurniture()
     if (cameraPointers.has(event.pointerId)) finishCamera()
   }
 
   function finish() {
+    floorGesture = null
     finishDoor()
     finishFurniture()
     finishCamera()

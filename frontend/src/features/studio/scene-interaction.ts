@@ -15,6 +15,7 @@ export function bindSceneInteraction({
   onCommit,
   onToggleDoor = () => {},
   onPickFloor = () => {},
+  zoomCamera = () => {},
   setCameraEnabled,
   resetCameraGesture,
 }: {
@@ -28,6 +29,11 @@ export function bindSceneInteraction({
   onToggleDoor?: (id: string) => void
   /** A click, not a drag, on floor that has no furniture or door on it. */
   onPickFloor?: (point: Point) => void
+  /**
+   * Scales the camera distance. The select and move tools keep the camera
+   * controls off so a drag never pans, so their zoom gestures arrive here.
+   */
+  zoomCamera?: (factor: number) => void
   setCameraEnabled: (enabled: boolean) => void
   resetCameraGesture: () => void
 }) {
@@ -51,6 +57,8 @@ export function bindSceneInteraction({
     cancelled: boolean
   } | null = null
   const cameraPointers = new Set<number>()
+  // Fingers on empty floor. Two of them pinch; held furniture is never pinched.
+  const touches = new Map<number, Point>()
   const window = element.ownerDocument.defaultView
 
   function cursor() {
@@ -110,8 +118,14 @@ export function bindSceneInteraction({
     stop(event)
     // A second finger makes it a multi-touch gesture, never a click.
     if (!event.isPrimary) floorGesture = null
+    if (event.pointerType === "touch") {
+      if (event.isPrimary) touches.clear()
+      if (!gesture && !doorGesture && touches.size < 2)
+        touches.set(event.pointerId, [event.clientX, event.clientY])
+    }
     if (gesture || doorGesture || event.button !== 0 || !event.isPrimary) return
     const hit = pick(event)
+    if (hit && (hit.kind === "door" || tool === "move")) touches.clear()
     if (hit?.kind === "door") {
       doorGesture = {
         pointerId: event.pointerId,
@@ -148,6 +162,22 @@ export function bindSceneInteraction({
   function move(event: PointerEvent) {
     if (tool === "pan") return
     stop(event)
+    const touched = touches.get(event.pointerId)
+    if (touched && touches.size === 2) {
+      const [other] = [...touches].flatMap(([id, point]) =>
+        id === event.pointerId ? [] : [point]
+      )
+      const before = Math.hypot(touched[0] - other[0], touched[1] - other[1])
+      const after = Math.hypot(
+        event.clientX - other[0],
+        event.clientY - other[1]
+      )
+      touches.set(event.pointerId, [event.clientX, event.clientY])
+      if (before > 0 && after > 0) zoomCamera(before / after)
+      return
+    }
+    // A lone finger keeps its place current, so a pinch starts from there.
+    if (touched) touches.set(event.pointerId, [event.clientX, event.clientY])
     if (doorGesture) {
       if (
         event.pointerId === doorGesture.pointerId &&
@@ -199,6 +229,7 @@ export function bindSceneInteraction({
       return
     }
     stop(event)
+    touches.delete(event.pointerId)
     if (doorGesture?.pointerId === event.pointerId) {
       const previous = doorGesture
       const hit = pick(event)
@@ -233,13 +264,26 @@ export function bindSceneInteraction({
 
   function cancel(event: PointerEvent) {
     if (floorGesture?.pointerId === event.pointerId) floorGesture = null
+    touches.delete(event.pointerId)
     if (doorGesture?.pointerId === event.pointerId) finishDoor()
     if (gesture?.pointerId === event.pointerId) finishFurniture()
     if (cameraPointers.has(event.pointerId)) finishCamera()
   }
 
+  function wheel(event: WheelEvent) {
+    if (tool === "pan" || !event.deltaY) return
+    stop(event)
+    // Same step as OrbitControls, including the stronger trackpad pinch.
+    const lines = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1
+    const amount =
+      Math.abs(event.deltaY) * lines * (event.ctrlKey ? 10 : 1) * 0.01
+    const scale = 0.95 ** amount
+    zoomCamera(event.deltaY < 0 ? scale : 1 / scale)
+  }
+
   function finish() {
     floorGesture = null
+    touches.clear()
     finishDoor()
     finishFurniture()
     finishCamera()
@@ -264,6 +308,7 @@ export function bindSceneInteraction({
   element.addEventListener("pointerup", up, true)
   element.addEventListener("pointercancel", cancel, true)
   element.addEventListener("lostpointercapture", cancel)
+  element.addEventListener("wheel", wheel, { capture: true, passive: false })
   window?.addEventListener("blur", finish)
   window?.addEventListener("keydown", escape)
   return {
@@ -274,6 +319,7 @@ export function bindSceneInteraction({
       element.removeEventListener("pointerup", up, true)
       element.removeEventListener("pointercancel", cancel, true)
       element.removeEventListener("lostpointercapture", cancel)
+      element.removeEventListener("wheel", wheel, true)
       window?.removeEventListener("blur", finish)
       window?.removeEventListener("keydown", escape)
       finish()

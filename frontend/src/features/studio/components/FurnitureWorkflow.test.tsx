@@ -15,7 +15,7 @@ import { SummaryView } from "./SummaryView"
 import { useStudioController } from "../hooks/useStudioController"
 import { sampleProject, catalog } from "../data"
 import { buildRoomModel } from "../room-builder"
-import type { Project } from "../types"
+import type { Furniture, Project } from "../types"
 
 // Only the WebGL scene boundary is replaced. UI, controller and persistence are real.
 vi.mock("./SceneEditor", () => ({ SceneEditor: () => <div>3D 경계</div> }))
@@ -26,7 +26,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function setup() {
+async function setup(overrides: Partial<Project> = {}, isMobile = false) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   const project: Project = {
     ...sampleProject,
@@ -36,6 +36,7 @@ async function setup() {
       wallHeight: 2.4,
     }),
     furniture: [],
+    ...overrides,
   }
   localStorage.setItem("kokoro-remodel-project-v1", JSON.stringify(project))
   const client = new QueryClient({
@@ -51,7 +52,7 @@ async function setup() {
         <ArrangeView
           studio={studio}
           roomIndex={roomIndex}
-          isMobile={false}
+          isMobile={isMobile}
           onRoomChange={setRoomIndex}
           onOpenStructure={() => {}}
         />
@@ -87,7 +88,9 @@ async function setup() {
   )
   function button(name: string) {
     const target = [
-      ...container.querySelectorAll<HTMLButtonElement>("button"),
+      ...document.querySelectorAll<HTMLButtonElement>(
+        'button,[role="menuitem"]'
+      ),
     ].find(
       (item) =>
         (item.getAttribute("aria-label") ?? item.textContent?.trim()) === name
@@ -265,5 +268,76 @@ describe("furniture search and real local workflow", () => {
     await ui.key(ui.input("가구 검색"), "Delete")
     await ui.type("가구 검색", "123")
     expect(ui.saved().furniture).toEqual(before)
+  })
+})
+
+describe("moving furniture between rooms", () => {
+  const twoRooms = (bedroomWidth = 4.8, bedroomDepth = 6.9) => ({
+    dimensions: { width: 4.8 + bedroomWidth, depth: 6.9, height: 2.4 },
+    room: buildRoomModel({
+      rooms: [
+        { id: "a", name: "거실", x: 0, z: 0, width: 4.8, depth: 6.9 },
+        {
+          id: "b",
+          name: "침실",
+          x: 4.8,
+          z: 0,
+          width: bedroomWidth,
+          depth: bedroomDepth,
+        },
+      ],
+      wallHeight: 2.4,
+    }),
+  })
+  const chair: Furniture = {
+    id: "chair-1",
+    catalogId: "chair-shell",
+    name: "셸 체어",
+    category: "의자",
+    x: 2,
+    z: 3,
+    rotation: 90,
+    color: "#000000",
+  }
+
+  it("moves the selected furniture into another room keeping its identity", async () => {
+    const ui = await setup({ ...twoRooms(), furniture: [chair] })
+    await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    await ui.click("다른 방으로 옮기기")
+    await ui.click("침실")
+    const [moved] = ui.saved().furniture
+    expect(moved).toMatchObject({ id: chair.id, rotation: 90 })
+    expect(moved.x).toBeGreaterThan(4.8)
+    expect(
+      ui.container.querySelector(".inspector-identity")?.textContent
+    ).toContain("셸 체어")
+    expect(ui.controller.current!.notice?.text).toBe(
+      "셸 체어를 침실로 옮겼어요."
+    )
+  })
+
+  it("exposes destination rooms to assistive technology inside the mobile sheet", async () => {
+    const ui = await setup({ ...twoRooms(), furniture: [chair] }, true)
+    await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    await ui.click("선택한 가구")
+    await ui.click("다른 방으로 옮기기")
+    const destination = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((item) => item.textContent?.trim() === "침실")
+    expect(destination, "침실 menu item").toBeDefined()
+    expect(destination!.closest('[aria-hidden="true"]')).toBeNull()
+    expect(destination!.closest(".mobile-sheet")).not.toBeNull()
+  })
+
+  it("keeps the layout when the destination has no room for it", async () => {
+    const sofa: Furniture = { ...chair, id: "sofa-1", catalogId: "sofa-cloud" }
+    const ui = await setup({ ...twoRooms(1, 1), furniture: [sofa] })
+    await act(async () => ui.controller.current!.selectFurniture(sofa.id))
+    await ui.click("다른 방으로 옮기기")
+    await ui.click("침실")
+    expect(ui.saved().furniture).toEqual([sofa])
+    expect(ui.controller.current!.notice?.text).toBe(
+      "침실에는 이 가구를 놓을 자리가 없어요."
+    )
   })
 })

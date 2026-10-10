@@ -36,7 +36,11 @@ import {
   WriteCancelledError,
   WriteSkippedError,
 } from "@/features/studio/project-write-queue"
-import { withObjectParticle } from "@/features/studio/format"
+import {
+  withDirectionParticle,
+  withObjectParticle,
+} from "@/features/studio/format"
+import { roomCenter } from "@/features/studio/house-navigation"
 import {
   constrainFurniturePose,
   findFreePlacement,
@@ -709,6 +713,34 @@ export function useStudioController() {
       )
     )
     return next
+  }
+
+  /** Keeps the item's identity and rotation and finds free floor in `room`. */
+  function moveSelectedToRoom(room: RoomLabel) {
+    if (conflictRef.current?.status === "applying") return null
+    const current = projectRef.current.furniture.find(
+      (item) => item.id === selectedId
+    )
+    if (!current) return null
+    const [x, z] = roomCenter(room)
+    const placed = findFreePlacement(
+      projectRef.current,
+      { ...current, x: round(x), z: round(z) },
+      room
+    )
+    if (!placed) {
+      setNotice(`${room.name}에는 이 가구를 놓을 자리가 없어요.`, "critical")
+      return null
+    }
+    commitFurniture(
+      projectRef.current.furniture.map((item) =>
+        item.id === current.id ? placed : item
+      )
+    )
+    setNotice(
+      `${withObjectParticle(current.name)} ${withDirectionParticle(room.name)} 옮겼어요.`
+    )
+    return placed
   }
 
   function deleteSelected() {
@@ -1597,6 +1629,7 @@ export function useStudioController() {
     sendMessage: (text: string, focus?: Point2[]) =>
       void handleChat(text, focus),
     updateSelected,
+    moveSelectedToRoom,
     deleteSelected,
     dismissNotice,
     uploadFloorPlan: (file?: File) => void handleUpload(file),

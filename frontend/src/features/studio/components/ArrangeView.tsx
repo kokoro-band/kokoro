@@ -20,7 +20,10 @@ import {
 import { Type } from "@/components/kokoro/Type"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
-import { roomCenter } from "@/features/studio/house-navigation"
+import {
+  roomCenter,
+  roomForFurniture,
+} from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
 
@@ -86,6 +89,14 @@ export function ArrangeView({
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
   const navigatorRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
+  // 모달 시트 밖의 메뉴는 보조기기에서 숨겨지므로 시트 안에 그립니다. 메뉴의
+  // 포털은 처음 붙을 때 한 번만 자리를 정하고, 부모의 ref는 자식 효과보다 늦게
+  // 붙으므로 시트 요소를 상태로 받은 뒤에야 메뉴를 그립니다.
+  const [sheetElement, setSheetElement] = useState<HTMLDivElement | null>(null)
+  const sheetMenuContainer = useMemo(
+    () => ({ current: sheetElement }),
+    [sheetElement]
+  )
   const dockPlaceRef = useRef<HTMLButtonElement>(null)
   const selected = studio.selected
   const issues = useMemo(
@@ -154,6 +165,17 @@ export function ArrangeView({
       sheetRef.current?.contains(active)
     )
       dockPlaceRef.current?.focus()
+  }
+
+  const selectedRoom = selected ? roomForFurniture(rooms, selected) : -1
+  const moveTargets = rooms.flatMap((entry, index) =>
+    index === selectedRoom ? [] : [{ index, name: entry.name }]
+  )
+  /** 옮긴 방으로 따라가되 선택은 그대로 둡니다. */
+  const moveToRoom = (index: number) => {
+    const target = rooms[index]
+    if (!target || !studio.moveSelectedToRoom(target)) return
+    if (roomIndex !== null) onRoomChange(index)
   }
 
   const deleteSelected = () => {
@@ -277,6 +299,9 @@ export function ArrangeView({
       onPreview={(update) => studio.previewSelected(update, room)}
       onCommitPreview={studio.commitPreview}
       onDelete={deleteSelected}
+      moveTargets={isMobile && !sheetElement ? [] : moveTargets}
+      onMoveToRoom={moveToRoom}
+      menuContainer={isMobile ? sheetMenuContainer : undefined}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
     />
   ) : (
@@ -419,7 +444,13 @@ export function ArrangeView({
         >
           <BottomSheet.Backdrop />
           <BottomSheet.Positioner>
-            <BottomSheet.Content ref={sheetRef} className="mobile-sheet">
+            <BottomSheet.Content
+              ref={(node) => {
+                sheetRef.current = node
+                setSheetElement(node)
+              }}
+              className="mobile-sheet"
+            >
               <BottomSheet.Header>
                 <BottomSheet.Title>{sheetTitle}</BottomSheet.Title>
                 <BottomSheet.CloseButton aria-label="닫기">

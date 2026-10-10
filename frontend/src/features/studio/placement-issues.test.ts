@@ -118,6 +118,35 @@ describe("repairable placement issues", () => {
     expect(placementIssues(project([chair("a", 5, 2)], doorRoom))).toEqual([])
   })
 
+  it("leaves furniture beside a doorway clear, including rotated footprints and touching edges", () => {
+    const doorRoom: RoomModel = {
+      ...room,
+      walls: [{ id: "front", a: [0, 0], b: [5.8, 0], thickness: 0.2 }],
+      openings: [
+        {
+          id: "door",
+          wallId: "front",
+          type: "door",
+          from: 2.4,
+          to: 3.4,
+          bottom: 0,
+          top: 2.1,
+        },
+      ],
+    }
+    for (const item of [
+      chair("beside", 4, 0.5),
+      chair("touching", 3.725, 0.5),
+      chair("rotated", 4, 0.65, 45),
+    ]) {
+      expect(placementIssues(project([item], doorRoom))).toEqual([])
+    }
+    expect(
+      placementIssues(project([chair("blocking", 3.5, 0.65, 45)], doorRoom))[0]
+        .reason
+    ).toContain("문 앞")
+  })
+
   it("clears issues individually after moving or removing items without mutating the project", () => {
     const draft = project([chair("a", 15, 15), chair("b", 16, 16)], room)
     const before = structuredClone(draft)

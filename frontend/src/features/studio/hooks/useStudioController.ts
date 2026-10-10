@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
+import { parseStoredProject } from "../project-validation"
 import { proposeBrowserIntent } from "../browser-ai-command"
 import { requestLocalLayoutIntent, type LocalLayoutIntent } from "../local-ai"
 import type { BrowserIntent } from "../browser-ai-intent"
@@ -81,6 +82,13 @@ export type ProjectConflict = {
 
 /** Wait this long without another notice before announcing an autosave. */
 const autosaveNoticeQuietMs = 45_000
+
+/** The example as opened directly and as reloaded from browser storage. */
+const untouchedSampleKeys = new Set(
+  [sampleProject, parseStoredProject(structuredClone(sampleProject))].map(
+    commandLayoutKey
+  )
+)
 
 const maxFloorPlanBytes = 15 * 1024 * 1024
 const supportedFloorPlanTypes = ["application/pdf", "image/png", "image/jpeg"]
@@ -1604,6 +1612,16 @@ export function useStudioController() {
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
     openSampleProject,
     exportProject,
+    // The local demo keeps one project, so opening another one overwrites it.
+    replacesSavedWork:
+      !isServerMode &&
+      (Boolean(project.room) || project.furniture.length > 0) &&
+      !(
+        untouchedSampleKeys.has(commandLayoutKey(project)) &&
+        // An uploaded plan keeps the example layout but is still the user's.
+        project.floorPlan.fileName === sampleProject.floorPlan.fileName &&
+        project.floorPlan.size === sampleProject.floorPlan.size
+      ),
     saveProject: () => void handleSave(),
     retryFailedSave,
     restoreSavedProject: restoreSaved,

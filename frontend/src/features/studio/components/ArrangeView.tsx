@@ -363,6 +363,7 @@ export function ArrangeView({
       onRedo={studio.redo}
       onFullscreenError={studio.reportFullscreenError}
       onSelect={selectSceneFurniture}
+      onEnterRoom={changeRoom}
       onMove={studio.moveFurniture}
       onMoveEnd={studio.commitPreview}
       onConstrainPose={studio.constrainPose}

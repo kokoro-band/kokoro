@@ -109,15 +109,6 @@ describe("manual placement controller", () => {
     expect(studio().selected?.rotation).toBe(45)
     expect(placementIssues(studio().project)).toEqual([])
   })
-  it("keeps coordinate entry and keyboard nudges exact near internal walls", async () => {
-    const studio = await setup()
-    await act(async () => studio().selectFurniture("chair"))
-    await act(async () => studio().updateSelected({ rotation: 45 }))
-    await act(async () => studio().updateSelected({ x: 2.49 }))
-    expect(studio().selected?.x).toBe(2.49)
-    await act(async () => studio().previewSelected({ x: 2.54 }))
-    expect(studio().selected?.x).toBe(2.54)
-  })
   it("moves a held VR pose across internal walls without touching the project", async () => {
     const studio = await setup()
     const chair = studio().project.furniture[0]

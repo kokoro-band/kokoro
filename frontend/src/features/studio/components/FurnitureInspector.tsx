@@ -1,11 +1,19 @@
-import { useState } from "react"
+import { useState, type RefObject } from "react"
 import {
+  IconArrowRightLine,
   IconTrashcanLine,
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon, PrefixIcon } from "@seed-design/react"
 import { Slider } from "seed-design/ui/slider"
 import { Callout } from "seed-design/ui/callout"
+import {
+  MenuContent,
+  MenuGroup,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+} from "seed-design/ui/menu"
 
 import { Type } from "@/components/kokoro/Type"
 import { catalog } from "@/features/studio/data"
@@ -25,6 +33,9 @@ export function FurnitureInspector({
   onDelete,
   onClose,
   issue,
+  moveTargets = [],
+  onMoveToRoom,
+  menuContainer,
 }: {
   selected: Furniture
   bounds: { width: number; depth: number }
@@ -36,6 +47,11 @@ export function FurnitureInspector({
   onDelete: () => void
   onClose?: () => void
   issue?: string
+  /** 이 가구를 옮길 수 있는 다른 방들. */
+  moveTargets?: { index: number; name: string }[]
+  onMoveToRoom?: (index: number) => void
+  /** 모달 시트 안에서는 메뉴도 시트 안에 그려야 보조기기가 읽을 수 있어요. */
+  menuContainer?: RefObject<HTMLElement | null>
 }) {
   const item = catalog.find((entry) => entry.id === selected.catalogId)
   const [adjusted, setAdjusted] = useState(false)
@@ -139,6 +155,31 @@ export function FurnitureInspector({
       </section>
 
       <footer className="inspector-footer">
+        {moveTargets.length > 0 && onMoveToRoom && (
+          <MenuRoot>
+            <MenuTrigger asChild>
+              <ActionButton
+                variant="neutralWeak"
+                size="medium"
+                className="inspector-move"
+              >
+                <PrefixIcon svg={<IconArrowRightLine />} />
+                다른 방으로 옮기기
+              </ActionButton>
+            </MenuTrigger>
+            <MenuContent positionerContainer={menuContainer}>
+              <MenuGroup>
+                {moveTargets.map((target) => (
+                  <MenuItem
+                    key={target.index}
+                    label={target.name}
+                    onClick={() => onMoveToRoom(target.index)}
+                  />
+                ))}
+              </MenuGroup>
+            </MenuContent>
+          </MenuRoot>
+        )}
         <ActionButton
           variant="ghost"
           size="medium"

@@ -294,8 +294,12 @@ export async function sendCommand(
       focus?.length && !containsPoint(focus, x, z) ? labelPoint(focus) : [x, z]
     return [Math.round(safeX * 10) / 10, Math.round(safeZ * 10) / 10]
   }
+  // 방을 보고 있을 때는 그 방의 가구만 바꾸고 다른 방 가구는 그대로 둡니다.
+  const inFocus = (item: Furniture) =>
+    !focus?.length || containsPoint(focus, item.x, item.z)
   let furniture = [...project.furniture]
   const actions: string[] = []
+  const missing: string[] = []
   const targets = [
     { word: "소파", id: "sofa-cloud", spot: at(0.27, 0.68) },
     { word: "테이블", id: "table-oak", spot: at(0.55, 0.5) },
@@ -314,13 +318,15 @@ export async function sendCommand(
     (word === "화분" && normalized.includes("식물")) ||
     (word === "테이블" && normalized.includes("책상"))
   if (moving || rotating || removing) {
-    const matches = project.furniture.filter((item) =>
-      targets.some(
-        (target) =>
-          matchesTarget(target.word) &&
-          item.category ===
-            catalog.find((entry) => entry.id === target.id)?.category
-      )
+    const matches = project.furniture.filter(
+      (item) =>
+        inFocus(item) &&
+        targets.some(
+          (target) =>
+            matchesTarget(target.word) &&
+            item.category ===
+              catalog.find((entry) => entry.id === target.id)?.category
+        )
     )
     if (!furnitureId && matches.length > 1)
       return {
@@ -334,9 +340,13 @@ export async function sendCommand(
     if (furnitureId && !matches.some((item) => item.id === furnitureId))
       throw new Error("대상 가구가 바뀌었어요. 다시 요청해 주세요.")
   }
-  if (normalized.includes("비워") || normalized.includes("전부삭제")) {
-    furniture = []
-    actions.push("가구를 모두 비웠어요")
+  const clearing =
+    normalized.includes("비워") || normalized.includes("전부삭제")
+  if (clearing) {
+    furniture = furniture.filter((item) => !inFocus(item))
+    actions.push(
+      focus?.length ? "이 방의 가구를 모두 비웠어요" : "가구를 모두 비웠어요"
+    )
   } else {
     for (const target of targets) {
       const matches = matchesTarget(target.word)
@@ -345,10 +355,14 @@ export async function sendCommand(
       const existing = furniture.find(
         (item) =>
           (!furnitureId || item.id === furnitureId) &&
+          inFocus(item) &&
           item.category ===
             catalog.find((entry) => entry.id === target.id)?.category
       )
-      if ((moving || rotating) && !existing) continue
+      if ((moving || rotating || removing) && !existing) {
+        if (focus?.length) missing.push(target.word)
+        continue
+      }
       if (removing) {
         if (existing) {
           furniture = furniture.filter((item) => item.id !== existing.id)
@@ -380,6 +394,7 @@ export async function sendCommand(
     }
     if (normalized.includes("미니멀") && actions.length === 0) {
       furniture = [
+        ...furniture.filter((item) => !inFocus(item)),
         makeFurniture("sofa-cloud", ...at(0.28, 0.68)),
         makeFurniture("table-oak", ...at(0.55, 0.5)),
         makeFurniture("plant-olive", ...at(0.84, 0.76)),
@@ -413,15 +428,17 @@ export async function sendCommand(
         rotation: item.rotation,
       })),
   ]
-  if (normalized.includes("비워") || normalized.includes("전부삭제"))
+  if (clearing && !focus?.length)
     commands.splice(0, commands.length, { type: "CLEAR" })
   const result: CommandResponse = {
     ...emptyCommandResponse(project),
     reply: actions.length
       ? `${actions.join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
-      : removing
-        ? "삭제할 가구를 찾지 못했어요. 현재 가구 이름을 확인해 주세요."
-        : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
+      : missing.length
+        ? `이 방에서 ${missing.map(withObjectParticle).join(", ")} 찾지 못했어요. 다른 방의 가구는 그 방에서 바꿔 주세요.`
+        : removing
+          ? "삭제할 가구를 찾지 못했어요. 현재 가구 이름을 확인해 주세요."
+          : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
     project: { ...project, furniture },
     commands,
     appliedActions: actions,

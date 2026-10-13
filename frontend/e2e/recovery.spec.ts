@@ -192,7 +192,7 @@ async function conflictWithDraft(
       .getByRole("button", { name: "올리브 화분 거실에 놓기", exact: true })
       .click()
     await arrived.opened
-    await closeSheet(page, narrow)
+    if (narrow) await expect(page.locator(".mobile-sheet")).toHaveCount(0)
     await page.getByRole("button", { name: "구조", exact: true }).click()
     await field(page, "이름", "내 미저장 구조")
     outgoing.release()

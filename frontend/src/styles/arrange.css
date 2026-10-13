@@ -22,6 +22,11 @@
   border-bottom: 1px solid var(--line);
 }
 
+.placement-issues-others {
+  justify-content: space-between;
+  width: 100%;
+}
+
 .placement-mobile-notice {
   flex: none;
   margin: var(--seed-dimension-x2) var(--seed-dimension-x3);
@@ -245,6 +250,23 @@
 
 .arrange-mobile > .viewport {
   flex: 1;
+}
+
+/* 고른 가구의 이름과 자주 쓰는 동작만 한 줄로 보여 화면을 가리지 않습니다. */
+.selection-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--seed-dimension-x1);
+  padding: var(--seed-dimension-x1_5) var(--seed-dimension-x3);
+  background: var(--seed-color-bg-layer-default);
+  border-top: 1px solid var(--line);
+}
+
+.selection-bar-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0 var(--seed-dimension-x1);
 }
 
 .mobile-dock {

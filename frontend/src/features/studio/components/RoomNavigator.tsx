@@ -69,6 +69,8 @@ export function RoomNavigator({
     <PlacementIssueList
       furniture={project.furniture}
       issues={issues}
+      rooms={rooms}
+      roomIndex={room ? roomIndex : null}
       selectedId={selectedId}
       onSelect={onSelectIssue}
     />
@@ -272,7 +274,7 @@ export function RoomNavigator({
                   <FurnitureThumb category={item.category} color={item.color} />
                 }
                 title={item.name}
-                detail={`${formatMeters(item.x)} × ${formatMeters(item.z)} · ${item.rotation}°`}
+                detail={`위치 가로 ${formatMeters(item.x)} · 세로 ${formatMeters(item.z)} · ${item.rotation}°`}
                 onClick={() => onSelectFurniture(item.id)}
               />
             ))}

@@ -2,9 +2,17 @@ import { describe, expect, it } from "vite-plus/test"
 import { sampleProject } from "./data"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
 } from "./furniture-motion"
-import { footprint, insideRoom, overlaps, wallBox } from "./placement-issues"
+import {
+  footprint,
+  insideRoom,
+  overlaps,
+  placementIssues,
+  wallBox,
+} from "./placement-issues"
+import { buildRoomModel } from "./room-builder"
 import type { Furniture, Project, RoomModel } from "./types"
 
 const room: RoomModel = {
@@ -197,4 +205,47 @@ describe("wall-safe furniture editing", () => {
     }
     expect(findFurniturePlacement(project(tiny), chair(0.25, 0.25))).toBeNull()
   })
+
+  it.each([0, 90])(
+    "finds the narrow gap between sofas at %i degrees and rejects a smaller gap",
+    (rotation) => {
+      const model = buildRoomModel({
+        rooms: [
+          { id: "room", name: "거실", x: 0, z: 0, width: 5.3, depth: 1.2 },
+        ],
+        wallHeight: 2.4,
+      })
+      const sofas: Furniture[] = [1.2, 4.1].map((x, index) => ({
+        ...chair(x, 0.6),
+        id: `sofa-${index}`,
+        catalogId: "sofa-cloud",
+        name: "클라우드 소파",
+        category: "소파",
+      }))
+      const scene = { ...project(model), furniture: sofas }
+      const item = { ...chair(2.7, 0.6), rotation }
+      expect(
+        placementIssues({
+          ...scene,
+          furniture: [...sofas, { ...item, x: 2.65 }],
+        })
+      ).toEqual([])
+
+      const placed = findFreePlacement(scene, item)
+      expect(placed).not.toBeNull()
+      expect(placed!.x).toBeGreaterThanOrEqual(2.625)
+      expect(placed!.x).toBeLessThanOrEqual(2.675)
+      expect(placed!.z).toBeCloseTo(0.6)
+      expect(
+        placementIssues({ ...scene, furniture: [...sofas, placed!] })
+      ).toEqual([])
+
+      expect(
+        findFreePlacement(
+          { ...scene, furniture: [sofas[0], { ...sofas[1], x: 4 }] },
+          item
+        )
+      ).toBeNull()
+    }
+  )
 })

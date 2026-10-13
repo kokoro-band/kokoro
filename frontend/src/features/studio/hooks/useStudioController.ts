@@ -46,6 +46,7 @@ import {
   constrainFurniturePose,
   findFreePlacement,
   findFurniturePlacement,
+  turnBlocker,
 } from "@/features/studio/furniture-motion"
 import type {
   RoomModel,
@@ -625,7 +626,6 @@ export function useStudioController() {
     function previewFurniture(
       id: string,
       update: Partial<Furniture>,
-      focus?: RoomLabel | null,
       magnetic = false
     ) {
       return showFurniturePose(id, (current) =>
@@ -633,7 +633,7 @@ export function useStudioController() {
           projectRef.current,
           current,
           update,
-          focus,
+          undefined,
           magnetic
         )
       )
@@ -642,13 +642,8 @@ export function useStudioController() {
   )
 
   const moveFurniture = useCallback(
-    function moveFurniture(
-      id: string,
-      x: number,
-      z: number,
-      focus?: RoomLabel | null
-    ) {
-      return previewFurniture(id, { x, z }, focus, true)
+    function moveFurniture(id: string, x: number, z: number) {
+      return previewFurniture(id, { x, z }, true)
     },
     [previewFurniture]
   )
@@ -659,10 +654,9 @@ export function useStudioController() {
    */
   const constrainPose = useCallback(function constrainPose(
     item: Furniture,
-    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-    focus?: RoomLabel | null
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
   ) {
-    return constrainFurniturePose(projectRef.current, item, update, focus)
+    return constrainFurniturePose(projectRef.current, item, update)
   }, [])
 
   /** Applies a released VR pose. It was wall-limited along the hand path, so
@@ -670,15 +664,13 @@ export function useStudioController() {
   const placeFurniture = useCallback(
     function placeFurniture(
       id: string,
-      pose: Pick<Furniture, "x" | "z" | "rotation">,
-      focus?: RoomLabel | null
+      pose: Pick<Furniture, "x" | "z" | "rotation">
     ) {
       return showFurniturePose(id, (current) => {
         const target = { ...current, ...pose }
-        return findFurniturePlacement(projectRef.current, target, focus) ===
-          target
+        return findFurniturePlacement(projectRef.current, target) === target
           ? target
-          : constrainFurniturePose(projectRef.current, current, pose, focus)
+          : constrainFurniturePose(projectRef.current, current, pose)
       })
     },
     [showFurniturePose]
@@ -700,21 +692,33 @@ export function useStudioController() {
     [persistLayout, syncSaveState]
   )
 
-  function updateSelected(
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
-  ) {
+  function updateSelected(update: Partial<Furniture>) {
     if (isConfirmationPending(commandReviewRef.current)) return null
     if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(
       (item) => item.id === selectedId
     )
     if (!current) return null
+    // A turn with no room is refused whole. Turning part-way or shifting the
+    // item to make room would both move it somewhere the user did not ask for.
+    const blocker =
+      update.rotation !== undefined && Number.isFinite(update.rotation)
+        ? turnBlocker(projectRef.current, current, update.rotation)
+        : null
+    if (blocker) {
+      setNotice(
+        blocker === "wall"
+          ? "벽에 닿아서 돌릴 수 없어요. 벽에서 조금 떼어 놓고 다시 돌려 주세요."
+          : `${blocker.name}에 닿아서 돌릴 수 없어요. 자리를 넓힌 뒤 다시 돌려 주세요.`,
+        "critical"
+      )
+      return current
+    }
     const next = constrainFurniturePose(
       projectRef.current,
       current,
       update,
-      focus,
+      undefined,
       false
     )
     if (
@@ -1646,8 +1650,8 @@ export function useStudioController() {
     moveFurniture,
     constrainPose,
     placeFurniture,
-    previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
-      if (selectedId) return previewFurniture(selectedId, update, focus)
+    previewSelected: (update: Partial<Furniture>) => {
+      if (selectedId) return previewFurniture(selectedId, update)
       return false
     },
     commitPreview,

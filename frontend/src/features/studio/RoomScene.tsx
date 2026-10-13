@@ -15,7 +15,8 @@ import {
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
-import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
+import { viewForward } from "./keyboard-nudge"
+import type { Furniture, Point2, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
 import { furnitureModelKey, planFurnitureSync } from "./scene-furniture-sync"
 import { holdStep, startHold, type Hold } from "./vr-grab"
@@ -66,30 +67,25 @@ type Props = {
   room?: RoomModel
   focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
-  onMove: (
-    id: string,
-    x: number,
-    z: number,
-    focus?: RoomLabel | null
-  ) => boolean
+  onMove: (id: string, x: number, z: number) => boolean
   onMoveEnd: () => void
   /** Wall-limits a pose without saving it. Used every frame of a VR grab. */
   onConstrainPose: (
     item: Furniture,
-    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-    focus?: RoomLabel | null
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
   ) => Furniture
   /** Applies the pose of a released VR grab as a preview for onMoveEnd. */
   onPlace: (
     id: string,
-    pose: Pick<Furniture, "x" | "z" | "rotation">,
-    focus?: RoomLabel | null
+    pose: Pick<Furniture, "x" | "z" | "rotation">
   ) => boolean
   doorStates: Record<string, boolean>
   highlightedDoorId: string | null
   onDoorChange: (id: string, open: boolean) => void
   /** 집 전체를 볼 때 빈 바닥을 누르면 그 방으로 들어갑니다. */
   onEnterRoom?: (index: number) => void
+  /** 화면 위쪽이 가리키는 평면도 방향을 여기에 적어 둡니다. 방향키 이동에 씁니다. */
+  viewForwardRef?: RefObject<Point2>
   /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
   xrEntryContainer?: RefObject<HTMLElement | null>
 }
@@ -159,6 +155,7 @@ export function RoomScene({
   highlightedDoorId,
   onDoorChange,
   onEnterRoom,
+  viewForwardRef,
   xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -247,6 +244,16 @@ export function RoomScene({
       controls.maxDistance = 16 * scale
       controls.enableRotate = mode !== "2d"
       controls.update()
+      // Arrow keys move furniture the way the view is turned.
+      const reportViewForward = () => {
+        if (!viewForwardRef) return
+        viewForwardRef.current = viewForward(
+          controls.target.x - camera.position.x,
+          controls.target.z - camera.position.z
+        )
+      }
+      controls.addEventListener("change", reportViewForward)
+      reportViewForward()
 
       const ambient = new THREE.HemisphereLight(
         sceneColors.ambientSky,
@@ -420,12 +427,7 @@ export function RoomScene({
                 if (index >= 0) enterRoomRef.current?.(index)
               },
               onMove(id, [x, z]) {
-                return onMove(
-                  id,
-                  x + bounds.width / 2,
-                  z + bounds.depth / 2,
-                  focusRoom
-                )
+                return onMove(id, x + bounds.width / 2, z + bounds.depth / 2)
               },
               onCommit: onMoveEnd,
               zoomCamera(factor) {
@@ -521,7 +523,7 @@ export function RoomScene({
         if (step.rotate !== undefined) update.rotation = step.rotate
         if (update.x === undefined && update.rotation === undefined) return
         const previous = grab.item
-        const next = onConstrainPose(previous, update, focusRoom)
+        const next = onConstrainPose(previous, update)
         if (
           next.x === previous.x &&
           next.z === previous.z &&
@@ -539,7 +541,7 @@ export function RoomScene({
         grab = null
         if (changed) {
           const pose = { x: item.x, z: item.z, rotation: item.rotation }
-          onPlace(item.id, pose, focusRoom)
+          onPlace(item.id, pose)
           onMoveEnd()
         }
         hand.pulse(0.4, 30)
@@ -640,6 +642,7 @@ export function RoomScene({
       onPlace,
       onSelect,
       onDoorChange,
+      viewForwardRef,
       xrEntryContainer,
     ]
   )

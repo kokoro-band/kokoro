@@ -16,7 +16,11 @@ const radius = (box: Box, axis: Point2) =>
   Math.abs(dot(box.x, axis)) * box.width +
   Math.abs(dot(box.z, axis)) * box.depth
 
-function constraints(project: Project, focus?: RoomLabel | null) {
+function constraints(
+  project: Project,
+  focus?: RoomLabel | null,
+  manual = false
+) {
   const bounds = project.room?.bounds ?? project.dimensions
   const outline: Point2[] = project.room?.outline.length
     ? project.room.outline
@@ -27,7 +31,25 @@ function constraints(project: Project, focus?: RoomLabel | null) {
         [0, bounds.depth],
       ]
   const polygons = focus ? [outline, focus.polygon] : [outline]
-  const walls = project.room?.walls.map(wallBox) ?? []
+  // Manual edits cross internal walls; insertion still avoids every wall.
+  const walls = solidWalls(project.room).filter(
+    (wall) =>
+      !manual ||
+      outline.some((a, index) => {
+        const edge = subtract(outline[(index + 1) % outline.length], a)
+        const offset = subtract(wall.center, a)
+        const length = Math.hypot(...edge)
+        return (
+          length > EPSILON &&
+          Math.abs(edge[0] * offset[1] - edge[1] * offset[0]) <
+            EPSILON * length &&
+          Math.abs(edge[0] * wall.x[1] - edge[1] * wall.x[0]) <
+            EPSILON * length &&
+          dot(offset, edge) >= 0 &&
+          dot(offset, edge) <= length * length
+        )
+      })
+  )
   // Zero-thickness polygon edges still take part in the sweep, including
   // concave notches and room labels that do not have a physical wall.
   const obstacles = [
@@ -55,6 +77,45 @@ function constraints(project: Project, focus?: RoomLabel | null) {
       )
     },
   }
+}
+
+/**
+ * Wall pieces left around door openings. Arranging is planning, so furniture
+ * may pass a doorway whether its door is drawn open or closed. Windows stay
+ * solid.
+ */
+function solidWalls(room: Project["room"]): Box[] {
+  return (room?.walls ?? []).flatMap((wall) => {
+    const box = wallBox(wall)
+    const length = box.width * 2
+    const doors = (room?.openings ?? [])
+      .filter(
+        (opening) => opening.type === "door" && opening.wallId === wall.id
+      )
+      .map((opening) => [
+        Math.min(opening.from, opening.to),
+        Math.max(opening.from, opening.to),
+      ])
+      .sort((a, b) => a[0] - b[0])
+    const pieces: Box[] = []
+    let start = 0
+    for (const [from, to] of [...doors, [length, length]]) {
+      const end = Math.min(from, length)
+      if (end - start > EPSILON) {
+        const middle = (start + end) / 2
+        pieces.push({
+          ...box,
+          center: [
+            wall.a[0] + box.x[0] * middle,
+            wall.a[1] + box.x[1] * middle,
+          ],
+          width: (end - start) / 2,
+        })
+      }
+      start = Math.max(start, to)
+    }
+    return pieces
+  })
 }
 
 /** Earliest contact during the entire translation, not just its endpoint. */
@@ -158,6 +219,46 @@ function snap(
   return next
 }
 
+/** A shallow wall magnet releases once the requested footprint pushes past 10 cm. */
+function magnetize(
+  current: Furniture,
+  target: Furniture,
+  walls: Box[],
+  scene: ReturnType<typeof constraints>
+) {
+  const before = footprint(current)
+  const box = footprint(target)
+  if (!before || !box) return target
+  const delta = subtract(box.center, before.center)
+  let best = SNAP_DISTANCE + EPSILON
+  let next = target
+  for (const wall of walls) {
+    const distance = dot(subtract(before.center, wall.center), wall.z)
+    if (Math.abs(distance) < radius(before, wall.z) + wall.depth - EPSILON)
+      continue
+    const normal: Point2 = distance < 0 ? [-wall.z[0], -wall.z[1]] : wall.z
+    if (dot(delta, normal) >= -EPSILON) continue
+    const offset = subtract(box.center, wall.center)
+    if (
+      Math.abs(dot(offset, wall.x)) >=
+      wall.width + radius(box, wall.x) - EPSILON
+    )
+      continue
+    const gap = dot(offset, normal) - radius(box, wall.z) - wall.depth
+    if (Math.abs(gap) > best) continue
+    const aligned = {
+      ...target,
+      x: target.x - normal[0] * gap,
+      z: target.z - normal[1] * gap,
+    }
+    if (scene.valid(aligned)) {
+      best = Math.abs(gap)
+      next = aligned
+    }
+  }
+  return next
+}
+
 /** Find a wall-safe position for newly added or previously invalid furniture. */
 export function findFurniturePlacement(
   project: Project,
@@ -220,12 +321,13 @@ export function constrainFurniturePose(
   project: Project,
   current: Furniture,
   update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-  focus?: RoomLabel | null
+  focus?: RoomLabel | null,
+  magnetic = true
 ): Furniture {
   const target = { ...current, ...update }
   if (![target.x, target.z, target.rotation].every(Number.isFinite))
     return current
-  const scene = constraints(project, focus)
+  const scene = constraints(project, focus, true)
   if (!scene.valid(current)) {
     return findFurniturePlacement(project, target, focus) ?? current
   }
@@ -243,6 +345,7 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
+  if (magnetic) next = magnetize(current, next, solidWalls(project.room), scene)
   next = snap(
     next,
     subtract([target.x, target.z], [current.x, current.z]),

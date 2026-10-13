@@ -571,9 +571,9 @@ export function useStudioController() {
   }, [])
 
   const previewFurniture = useCallback(
-    function previewFurniture(id: string, update: Partial<Furniture>) {
+    function previewFurniture(id: string, update: Partial<Furniture>, magnetic = false) {
       return showFurniturePose(id, (current) =>
-        constrainFurniturePose(projectRef.current, current, update)
+        constrainFurniturePose(projectRef.current, current, update, undefined, magnetic)
       )
     },
     [showFurniturePose]
@@ -581,7 +581,7 @@ export function useStudioController() {
 
   const moveFurniture = useCallback(
     function moveFurniture(id: string, x: number, z: number) {
-      return previewFurniture(id, { x, z })
+      return previewFurniture(id, { x, z }, true)
     },
     [previewFurniture]
   )
@@ -635,7 +635,7 @@ export function useStudioController() {
       (item) => item.id === selectedId
     )
     if (!current) return null
-    const next = constrainFurniturePose(projectRef.current, current, update)
+    const next = constrainFurniturePose(projectRef.current, current, update, undefined, false)
     if (
       next.x === current.x &&
       next.z === current.z &&

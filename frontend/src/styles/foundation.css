@@ -100,6 +100,7 @@ select {
 }
 
 .command-review-body,
+.replace-project-body,
 .command-review-candidates {
   display: flex;
   flex-direction: column;

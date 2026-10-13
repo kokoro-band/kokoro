@@ -269,17 +269,24 @@ function searchPlacement(
   )
     return null
   const candidates: Furniture[] = []
-  for (const wall of [...scene.obstacles, ...scene.blockers]) {
-    for (const sign of [-1, 1]) {
-      const distance = dot(subtract(box.center, wall.center), wall.z)
-      const shift = sign * (radius(box, wall.z) + wall.depth + SKIN) - distance
-      candidates.push({
-        ...item,
-        x: item.x + wall.z[0] * shift,
-        z: item.z + wall.z[1] * shift,
-      })
+  const projectFaces = (obstacle: Box, axes: Point2[]) => {
+    for (const axis of axes) {
+      for (const sign of [-1, 1]) {
+        const distance = dot(subtract(box.center, obstacle.center), axis)
+        const shift =
+          sign * (radius(box, axis) + radius(obstacle, axis) + SKIN) - distance
+        candidates.push({
+          ...item,
+          x: item.x + axis[0] * shift,
+          z: item.z + axis[1] * shift,
+        })
+      }
     }
   }
+  for (const wall of scene.obstacles) projectFaces(wall, [wall.z])
+  // Furniture and door clearances can separate along either box's axes.
+  for (const blocker of scene.blockers)
+    projectFaces(blocker, [box.x, box.z, blocker.x, blocker.z])
   candidates.sort(
     (a, b) =>
       Math.hypot(a.x - item.x, a.z - item.z) -

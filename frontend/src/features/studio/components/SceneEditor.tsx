@@ -88,6 +88,7 @@ export function SceneEditor({
   onRedo,
   onFullscreenError,
   onSelect,
+  onEnterRoom,
   onMove,
   onMoveEnd,
   onConstrainPose,
@@ -105,6 +106,8 @@ export function SceneEditor({
   onUndo: () => void
   onRedo: () => void
   onFullscreenError: () => void
+  /** 집 전체에서 빈 바닥을 누르면 그 방으로 들어갑니다. */
+  onEnterRoom?: (index: number) => void
   onSelect: (id: string | null) => void
   onMove: (
     id: string,
@@ -379,6 +382,7 @@ export function SceneEditor({
             room={project.room}
             focusRoom={focusRoom}
             onSelect={onSelect}
+            onEnterRoom={onEnterRoom}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
             onConstrainPose={onConstrainPose}
@@ -477,16 +481,6 @@ export function SceneEditor({
               </div>
             </div>
           </SnackbarAvoidOverlap>
-        )}
-        {mode !== "vr" && !isMobile && (
-          <div className="viewport-overlay viewport-cursor-hint" role="status">
-            <Type variant="label">
-              {hints[tool]}
-              {tool === "pan" && mode === "3d"
-                ? " 오른쪽 버튼을 누르고 끌면 회전해요."
-                : ""}
-            </Type>
-          </div>
         )}
       </div>
     </section>

@@ -3,6 +3,7 @@ import { sampleProject } from "./data"
 import {
   constrainFurniturePose,
   findFurniturePlacement,
+  turnBlocker,
 } from "./furniture-motion"
 import {
   footprint,
@@ -237,5 +238,78 @@ describe("wall-safe furniture editing", () => {
       ],
     }
     expect(findFurniturePlacement(project(tiny), chair(0.25, 0.25))).toBeNull()
+  })
+})
+
+describe("moving next to other furniture", () => {
+  const other: Furniture = { ...chair(4, 3), id: "other" }
+  const withOther = (...extra: Furniture[]): Project => ({
+    ...project(),
+    furniture: [other, ...extra],
+  })
+  // Both chairs are 0.65 m wide, so their faces meet at x = 3.35.
+  const drag = (from: Furniture, x: number, layout = withOther()) =>
+    constrainFurniturePose(layout, from, { x }).x
+
+  it("holds a drag at another item's face within 10 cm on either side", () => {
+    expect(drag(chair(2, 3), 3.3)).toBeCloseTo(3.35, 5)
+    expect(drag(chair(2, 3), 3.43)).toBeCloseTo(3.35, 5)
+    // Top and bottom faces attract the same way.
+    const below = constrainFurniturePose(withOther(), chair(4, 5), { z: 3.6 })
+    expect(below.z).toBeCloseTo(3.65, 5)
+  })
+  it("lets a drag pass once it is pushed more than 10 cm into the item", () => {
+    expect(drag(chair(2, 3), 3.5)).toBe(3.5)
+    expect(drag(chair(2, 3), 5)).toBe(5)
+  })
+  it("releases at once when moved away and ignores items it does not face", () => {
+    expect(drag(chair(3.35, 3), 3.25)).toBe(3.25)
+    const beside = constrainFurniturePose(withOther(), chair(2, 4.5), {
+      x: 3.3,
+    })
+    expect(beside.x).toBe(3.3)
+  })
+  it("moves arrow-key steps through furniture without sticking", () => {
+    const stepped = constrainFurniturePose(
+      withOther(),
+      chair(3.35, 3),
+      { x: 3.45 },
+      undefined,
+      false
+    )
+    expect(stepped.x).toBe(3.45)
+  })
+  it("leaves stacked furniture where the user puts it", () => {
+    const stacked = { ...chair(4.1, 3), id: "stacked" }
+    const loaded = withOther(stacked)
+    expect(placementIssues(loaded)).toHaveLength(2)
+    expect(drag(stacked, 4.2, loaded)).toBe(4.2)
+  })
+})
+
+describe("turns with no room", () => {
+  const other: Furniture = { ...chair(4, 3), id: "other" }
+  const sofa: Furniture = {
+    ...chair(4, 4),
+    id: "sofa",
+    catalogId: "sofa-cloud",
+  }
+  const layout = (...furniture: Furniture[]): Project => ({
+    ...project(),
+    furniture,
+  })
+
+  it("names the furniture a finished turn would newly cover", () => {
+    expect(turnBlocker(layout(other, sofa), sofa, 90)).toBe(other)
+    expect(turnBlocker(layout(other, sofa), sofa, 180)).toBeNull()
+    expect(turnBlocker(layout(other), chair(2, 3), 90)).toBeNull()
+  })
+  it("does not blame an item the furniture already overlaps", () => {
+    const stacked = { ...sofa, z: 3.2 }
+    expect(turnBlocker(layout(other, stacked), stacked, 90)).toBeNull()
+  })
+  it("reports the wall when the turn would sweep through it", () => {
+    const flush = { ...sofa, x: 1.2, z: 3 }
+    expect(turnBlocker(layout(flush), flush, 180)).toBe("wall")
   })
 })

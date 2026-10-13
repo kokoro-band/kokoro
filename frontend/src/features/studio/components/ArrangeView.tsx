@@ -28,7 +28,8 @@ import {
 } from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
-import type { Furniture } from "@/features/studio/types"
+import { nudgeDirection } from "@/features/studio/keyboard-nudge"
+import type { Furniture, Point2 } from "@/features/studio/types"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
@@ -40,18 +41,6 @@ import { SceneEditor } from "./SceneEditor"
 type Studio = ReturnType<typeof useStudioController>
 type InspectorTab = "selection" | "assistant"
 type MobileSheet = "navigator" | "selection" | "assistant" | null
-
-/** 평면도에서 화살표 키가 가리키는 방향. 세로는 아래로 갈수록 커집니다. */
-const nudgeDirections: Record<string, [x: number, z: number]> = {
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
-  ArrowLeft: [-1, 0],
-  ArrowRight: [1, 0],
-}
-
-function round1(value: number) {
-  return Math.round(value * 10) / 10
-}
 
 export function ArrangeView({
   studio,
@@ -91,6 +80,7 @@ export function ArrangeView({
     },
     [selectStudioFurniture]
   )
+  const viewForwardRef = useRef<Point2>([0, -1])
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
   const navigatorRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -169,11 +159,14 @@ export function ArrangeView({
   }
 
   const nudge = (event: KeyboardEvent, distance: number) => {
-    const direction = nudgeDirections[event.code]
+    // 3D 화면을 돌려 놓았으면 화면에서 보이는 방향대로 옮깁니다.
+    const direction = nudgeDirection(event.code, viewForwardRef.current)
     if (!selected || !direction) return
-    const x = round1(selected.x + direction[0] * distance)
-    const z = round1(selected.z + direction[1] * distance)
-    studio.previewSelected({ x, z })
+    // 벽에 붙은 가구는 0.1 m 눈금 밖에 있으므로 지금 자리에서 그대로 더합니다.
+    studio.previewSelected({
+      x: selected.x + direction[0] * distance,
+      z: selected.z + direction[1] * distance,
+    })
   }
 
   const rotate = (degrees: number) => {
@@ -406,6 +399,7 @@ export function ArrangeView({
       onFullscreenError={studio.reportFullscreenError}
       onSelect={selectSceneFurniture}
       onEnterRoom={changeRoom}
+      viewForwardRef={viewForwardRef}
       onMove={studio.moveFurniture}
       onMoveEnd={commitMove}
       onConstrainPose={studio.constrainPose}

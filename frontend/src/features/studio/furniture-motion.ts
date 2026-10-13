@@ -233,7 +233,47 @@ function snap(
   return next
 }
 
-/** A shallow wall magnet releases once the requested footprint pushes past 10 cm. */
+/**
+ * Other furniture as magnet faces. Each item appears twice so that both pairs
+ * of its sides attract, the way the two faces of a wall do.
+ */
+function furnitureFaces(project: Project, item: Furniture): Box[] {
+  return project.furniture.flatMap((other) => {
+    const box = other.id === item.id ? null : footprint(other)
+    return box
+      ? [
+          box,
+          { ...box, x: box.z, z: box.x, width: box.depth, depth: box.width },
+        ]
+      : []
+  })
+}
+
+/**
+ * Why a turn on the spot has no room: the wall it would sweep into, or the
+ * furniture its turned footprint would newly cover. Furniture it already
+ * overlaps is an existing draft problem, not a reason to refuse.
+ */
+export function turnBlocker(
+  project: Project,
+  current: Furniture,
+  rotation: number
+): "wall" | Furniture | null {
+  const turned = constrainFurniturePose(project, current, { rotation })
+  if (Math.abs(((turned.rotation - rotation + 540) % 360) - 180) > 1e-6)
+    return "wall"
+  const before = footprint(current)
+  const after = footprint(turned)
+  if (!before || !after) return null
+  return (
+    project.furniture.find((other) => {
+      const box = other.id === current.id ? null : footprint(other)
+      return box && overlaps(after, box) && !overlaps(before, box)
+    }) ?? null
+  )
+}
+
+/** A shallow magnet on walls and furniture releases once the footprint pushes past 10 cm. */
 function magnetize(
   current: Furniture,
   target: Furniture,
@@ -377,7 +417,13 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
-  if (magnetic) next = magnetize(current, next, solidWalls(project.room), scene)
+  if (magnetic)
+    next = magnetize(
+      current,
+      next,
+      [...solidWalls(project.room), ...furnitureFaces(project, current)],
+      scene
+    )
   next = snap(
     next,
     subtract([target.x, target.z], [current.x, current.z]),

@@ -152,6 +152,26 @@ async function setup() {
 }
 
 describe("scene tools wired to actual keyboard controls", () => {
+  it("puts the editing area in the tab order and describes how to move furniture", async () => {
+    const app = await setup()
+    const area = app.container.querySelector<HTMLElement>(
+      '[aria-label="가구 편집 영역"]'
+    )!
+    expect(area.tabIndex).toBe(0)
+    expect(area.contains(app.scene())).toBe(true)
+    const help = document.getElementById(
+      area.getAttribute("aria-describedby")!
+    )!.textContent
+    expect(help).toContain("방향키")
+    expect(help).toContain("0.1 m")
+    expect(help).toContain("Shift")
+    expect(help).toContain("0.5 m")
+    await app.click("VR")
+    // A headset has no arrow keys, so the VR entry screen does not offer them.
+    expect(
+      app.container.querySelector('[aria-label="가구 편집 영역"]')
+    ).toBeNull()
+  })
   it("selects each digit tool in both 2D and 3D and passes it to the scene", async () => {
     const app = await setup()
     for (const mode of ["2D", "3D"]) {

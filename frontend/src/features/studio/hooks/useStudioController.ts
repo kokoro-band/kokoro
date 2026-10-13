@@ -46,6 +46,7 @@ import {
   constrainFurniturePose,
   findFreePlacement,
   findFurniturePlacement,
+  turnBlocker,
 } from "@/features/studio/furniture-motion"
 import type {
   RoomModel,
@@ -698,6 +699,21 @@ export function useStudioController() {
       (item) => item.id === selectedId
     )
     if (!current) return null
+    // A turn with no room is refused whole. Turning part-way or shifting the
+    // item to make room would both move it somewhere the user did not ask for.
+    const blocker =
+      update.rotation !== undefined && Number.isFinite(update.rotation)
+        ? turnBlocker(projectRef.current, current, update.rotation)
+        : null
+    if (blocker) {
+      setNotice(
+        blocker === "wall"
+          ? "벽에 닿아서 돌릴 수 없어요. 벽에서 조금 떼어 놓고 다시 돌려 주세요."
+          : `${blocker.name}에 닿아서 돌릴 수 없어요. 자리를 넓힌 뒤 다시 돌려 주세요.`,
+        "critical"
+      )
+      return current
+    }
     const next = constrainFurniturePose(
       projectRef.current,
       current,

@@ -46,9 +46,9 @@ export function AssistantPanel({
   roomName: string | null
   chatBusy: boolean
   busy: boolean
-  engine?: "rules" | "webgpu"
+  engine?: "rules" | "webgpu" | "cloud"
   browserAiStatus?: string
-  onEngineChange?: (engine: "rules" | "webgpu") => void
+  onEngineChange?: (engine: "rules" | "webgpu" | "cloud") => void
   onStopAi?: () => void
   onInputChange: (input: string) => void
   onSend: (text: string) => void
@@ -100,7 +100,9 @@ export function AssistantPanel({
             ? "서버 배치"
             : engine === "webgpu"
               ? "브라우저 AI"
-              : "규칙 기반 데모"}
+              : engine === "cloud"
+                ? "외부 AI"
+                : "규칙 기반 데모"}
         </Badge>
       </div>
       {!isServerMode && onEngineChange && (
@@ -127,6 +129,15 @@ export function AssistantPanel({
           >
             이 기기에서 AI 실행
           </ActionButton>
+          <ActionButton
+            type="button"
+            size="small"
+            variant={engine === "cloud" ? "neutralSolid" : "neutralWeak"}
+            disabled={busy}
+            onClick={() => onEngineChange("cloud")}
+          >
+            외부 AI로 해석
+          </ActionButton>
         </div>
       )}
       {!isServerMode && engine === "webgpu" && (
@@ -135,7 +146,13 @@ export function AssistantPanel({
             "첫 요청에 약 570MB 모델 파일을 다운로드합니다. 제안을 확인한 뒤 적용할 수 있어요."}
         </Type>
       )}
-      {!isServerMode && engine === "webgpu" && chatBusy && onStopAi && (
+      {!isServerMode && engine === "cloud" && (
+        <Type variant="description" as="p" role="status">
+          요청 문장과 현재 가구 이름을 외부 AI 서비스에 보냅니다. 제안을 확인한
+          뒤 이 브라우저에 저장합니다.
+        </Type>
+      )}
+      {!isServerMode && engine !== "rules" && chatBusy && onStopAi && (
         <div className="assistant-stop">
           <ActionButton
             type="button"

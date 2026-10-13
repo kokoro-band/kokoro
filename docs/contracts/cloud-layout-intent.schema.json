@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "catalogId", "placement", "rotation", "anchorCatalogId"],
+  "properties": {
+    "action": { "type": "string", "enum": ["ADD", "MOVE", "ROTATE", "REMOVE", "CLEAR", "UNSUPPORTED"] },
+    "catalogId": { "type": ["string", "null"] },
+    "placement": { "type": ["string", "null"], "enum": ["CENTER", "NEAR_WINDOW", "NEAR_TARGET", "LEFT", "RIGHT", "FRONT", "BACK", null] },
+    "rotation": { "type": ["number", "null"], "minimum": 0, "exclusiveMaximum": 360 },
+    "anchorCatalogId": { "type": ["string", "null"] }
+  }
+}

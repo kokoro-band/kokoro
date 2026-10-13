@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
 import { proposeBrowserIntent } from "../browser-ai-command"
+import { generateCloudIntent } from "../cloud-ai"
 import type { BrowserIntent } from "../browser-ai-intent"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
@@ -106,10 +107,14 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
-  const [assistantEngine, setAssistantEngine] = useState<"rules" | "webgpu">(
-    "rules"
-  )
+  const [assistantEngine, setAssistantEngine] = useState<
+    "rules" | "webgpu" | "cloud"
+  >("rules")
   const [browserAiStatus, setBrowserAiStatus] = useState("")
+  const cloudRequestRef = useRef<AbortController | null>(null)
+  useEffect(function cancelCloudRequestOnUnmount() {
+    return () => cloudRequestRef.current?.abort()
+  }, [])
   const [input, setInput] = useState("")
   const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
     null
@@ -314,6 +319,7 @@ export function useStudioController() {
 
   const openProject = useCallback(
     function openProject(saved: Project) {
+      cloudRequestRef.current?.abort()
       noticeIdRef.current += 1
       pendingLocalProjectRef.current = null
       queueRef.current = makeQueue(saved, closingFor(saved.id))
@@ -804,6 +810,14 @@ export function useStudioController() {
     if (queue.closed) return
     const operation = Symbol("command")
     commandOperationRef.current = operation
+    const cloudRequest =
+      !isServerMode &&
+      assistantEngine === "cloud" &&
+      !review?.browserIntent &&
+      !review?.response.requiresConfirmation
+        ? new AbortController()
+        : null
+    if (cloudRequest) cloudRequestRef.current = cloudRequest
     if (review) setCommandReview({ ...review, status: "applying", error: "" })
     else
       setMessages((current) => [
@@ -836,15 +850,37 @@ export function useStudioController() {
               confirmCommandMutationOptions(queryClient, saved.id),
               { project: saved, proposalId: review!.response.proposalId! }
             )
-          : !isServerMode && (browserIntent || assistantEngine === "webgpu")
+          : !isServerMode && (browserIntent || assistantEngine !== "rules")
             ? await (async () => {
                 const intent =
                   browserIntent ??
-                  (await import("../browser-ai").then((module) =>
-                    module.generateBrowserIntent(saved, text, (status) => {
-                      if (isCurrent(queue)) setBrowserAiStatus(status)
-                    })
-                  ))
+                  (assistantEngine === "cloud"
+                    ? await (async () => {
+                        if (!cloudRequest)
+                          throw new Error("외부 AI 요청을 시작하지 못했어요.")
+                        if (isCurrent(queue))
+                          setBrowserAiStatus(
+                            "외부 AI가 요청을 해석하고 있어요."
+                          )
+                        const result = await generateCloudIntent(
+                          saved,
+                          text,
+                          cloudRequest.signal
+                        )
+                        if (
+                          !isCurrent(queue) ||
+                          commandOperationRef.current !== operation
+                        )
+                          throw new Error(
+                            "이전 프로젝트의 AI 응답은 적용하지 않았어요."
+                          )
+                        return result
+                      })()
+                    : await import("../browser-ai").then((module) =>
+                        module.generateBrowserIntent(saved, text, (status) => {
+                          if (isCurrent(queue)) setBrowserAiStatus(status)
+                        })
+                      ))
                 if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
                 browserIntent = intent
                 return proposeBrowserIntent(saved, intent, focus, furnitureId)
@@ -958,6 +994,8 @@ export function useStudioController() {
         },
       ])
     } finally {
+      if (cloudRequestRef.current === cloudRequest)
+        cloudRequestRef.current = null
       if (commandOperationRef.current === operation) {
         commandOperationRef.current = null
         if (isCurrent(queue)) {
@@ -1413,8 +1451,10 @@ export function useStudioController() {
     assistantEngine,
     browserAiStatus,
     setAssistantEngine,
-    stopBrowserAi: () =>
-      void import("../browser-ai").then((module) => module.stopBrowserAi()),
+    stopBrowserAi: () => {
+      if (cloudRequestRef.current) cloudRequestRef.current.abort()
+      else void import("../browser-ai").then((module) => module.stopBrowserAi())
+    },
     commandReview,
     cancelCommandReview,
     confirmCommandReview,

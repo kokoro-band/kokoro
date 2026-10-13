@@ -28,6 +28,11 @@ management:
         include: health,info
 
 app:
+  ai:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.1-flash-lite}
+    base-url: https://generativelanguage.googleapis.com
+    timeout-ms: 8000
   security:
     mode: ${SECURITY_MODE:local}
     local-user: ${LOCAL_USER_ID:local-user}

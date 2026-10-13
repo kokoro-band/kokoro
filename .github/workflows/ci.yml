@@ -169,6 +169,8 @@ jobs:
       - run: vp run typecheck:e2e
       - run: vp exec playwright install --with-deps chromium
       - run: vp run test:e2e --project=${{ matrix.project }}
+      - name: Cloud AI interpretation E2E
+        run: vp run test:e2e:cloud-ai --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

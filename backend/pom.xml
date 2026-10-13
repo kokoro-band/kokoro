@@ -112,6 +112,7 @@
                 <includes>
                     <include>furniture-catalog.json</include>
                     <include>furniture-source-assets.json</include>
+                    <include>cloud-layout-intent.schema.json</include>
                 </includes>
             </resource>
         </resources>

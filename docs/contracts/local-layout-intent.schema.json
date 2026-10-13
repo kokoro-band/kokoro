@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/kokoro-band/kokoro/docs/contracts/local-layout-intent.schema.json",
-  "title": "로컬 모델이 만드는 배치 의도",
+  "title": "로컬 모델이 만드는 배치 요청",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "intents"],

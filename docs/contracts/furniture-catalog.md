@@ -19,7 +19,7 @@
 
 웹은 `frontend/src/features/studio/data.ts`에서 원본 JSON을 읽습니다. 별도 API 요청 없이 빌드 결과 안에 포함됩니다. Vite 설정에서도 같은 검증 함수를 실행하므로 잘못된 규격이면 개발 서버 시작과 빌드가 실패합니다.
 
-서버는 Maven이 원본을 `contracts/furniture-catalog.json` 리소스로 복사합니다. `FurnitureCatalog`가 이를 읽어 배치 검증기에 전달합니다. JAR 안에도 같은 파일이 들어가므로 배포 후 저장소의 docs 폴더를 참조하지 않습니다. 원본이 없거나 잘못되면 서버가 시작되지 않습니다. 기본 `./mvnw test`와 `./mvnw package`도 계약 테스트에서 실패합니다. 테스트를 건너뛰는 빌드는 이 검증의 근거로 쓰지 않습니다.
+서버는 Maven이 원본을 `contracts/furniture-catalog.json` 리소스로 복사합니다. `FurnitureCatalog`가 이를 읽어 배치 검증기에 전달합니다. JAR 안에도 같은 파일이 들어가므로 배포 후 저장소의 docs 폴더를 참조하지 않습니다. 원본이 없거나 잘못되면 서버가 시작되지 않습니다. 기본 `./mvnw test`와 `./mvnw package`도 공통 가구 규격 테스트에서 실패합니다. 테스트를 건너뛰는 빌드는 이 검증의 근거로 쓰지 않습니다.
 
 빌드는 저장소 전체를 체크아웃한 뒤 `frontend/`와 `backend/`에서 각각 실행합니다. 폴더별 배포는 유지하지만 소스 빌드에는 `docs/contracts/`도 필요합니다. 폴더만 복사한 빌드는 지원하지 않습니다.
 

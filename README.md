@@ -40,7 +40,7 @@
 .
 ├── frontend/   React와 TypeScript와 Vite+와 Three.js와 WebXR
 ├── backend/    Java 17과 Spring Boot 4.1.1
-├── docs/       시스템 구조와 API와 WebXR 계약
+├── docs/       시스템 구조와 API와 WebXR 연동 규칙
 ├── PRODUCT.md  제품 범위와 단계
 └── DESIGN.md   구현된 디자인 원칙
 ```
@@ -79,9 +79,11 @@ vp install
 VITE_API_MODE=server VITE_API_BASE_URL=http://localhost:8080/api vp dev
 ```
 
+개발 문서와 PR은 [공통 용어 기준](docs/terminology.md)을 사용합니다.
+
 ## 검증
 
-새 기능과 버그 수정은 실패 테스트를 먼저 실행한 뒤 구현합니다. 동작별 검증 범위와 착수 순서는 [동작 테스트 계획](docs/qa/behavior-test-plan.md)에 정리했습니다. PR에는 RED와 GREEN 결과 및 미검증 항목을 남깁니다.
+새 기능과 버그 수정은 실패 테스트를 먼저 실행한 뒤 구현합니다. 동작별 검증 범위와 작업 순서는 [동작 테스트 계획](docs/qa/behavior-test-plan.md)에 정리했습니다. PR에는 RED와 GREEN 결과 및 미검증 항목을 남깁니다.
 
 공개 데모의 배포 방법과 지원 범위는 [GitHub Pages 데모 안내](docs/github-pages-demo.md)를 참고합니다. main 통합 전까지 공개 화면은 기존 데모 커밋을 사용합니다.
 

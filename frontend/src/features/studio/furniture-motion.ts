@@ -1,7 +1,9 @@
 import {
+  doorClearances,
   footprint,
   insideRoom,
   overlaps,
+  solidWalls,
   wallBox,
   type Box,
 } from "./placement-issues"
@@ -16,9 +18,11 @@ const radius = (box: Box, axis: Point2) =>
   Math.abs(dot(box.x, axis)) * box.width +
   Math.abs(dot(box.z, axis)) * box.depth
 
+/** `clearOf` also keeps the item off other furniture and door clearances. */
 function constraints(
   project: Project,
   focus?: RoomLabel | null,
+  clearOf?: Furniture,
   manual = false
 ) {
   const bounds = project.room?.bounds ?? project.dimensions
@@ -65,57 +69,29 @@ function constraints(
       )
     ),
   ]
+  const blockers = clearOf
+    ? [
+        ...doorClearances(project),
+        ...project.furniture.flatMap((other) => {
+          const box = other.id === clearOf.id ? null : footprint(other)
+          return box ? [box] : []
+        }),
+      ]
+    : []
   return {
     bounds,
     obstacles,
+    blockers,
     valid(item: Furniture) {
       const box = footprint(item)
       return (
         !!box &&
         polygons.every((polygon) => insideRoom(polygon, box)) &&
-        !walls.some((wall) => overlaps(box, wall))
+        !walls.some((wall) => overlaps(box, wall)) &&
+        !blockers.some((blocker) => overlaps(box, blocker))
       )
     },
   }
-}
-
-/**
- * Wall pieces left around door openings. Arranging is planning, so furniture
- * may pass a doorway whether its door is drawn open or closed. Windows stay
- * solid.
- */
-function solidWalls(room: Project["room"]): Box[] {
-  return (room?.walls ?? []).flatMap((wall) => {
-    const box = wallBox(wall)
-    const length = box.width * 2
-    const doors = (room?.openings ?? [])
-      .filter(
-        (opening) => opening.type === "door" && opening.wallId === wall.id
-      )
-      .map((opening) => [
-        Math.min(opening.from, opening.to),
-        Math.max(opening.from, opening.to),
-      ])
-      .sort((a, b) => a[0] - b[0])
-    const pieces: Box[] = []
-    let start = 0
-    for (const [from, to] of [...doors, [length, length]]) {
-      const end = Math.min(from, length)
-      if (end - start > EPSILON) {
-        const middle = (start + end) / 2
-        pieces.push({
-          ...box,
-          center: [
-            wall.a[0] + box.x[0] * middle,
-            wall.a[1] + box.x[1] * middle,
-          ],
-          width: (end - start) / 2,
-        })
-      }
-      start = Math.max(start, to)
-    }
-    return pieces
-  })
 }
 
 /** Earliest contact during the entire translation, not just its endpoint. */
@@ -315,7 +291,25 @@ export function findFurniturePlacement(
   item: Furniture,
   focus?: RoomLabel | null
 ): Furniture | null {
-  const scene = constraints(project, focus)
+  return searchPlacement(constraints(project, focus), item)
+}
+
+/**
+ * Nearest position that is wall-safe and also clear of other furniture and
+ * door clearances. Every new placement (catalog and assistant) uses this.
+ */
+export function findFreePlacement(
+  project: Project,
+  item: Furniture,
+  focus?: RoomLabel | null
+): Furniture | null {
+  return searchPlacement(constraints(project, focus, item), item)
+}
+
+function searchPlacement(
+  scene: ReturnType<typeof constraints>,
+  item: Furniture
+): Furniture | null {
   if (scene.valid(item)) return item
   const box = footprint(item)
   if (
@@ -325,17 +319,24 @@ export function findFurniturePlacement(
   )
     return null
   const candidates: Furniture[] = []
-  for (const wall of scene.obstacles) {
-    for (const sign of [-1, 1]) {
-      const distance = dot(subtract(box.center, wall.center), wall.z)
-      const shift = sign * (radius(box, wall.z) + wall.depth + SKIN) - distance
-      candidates.push({
-        ...item,
-        x: item.x + wall.z[0] * shift,
-        z: item.z + wall.z[1] * shift,
-      })
+  const projectFaces = (obstacle: Box, axes: Point2[]) => {
+    for (const axis of axes) {
+      for (const sign of [-1, 1]) {
+        const distance = dot(subtract(box.center, obstacle.center), axis)
+        const shift =
+          sign * (radius(box, axis) + radius(obstacle, axis) + SKIN) - distance
+        candidates.push({
+          ...item,
+          x: item.x + axis[0] * shift,
+          z: item.z + axis[1] * shift,
+        })
+      }
     }
   }
+  for (const wall of scene.obstacles) projectFaces(wall, [wall.z])
+  // Furniture and door clearances can separate along either box's axes.
+  for (const blocker of scene.blockers)
+    projectFaces(blocker, [box.x, box.z, blocker.x, blocker.z])
   candidates.sort(
     (a, b) =>
       Math.hypot(a.x - item.x, a.z - item.z) -
@@ -377,7 +378,7 @@ export function constrainFurniturePose(
   const target = { ...current, ...update }
   if (![target.x, target.z, target.rotation].every(Number.isFinite))
     return current
-  const scene = constraints(project, focus, true)
+  const scene = constraints(project, focus, undefined, true)
   if (!scene.valid(current)) {
     return findFurniturePlacement(project, target, focus) ?? current
   }
@@ -395,17 +396,18 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
-  if (magnetic)
+  if (magnetic) {
     next = magnetize(
       current,
       next,
       [...solidWalls(project.room), ...furnitureFaces(project, current)],
       scene
     )
-  next = snap(
-    next,
-    subtract([target.x, target.z], [current.x, current.z]),
-    scene
-  )
+    next = snap(
+      next,
+      subtract([target.x, target.z], [current.x, current.z]),
+      scene
+    )
+  }
   return scene.valid(next) ? next : current
 }

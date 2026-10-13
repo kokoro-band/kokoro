@@ -49,6 +49,45 @@ export function wallBox(wall: Wall): Box {
   }
 }
 
+/**
+ * Wall pieces left around door openings. Arranging is planning, so furniture
+ * may pass a doorway whether its door is drawn open or closed. Windows stay
+ * solid.
+ */
+export function solidWalls(room: Project["room"]): Box[] {
+  return (room?.walls ?? []).flatMap((wall) => {
+    const box = wallBox(wall)
+    const length = box.width * 2
+    const doors = (room?.openings ?? [])
+      .filter(
+        (opening) => opening.type === "door" && opening.wallId === wall.id
+      )
+      .map((opening) => [
+        Math.min(opening.from, opening.to),
+        Math.max(opening.from, opening.to),
+      ])
+      .sort((a, b) => a[0] - b[0])
+    const pieces: Box[] = []
+    let start = 0
+    for (const [from, to] of [...doors, [length, length]]) {
+      const end = Math.min(from, length)
+      if (end - start > 1e-8) {
+        const middle = (start + end) / 2
+        pieces.push({
+          ...box,
+          center: [
+            wall.a[0] + box.x[0] * middle,
+            wall.a[1] + box.x[1] * middle,
+          ],
+          width: (end - start) / 2,
+        })
+      }
+      start = Math.max(start, to)
+    }
+    return pieces
+  })
+}
+
 export function overlaps(a: Box, b: Box) {
   const radius = (box: Box, axis: Point2) =>
     Math.abs(dot(box.x, axis)) * box.width +
@@ -110,24 +149,27 @@ export function insideRoom(polygon: Point2[], box: Box) {
   })
 }
 
-/** One actionable reason per furniture item, including both sides of a collision. */
-export function placementIssues(project: Project): PlacementIssue[] {
-  const { room, furniture } = project
-  const bounds = room?.bounds ?? project.dimensions
-  const outline: Point2[] = room?.outline?.length
-    ? room.outline
+function houseOutline(project: Project): Point2[] {
+  const bounds = project.room?.bounds ?? project.dimensions
+  return project.room?.outline?.length
+    ? project.room.outline
     : [
         [0, 0],
         [bounds.width, 0],
         [bounds.width, bounds.depth],
         [0, bounds.depth],
       ]
-  const walls = room?.walls.map(wallBox) ?? []
+}
+
+/** Floor in front of each door that furniture should leave clear. */
+export function doorClearances(project: Project): Box[] {
+  const { room } = project
+  const outline = houseOutline(project)
   const centroid: Point2 = [
     outline.reduce((sum, point) => sum + point[0], 0) / outline.length,
     outline.reduce((sum, point) => sum + point[1], 0) / outline.length,
   ]
-  const doors: Box[] = (room?.openings ?? []).flatMap((opening) => {
+  return (room?.openings ?? []).flatMap((opening) => {
     const wall = room?.walls.find((entry) => entry.id === opening.wallId)
     if (opening.type !== "door" || !wall) return []
     const box = wallBox(wall)
@@ -151,6 +193,14 @@ export function placementIssues(project: Project): PlacementIssue[] {
       },
     ]
   })
+}
+
+/** One actionable reason per furniture item, including both sides of a collision. */
+export function placementIssues(project: Project): PlacementIssue[] {
+  const { furniture } = project
+  const outline = houseOutline(project)
+  const walls = solidWalls(project.room)
+  const doors = doorClearances(project)
   const boxes = furniture.map(footprint)
   return furniture.flatMap((item, index) => {
     const box = boxes[index]

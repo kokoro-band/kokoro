@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
+import { parseStoredProject } from "../project-validation"
 import { proposeBrowserIntent } from "../browser-ai-command"
 import type { BrowserIntent } from "../browser-ai-intent"
 
@@ -36,6 +37,7 @@ import {
 import { withObjectParticle } from "@/features/studio/format"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
   turnBlocker,
 } from "@/features/studio/furniture-motion"
@@ -74,6 +76,13 @@ export type ProjectConflict = {
 
 /** Wait this long without another notice before announcing an autosave. */
 const autosaveNoticeQuietMs = 45_000
+
+/** The example as opened directly and as reloaded from browser storage. */
+const untouchedSampleKeys = new Set(
+  [sampleProject, parseStoredProject(structuredClone(sampleProject))].map(
+    commandLayoutKey
+  )
+)
 
 const maxFloorPlanBytes = 15 * 1024 * 1024
 const supportedFloorPlanTypes = ["application/pdf", "image/png", "image/jpeg"]
@@ -704,9 +713,18 @@ export function useStudioController() {
         ? round(position[1])
         : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
-    const placed = findFurniturePlacement(projectRef.current, item, focus)
+    // A new item never starts on other furniture or in a door's clearance.
+    // A quarter turn is tried before giving up.
+    const placed =
+      findFreePlacement(projectRef.current, item, focus) ??
+      findFreePlacement(projectRef.current, { ...item, rotation: 90 }, focus)
     if (!placed) {
-      setNotice("이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.", "critical")
+      setNotice(
+        findFurniturePlacement(projectRef.current, item, focus)
+          ? "다른 가구나 문 앞을 피해서 놓을 자리가 없어요. 자리를 비운 뒤 다시 놓아 주세요."
+          : "이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.",
+        "critical"
+      )
       return
     }
     commitFurniture([...projectRef.current.furniture, placed])
@@ -1457,6 +1475,16 @@ export function useStudioController() {
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
     openSampleProject,
     exportProject,
+    // The local demo keeps one project, so opening another one overwrites it.
+    replacesSavedWork:
+      !isServerMode &&
+      (Boolean(project.room) || project.furniture.length > 0) &&
+      !(
+        untouchedSampleKeys.has(commandLayoutKey(project)) &&
+        // An uploaded plan keeps the example layout but is still the user's.
+        project.floorPlan.fileName === sampleProject.floorPlan.fileName &&
+        project.floorPlan.size === sampleProject.floorPlan.size
+      ),
     saveProject: () => void handleSave(),
     retryFailedSave,
     restoreSavedProject: restoreSaved,

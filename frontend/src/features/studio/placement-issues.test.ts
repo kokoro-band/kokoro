@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vite-plus/test"
 
 import { sampleProject } from "./data"
+import { findFreePlacement } from "./furniture-motion"
 import { placementIssues } from "./placement-issues"
+import { parseStoredProject } from "./project-validation"
 import type { Furniture, Project, RoomModel } from "./types"
 
 const chair = (id: string, x: number, z: number, rotation = 0): Furniture => ({
@@ -116,6 +118,55 @@ describe("repairable placement issues", () => {
       placementIssues(project([chair("a", 3, 0.5)], doorRoom))[0].reason
     ).toContain("문 앞")
     expect(placementIssues(project([chair("a", 5, 2)], doorRoom))).toEqual([])
+  })
+
+  it("agrees with free placement at a door opening while retaining clearance and solid-wall warnings", () => {
+    const doorRoom: RoomModel = {
+      ...room,
+      bounds: { width: 6, depth: 6 },
+      outline: [
+        [0, 0],
+        [6, 0],
+        [6, 6],
+        [0, 6],
+      ],
+      walls: [{ id: "inner", a: [3, 0], b: [3, 6], thickness: 0.2 }],
+      openings: [
+        {
+          id: "door",
+          wallId: "inner",
+          type: "door",
+          from: 2.5,
+          to: 3.5,
+          bottom: 0,
+          top: 2.1,
+        },
+      ],
+    }
+    const item = chair("opening", 3.4, 3)
+    const draft = parseStoredProject({
+      ...project([item], doorRoom),
+      dimensions: { width: 6, depth: 6, height: 2.4 },
+    })
+    expect(findFreePlacement(draft, item)).toEqual(item)
+    expect(placementIssues(draft)).toEqual([])
+    expect(
+      placementIssues({ ...draft, furniture: [chair("blocking", 3, 3)] })
+    ).toEqual([
+      { furnitureId: "blocking", reason: "문 앞 여유 공간을 막고 있어요." },
+    ])
+    expect(
+      placementIssues({ ...draft, furniture: [chair("jamb", 3.4, 3.3)] })
+    ).toEqual([{ furnitureId: "jamb", reason: "벽과 겹쳐 있어요." }])
+    expect(
+      placementIssues({
+        ...draft,
+        room: {
+          ...doorRoom,
+          openings: [{ ...doorRoom.openings[0], type: "window", bottom: 0.9 }],
+        },
+      })
+    ).toEqual([{ furnitureId: "opening", reason: "벽과 겹쳐 있어요." }])
   })
 
   it("leaves furniture beside a doorway clear, including rotated footprints and touching edges", () => {

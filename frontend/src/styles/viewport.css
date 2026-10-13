@@ -279,6 +279,7 @@
 }
 
 .map-room polygon {
+  outline: none;
   fill: var(--seed-color-bg-layer-default);
   stroke: var(--seed-color-stroke-neutral-weak);
   stroke-width: 0.06;

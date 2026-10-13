@@ -93,7 +93,7 @@ describe("isolated E2E runtime", () => {
       args: ["exec", "playwright", "test"],
     })
   })
-  it("runs Ollama integration only against an explicit dependency backend", () => {
+  it("uses the current backend for Ollama and allows an absolute override", () => {
     expect(
       serverTestSetup(["--ollama", "--project=narrow"], "/repo/frontend", {
         KOKORO_E2E_BACKEND: "/dependency/backend",
@@ -108,9 +108,15 @@ describe("isolated E2E runtime", () => {
         "--config=playwright.ollama.config.ts",
       ],
     })
-    expect(() => serverTestSetup(["--ollama"], "/repo/frontend", {})).toThrow(
-      "absolute backend path"
-    )
+    expect(serverTestSetup(["--ollama"], "/repo/frontend", {})).toEqual({
+      backend: "/repo/backend",
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--config=playwright.ollama.config.ts",
+      ],
+    })
     expect(() =>
       serverTestSetup(["--ollama"], "/repo/frontend", {
         KOKORO_E2E_BACKEND: "../backend",

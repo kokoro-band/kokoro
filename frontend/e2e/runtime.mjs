@@ -66,10 +66,11 @@ export function serverTestSetup(args, frontend, source = process.env) {
   const command = playwrightArguments(ollama ? args.slice(1) : args)
   if (!ollama)
     return { backend: resolve(frontend, "../backend"), args: command }
-  if (!source.KOKORO_E2E_BACKEND || !isAbsolute(source.KOKORO_E2E_BACKEND))
+  const backend = source.KOKORO_E2E_BACKEND ?? resolve(frontend, "../backend")
+  if (!isAbsolute(backend))
     throw new Error("Ollama integration requires an absolute backend path")
   return {
-    backend: source.KOKORO_E2E_BACKEND,
+    backend,
     args: [...command, "--config=playwright.ollama.config.ts"],
   }
 }

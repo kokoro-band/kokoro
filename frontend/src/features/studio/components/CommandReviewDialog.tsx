@@ -70,6 +70,9 @@ export function CommandReviewDialog({
     review?.status === "stale" ||
     Boolean(review && review.baseKey !== commandLayoutKey(project))
   const candidates = review?.response.candidates ?? []
+  const hasPendingAdd = review?.localIntent?.intents.some(
+    (intent) => intent.type === "ADD"
+  )
   const choosing =
     candidates.length > 0 && !review?.response.requiresConfirmation
   return (
@@ -105,15 +108,18 @@ export function CommandReviewDialog({
                     const item = review?.response.project.furniture.find(
                       (entry) => entry.id === candidate.furnitureId
                     )
+                    const pendingAdd = !item && hasPendingAdd
                     return (
                       <ActionButton
                         key={candidate.furnitureId}
                         variant="neutralWeak"
                         size="medium"
-                        disabled={applying || stale || !item}
+                        disabled={applying || stale || (!item && !pendingAdd)}
                         onClick={() => onChoose(candidate.furnitureId)}
                       >
-                        {`${index + 1}. ${inRoom(project, candidate.name, item?.x, item?.z)} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
+                        {pendingAdd
+                          ? `${index + 1}. ${candidate.name} (추가 예정)`
+                          : `${index + 1}. ${inRoom(project, candidate.name, item?.x, item?.z)} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
                       </ActionButton>
                     )
                   })}

@@ -13,8 +13,12 @@ export function containsPoint(polygon: Point2[], x: number, z: number) {
   return inside
 }
 
+export function roomAtPoint(rooms: RoomLabel[], x: number, z: number) {
+  return rooms.findIndex((room) => containsPoint(room.polygon, x, z))
+}
+
 export function roomForFurniture(rooms: RoomLabel[], item: Furniture) {
-  return rooms.findIndex((room) => containsPoint(room.polygon, item.x, item.z))
+  return roomAtPoint(rooms, item.x, item.z)
 }
 
 export function roomCenter(room: RoomLabel): Point2 {

@@ -103,6 +103,19 @@
   box-shadow: var(--seed-shadow-s1);
 }
 
+/* 키보드로 편집 영역에 들어왔을 때만 보이고, 보조기기에는 늘 읽힙니다. */
+.viewport-canvas:not(:focus-visible) > .viewport-keyboard-help {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.viewport-canvas:focus-visible {
+  outline-offset: -2px;
+}
+
 .viewport-cursor-dock {
   bottom: var(--seed-dimension-x3);
   left: 50%;

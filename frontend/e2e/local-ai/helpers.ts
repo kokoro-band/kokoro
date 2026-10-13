@@ -85,7 +85,7 @@ export const initialProject: Project = {
 }
 
 // Only the model boundary is replaced. The app uses a native module Worker,
-// its real parser, proposal dialog and localStorage persistence.
+// its real parser, proposal dialog and IndexedDB persistence.
 type ModelResponse =
   | { text: string }
   | { hold: true }
@@ -141,8 +141,38 @@ export async function gpuSupport(
   }, mode)
 }
 
+/** Key order is not part of the saved project, so compare with sorted keys. */
+export function snapshot(value: unknown) {
+  return JSON.stringify(value, (_key, entry: unknown) =>
+    entry && typeof entry === "object" && !Array.isArray(entry)
+      ? Object.fromEntries(
+          Object.entries(entry).sort(([a], [b]) => (a < b ? -1 : 1))
+        )
+      : entry
+  )
+}
+
+/** The saved local project as a snapshot, or null when nothing is saved. */
 export async function stored(page: Page) {
-  return page.evaluate((key) => localStorage.getItem(key), storageKey)
+  const saved = await page.evaluate(
+    () =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open("kokoro")
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const read = open.result
+            .transaction("projects")
+            .objectStore("projects")
+            .get("current")
+          read.onerror = () => reject(read.error)
+          read.onsuccess = () => {
+            open.result.close()
+            resolve(read.result ?? null)
+          }
+        }
+      })
+  )
+  return saved === null ? null : snapshot(saved)
 }
 export async function storedProject(page: Page): Promise<Project> {
   const raw = await stored(page)
@@ -186,13 +216,13 @@ export async function apply(page: Page) {
   await expect(confirmation(page)).toHaveCount(0)
   // On narrow screens the still-open assistant sheet hides the app bar from
   // the accessibility tree. Persistence is the shared completion criterion.
-  await expect.poll(() => stored(page)).not.toBe(JSON.stringify(initialProject))
+  await expect.poll(() => stored(page)).not.toBe(snapshot(initialProject))
 }
 export async function rulesFallback(page: Page) {
   await page.getByRole("button", { name: "규칙 기반", exact: true }).click()
   await send(page, "소파를 삭제해줘")
   await review(page, "클라우드 소파 삭제")
-  expect(await stored(page)).toBe(JSON.stringify(initialProject))
+  expect(await stored(page)).toBe(snapshot(initialProject))
   await apply(page)
   expect((await storedProject(page)).furniture).toEqual([
     initialProject.furniture[0],

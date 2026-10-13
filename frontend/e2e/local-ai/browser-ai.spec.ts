@@ -2,6 +2,7 @@ import { expect } from "@playwright/test"
 import {
   test,
   initialProject,
+  snapshot,
   stored,
   storedProject,
   confirmation,
@@ -29,7 +30,7 @@ const clear = JSON.stringify({
   rotation: null,
   anchorCatalogId: null,
 })
-const baseline = JSON.stringify(initialProject)
+const baseline = snapshot(initialProject)
 
 test("rotation waits for confirmation and survives reload in storage and furniture UI", async ({
   page,

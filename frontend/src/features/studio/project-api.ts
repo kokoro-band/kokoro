@@ -10,6 +10,7 @@ import { withObjectParticle } from "./format"
 import { parseFurnitureCatalog } from "./furniture-catalog"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
+import { hydratedLocalProject, writeLocalProject } from "./local-project-store"
 import { sampleRoom } from "./sample-room"
 import type {
   CatalogItem,
@@ -47,6 +48,16 @@ export function readSavedProjectWithRecovery(): {
   project: Project
   recovery: "corrupt" | "unavailable" | null
 } {
+  const hydrated = hydratedLocalProject()
+  if (hydrated !== undefined) {
+    if (hydrated === null)
+      return { project: structuredClone(sampleProject), recovery: null }
+    try {
+      return { project: parseStoredProject(hydrated.value), recovery: null }
+    } catch {
+      return { project: structuredClone(sampleProject), recovery: "corrupt" }
+    }
+  }
   let raw: string | null
   try {
     raw = localStorage.getItem(storageKey)
@@ -65,7 +76,7 @@ export function readSavedProjectWithRecovery(): {
   }
 }
 
-function persistProject(project: Project): Project {
+async function persistProject(project: Project): Promise<Project> {
   assertFurnitureWrite(project.furniture)
   const validated = parseStoredProject(project)
   const raw = JSON.stringify(validated)
@@ -74,7 +85,8 @@ function persistProject(project: Project): Project {
       "프로젝트가 너무 커서 기기에 저장하지 못했어요. 항목 수를 줄여 주세요."
     )
   try {
-    localStorage.setItem(storageKey, raw)
+    if (!(await writeLocalProject(validated)))
+      localStorage.setItem(storageKey, raw)
   } catch (cause) {
     const quota = cause instanceof Error && cause.name === "QuotaExceededError"
     throw new Error(

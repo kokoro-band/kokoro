@@ -1,11 +1,11 @@
 import { fileURLToPath } from "node:url"
-import process from "node:process"
 import { readFileSync } from "node:fs"
 
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { seedDesignPlugin } from "@seed-design/vite-plugin"
-import { defineConfig, lazyPlugins } from "vite-plus"
+import { defineConfig, lazyPlugins, loadEnv } from "vite-plus"
+import { resolveBuildEnv } from "./src/lib/build-env"
 import { parseFurnitureCatalog } from "./src/features/studio/furniture-catalog"
 
 // Fail dev/build before bundling if the shared catalog cannot be consumed.
@@ -19,8 +19,12 @@ parseFurnitureCatalog(
 )
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: process.env.VITE_BASE_PATH || "/",
+export default defineConfig(({ command, mode }) => ({
+  // Read .env files too so each deployment target sets its path in one place.
+  base: resolveBuildEnv(
+    loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "VITE_"),
+    command
+  ).base,
   test: {
     exclude: ["**/node_modules/**", "**/.git/**", "e2e/**/*.spec.ts"],
     server: {
@@ -222,4 +226,4 @@ export default defineConfig({
       "seed-design": fileURLToPath(new URL("./seed-design", import.meta.url)),
     },
   },
-})
+}))

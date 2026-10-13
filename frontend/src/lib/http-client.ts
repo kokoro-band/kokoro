@@ -1,4 +1,5 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios"
+import { isApiPath, resolveApiBaseUrl } from "./api-url"
 
 const defaultMessage = "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요."
 const networkMessage =
@@ -57,9 +58,30 @@ export function normalizeApiError(error: unknown) {
   return new ApiError(message, status, retryable, error)
 }
 
+const configuredBaseURL = resolveApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL,
+  import.meta.env.DEV,
+  typeof window === "undefined" ? undefined : window.location.protocol
+)
+
 export const httpClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api",
+  baseURL: configuredBaseURL ?? undefined,
   timeout: REQUEST_TIMEOUT_MS,
+})
+
+httpClient.interceptors.request.use((config) => {
+  if (
+    !configuredBaseURL ||
+    config.baseURL !== configuredBaseURL ||
+    !isApiPath(config.url)
+  )
+    throw new ApiError(
+      "서버 주소 설정을 확인해 주세요. HTTPS 주소 또는 같은 출처의 API 경로가 필요해요.",
+      null,
+      false
+    )
+  config.allowAbsoluteUrls = false
+  return config
 })
 
 httpClient.interceptors.response.use(

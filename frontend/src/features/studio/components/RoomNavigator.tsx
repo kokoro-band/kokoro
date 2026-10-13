@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   IconChevronLeftLine,
   IconChevronRightLine,
@@ -12,6 +13,7 @@ import {
 } from "seed-design/ui/chip-tabs"
 import { List, ListButtonItem } from "seed-design/ui/list"
 import { TabsList, TabsRoot, TabsTrigger } from "seed-design/ui/tabs"
+import { TextField, TextFieldInput } from "seed-design/ui/text-field"
 
 import { Type } from "@/components/kokoro/Type"
 import { catalog } from "@/features/studio/data"
@@ -60,6 +62,7 @@ export function RoomNavigator({
   issues: PlacementIssue[]
   onSelectIssue: (id: string) => void
 }) {
+  const [query, setQuery] = useState("")
   const rooms = project.room?.rooms ?? []
   const room = roomIndex === null ? null : rooms[roomIndex]
   const issueList = (
@@ -121,8 +124,13 @@ export function RoomNavigator({
   const roomFurniture = project.furniture.filter(
     (item) => roomForFurniture(rooms, item) === roomIndex
   )
+  const normalizedQuery = query.normalize("NFC").trim().toLowerCase()
   const visibleCatalog = catalog.filter(
-    (item) => category === "전체" || item.category === category
+    (item) =>
+      (category === "전체" || item.category === category) &&
+      [item.name, item.category].some((value) =>
+        value.normalize("NFC").toLowerCase().includes(normalizedQuery)
+      )
   )
 
   return (
@@ -186,6 +194,37 @@ export function RoomNavigator({
               </ScrollFog>
             </ChipTabsCarousel>
           </ChipTabsRoot>
+          <div className="catalog-search">
+            <TextField
+              label="가구 검색"
+              size="medium"
+              value={query}
+              onValueChange={({ value }) => setQuery(value)}
+            >
+              <TextFieldInput
+                type="search"
+                placeholder="이름이나 종류로 찾기"
+                maxLength={80}
+              />
+            </TextField>
+          </div>
+          {visibleCatalog.length === 0 && (
+            <div className="panel-empty">
+              <Type variant="description" as="p" role="status">
+                조건에 맞는 가구가 없어요
+              </Type>
+              <ActionButton
+                variant="neutralWeak"
+                size="small"
+                onClick={() => {
+                  setQuery("")
+                  onCategoryChange("전체")
+                }}
+              >
+                필터 초기화
+              </ActionButton>
+            </div>
+          )}
           <List className="catalog-list">
             {visibleCatalog.map((item) => (
               <ListButtonItem

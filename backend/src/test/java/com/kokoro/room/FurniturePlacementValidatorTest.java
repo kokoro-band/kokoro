@@ -152,7 +152,7 @@ class FurniturePlacementValidatorTest {
                 List.of(wall), List.of(door), List.of(), null, null);
     }
 
-    private static FurnitureItem furniture(String id, String catalogId, double x, double z, int rotation) {
+    private static FurnitureItem furniture(String id, String catalogId, double x, double z, double rotation) {
         return new FurnitureItem(id, catalogId, catalogId, "의자", x, z, rotation, "#000000");
     }
 }

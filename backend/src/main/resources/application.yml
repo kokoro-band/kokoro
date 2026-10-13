@@ -13,10 +13,13 @@ spring:
   servlet:
     multipart:
       max-file-size: 15MB
-      max-request-size: 15MB
+      max-request-size: 16MB
 
 server:
   port: ${PORT:8080}
+  tomcat:
+    # Drain near-limit rejected multipart requests so the 413 response reaches clients.
+    max-swallow-size: 17MB
 
 management:
   endpoints:

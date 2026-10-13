@@ -27,20 +27,20 @@ public class LayoutProposalRepository {
     public void insert(LayoutProposal proposal) {
         jdbc.update("""
                 INSERT INTO layout_proposals (
-                    proposal_id, project_id, owner_id, base_updated_at, commands, created_at, expires_at, consumed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    proposal_id, project_id, owner_id, base_updated_at, base_revision, commands, created_at, expires_at, consumed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, proposal.proposalId(), proposal.projectId(), proposal.ownerId(),
-                timestamp(proposal.baseUpdatedAt()), objectMapper.writeValueAsString(proposal.commands()),
+                timestamp(proposal.baseUpdatedAt()), proposal.baseRevision(), objectMapper.writeValueAsString(proposal.commands()),
                 timestamp(proposal.createdAt()), timestamp(proposal.expiresAt()), timestamp(proposal.consumedAt()));
     }
 
     public Optional<LayoutProposal> findById(String proposalId) {
         List<LayoutProposal> proposals = jdbc.query("""
-                SELECT proposal_id, project_id, owner_id, base_updated_at, commands, created_at, expires_at, consumed_at
+                SELECT proposal_id, project_id, owner_id, base_updated_at, base_revision, commands, created_at, expires_at, consumed_at
                   FROM layout_proposals WHERE proposal_id = ?
                 """, (rs, rowNum) -> new LayoutProposal(
                 rs.getString("proposal_id"), rs.getString("project_id"), rs.getString("owner_id"),
-                instant(rs.getTimestamp("base_updated_at")), readCommands(rs.getString("commands")),
+                instant(rs.getTimestamp("base_updated_at")), rs.getObject("base_revision", Long.class), readCommands(rs.getString("commands")),
                 instant(rs.getTimestamp("created_at")), instant(rs.getTimestamp("expires_at")),
                 instant(rs.getTimestamp("consumed_at"))), proposalId);
         return proposals.stream().findFirst();

@@ -7,11 +7,16 @@ const loader = new GLTFLoader()
 const templates = new Map<string, Promise<THREE.Group>>()
 
 export function loadFurnitureModel(url: string) {
-  let pending = templates.get(url)
+  // Catalog paths remain deployment-independent in the shared API contract.
+  const assetUrl =
+    url.startsWith("/") && !url.startsWith("//")
+      ? import.meta.env.BASE_URL + url.slice(1)
+      : url
+  let pending = templates.get(assetUrl)
   if (!pending) {
     pending = new Promise<THREE.Group>((resolve, reject) => {
       loader.load(
-        url,
+        assetUrl,
         (gltf) => {
           const template = gltf.scene
           template.updateMatrixWorld(true)
@@ -20,12 +25,12 @@ export function loadFurnitureModel(url: string) {
         },
         undefined,
         (error) => {
-          templates.delete(url)
+          templates.delete(assetUrl)
           reject(error)
         }
       )
     })
-    templates.set(url, pending)
+    templates.set(assetUrl, pending)
   }
   return pending
 }
@@ -54,6 +59,37 @@ export function instantiateFurnitureModel(
   const wrapper = new THREE.Group()
   model.position.set(-center.x, -bounds.min.y, -center.z)
   wrapper.add(model)
-  wrapper.scale.setScalar(scale)
+  // Match both horizontal catalog dimensions used by the placement footprint.
+  wrapper.scale.set(
+    size.x > 0 ? item.width / size.x : 1,
+    scale,
+    size.z > 0 ? item.depth / size.z : 1
+  )
   return wrapper
+}
+
+/** A failed or obsolete load must leave the editable fallback in place. */
+export async function upgradeFurnitureModel(
+  group: THREE.Group,
+  item: CatalogItem,
+  isCurrent: () => boolean,
+  dispose: (fallback: THREE.Group) => void,
+  onLoaded: () => void
+) {
+  if (!item.modelUrl) return false
+  try {
+    const template = await loadFurnitureModel(item.modelUrl)
+    if (!isCurrent()) return false
+    const model = instantiateFurnitureModel(template, item)
+    const fallback = group.children[0] as THREE.Group | undefined
+    if (fallback) {
+      dispose(fallback)
+      group.remove(fallback)
+    }
+    group.add(model)
+    onLoaded()
+    return true
+  } catch {
+    return false
+  }
 }

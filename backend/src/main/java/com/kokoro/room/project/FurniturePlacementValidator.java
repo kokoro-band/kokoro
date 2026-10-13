@@ -25,22 +25,28 @@ public class FurniturePlacementValidator {
      * Width in meters kept clear on each side of a door opening, in front of the door.
      */
     private static final double DOOR_CLEARANCE = 0.8;
-    private static final Map<String, FurnitureSize> CATALOG = Map.of(
-            "sofa-cloud", new FurnitureSize(2.2, 0.92),
-            "sofa-moss", new FurnitureSize(2.1, 0.95),
-            "table-oak", new FurnitureSize(1.25, 0.7),
-            "table-white", new FurnitureSize(1.0, 1.0),
-            "chair-shell", new FurnitureSize(0.65, 0.65),
-            "chair-sand", new FurnitureSize(0.65, 0.65),
-            "plant-olive", new FurnitureSize(0.55, 0.55),
-            "lamp-arc", new FurnitureSize(0.5, 0.5)
-    );
+    private final java.util.function.Function<String, FurnitureCatalog.Size> sizeOf;
+
+    /** Pure geometry tests use the same packaged contract without a database. */
+    public FurniturePlacementValidator() {
+        Map<String, FurnitureCatalog.Size> sizes = FurnitureCatalog.load();
+        sizeOf = sizes::get;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FurniturePlacementValidator(FurnitureRegistry registry) {
+        sizeOf = id -> {
+            var item = registry.require(id);
+            return new FurnitureCatalog.Size(item.path("width").doubleValue(), item.path("depth").doubleValue());
+        };
+    }
 
     /**
      * Coordinates are meters with the origin at the top-left of the room bounding box.
      * Without room data the room is treated as a rectangle of the project dimensions.
      */
     public void validate(Dimensions dimensions, RoomModel room, List<FurnitureItem> furniture) {
+        ProjectInputLimits.furniture(furniture);
         checkDuplicateIds(furniture);
         List<Point> outline = outline(dimensions, room);
         List<OrientedBox> boxes = furniture.stream().map(this::box).toList();
@@ -79,6 +85,7 @@ public class FurniturePlacementValidator {
 
     /** Manual drafts may need placement repairs, but must still contain usable furniture data. */
     public void validateData(List<FurnitureItem> furniture) {
+        ProjectInputLimits.furniture(furniture);
         checkDuplicateIds(furniture);
         furniture.forEach(this::box);
     }
@@ -98,7 +105,7 @@ public class FurniturePlacementValidator {
     }
 
     private OrientedBox box(FurnitureItem item) {
-        FurnitureSize size = CATALOG.get(item.catalogId());
+        FurnitureCatalog.Size size = sizeOf.apply(item.catalogId());
         if (size == null) throw invalid("지원하지 않는 가구입니다: " + item.catalogId());
         if (!Double.isFinite(item.x()) || !Double.isFinite(item.z())) {
             throw invalid("가구 위치 값이 올바르지 않습니다.");
@@ -290,7 +297,6 @@ public class FurniturePlacementValidator {
                 List.of(first.id(), second.id()), null, null);
     }
 
-    private record FurnitureSize(double width, double depth) {}
     private record Axis(double x, double z) {}
     private record OrientedBox(double centerX, double centerZ, Axis axisX, Axis axisZ,
                                double halfWidth, double halfDepth) {}

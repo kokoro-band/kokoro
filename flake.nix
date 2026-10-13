@@ -31,8 +31,12 @@
               (with pkgs; [
                 git-lfs
                 jdk17_headless
+                ollama
               ])
               ++ [ nix-vite-plus.packages.${system}.vp ];
+
+            # Ollama browser access: docs/ai/local-ollama-setup.md.
+            OLLAMA_ORIGINS = "http://localhost:5173,https://kokoro-band.github.io";
 
             shellHook = ''
               cat <<'EOF'

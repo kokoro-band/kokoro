@@ -1,12 +1,50 @@
 import { fileURLToPath } from "node:url"
+import process from "node:process"
+import { readFileSync } from "node:fs"
 
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { seedDesignPlugin } from "@seed-design/vite-plugin"
 import { defineConfig, lazyPlugins } from "vite-plus"
+import { parseFurnitureCatalog } from "./src/features/studio/furniture-catalog"
+
+// Fail dev/build before bundling if the shared catalog cannot be consumed.
+parseFurnitureCatalog(
+  JSON.parse(
+    readFileSync(
+      new URL("../docs/contracts/furniture-catalog.json", import.meta.url),
+      "utf8"
+    )
+  )
+)
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || "/",
+  test: {
+    exclude: ["**/node_modules/**", "**/.git/**", "e2e/**/*.spec.ts"],
+    server: {
+      deps: {
+        // SEED recipes import CSS which must pass through Vite in DOM tests.
+        inline: [/@seed-design\//],
+      },
+    },
+  },
+  server: {
+    watch: {
+      ignored: [
+        "**/.e2e-artifacts/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
+      ],
+    },
+    fs: {
+      allow: [
+        fileURLToPath(new URL(".", import.meta.url)),
+        fileURLToPath(new URL("../docs/contracts", import.meta.url)),
+      ],
+    },
+  },
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
     categories: {
@@ -15,7 +53,13 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist", "seed-design"],
+    ignorePatterns: [
+      "dist",
+      "seed-design",
+      "playwright-report",
+      "test-results",
+      ".e2e-artifacts",
+    ],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -162,6 +206,9 @@ export default defineConfig({
       "yarn.lock",
       "public/models/",
       "seed-design/",
+      "playwright-report/",
+      "test-results/",
+      ".e2e-artifacts/",
     ],
   },
   plugins: lazyPlugins(() => [

@@ -7,9 +7,11 @@ import {
 
 import { AppBar, type StudioView } from "@/features/studio/components/AppBar"
 import { ArrangeView } from "@/features/studio/components/ArrangeView"
+import { CommandReviewDialog } from "@/features/studio/components/CommandReviewDialog"
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
+import { ProjectConflictDialog } from "@/features/studio/components/ProjectConflictDialog"
 import { ShortcutGuide } from "@/features/studio/components/ShortcutGuide"
 import { StructureView } from "@/features/studio/components/StructureView"
 import { SummaryView } from "@/features/studio/components/SummaryView"
@@ -28,36 +30,54 @@ export default function App() {
   )
 }
 
-/** 컨트롤러의 알림을 SEED Snackbar 큐로 넘깁니다. */
+/** Sends controller notices to the SEED Snackbar queue. */
 function NoticeSnackbar({
   notice,
   onShown,
   onRetrySave,
+  onRestoreSaved,
 }: {
   notice: Notice | null
   onShown: () => void
-  onRetrySave: () => void
+  onRetrySave: (noticeId: number) => void
+  onRestoreSaved: (noticeId: number) => void
 }) {
   const adapter = useSnackbarAdapter()
   const retryRef = useRef(onRetrySave)
-  useEffect(() => {
-    retryRef.current = onRetrySave
-  }, [onRetrySave])
-  useEffect(() => {
-    if (!notice) return
-    adapter.create({
-      render: () => (
-        <Snackbar
-          variant={notice.tone}
-          message={notice.text}
-          {...(notice.action === "retrySave"
-            ? { actionLabel: "다시 저장", onAction: () => retryRef.current() }
-            : {})}
-        />
-      ),
-    })
-    onShown()
-  }, [adapter, notice, onShown])
+  const restoreRef = useRef(onRestoreSaved)
+  useEffect(
+    function synchronizeNoticeActions() {
+      retryRef.current = onRetrySave
+      restoreRef.current = onRestoreSaved
+    },
+    [onRetrySave, onRestoreSaved]
+  )
+  useEffect(
+    function enqueueNoticeSnackbar() {
+      if (!notice) return
+      adapter.create({
+        render: () => (
+          <Snackbar
+            variant={notice.tone}
+            message={notice.text}
+            {...(notice.action === "retrySave"
+              ? {
+                  actionLabel: "다시 저장",
+                  onAction: () => retryRef.current(notice.id),
+                }
+              : notice.action === "restoreSaved"
+                ? {
+                    actionLabel: "되돌리기",
+                    onAction: () => restoreRef.current(notice.id),
+                  }
+                : {})}
+          />
+        ),
+      })
+      onShown()
+    },
+    [adapter, notice, onShown]
+  )
   return null
 }
 
@@ -65,7 +85,7 @@ function Studio() {
   const studio = useStudioController()
   const uploadRef = useRef<HTMLInputElement>(null)
   const isMobile = useMediaQuery("(max-width: 820px)")
-  const hasRooms = Boolean(studio.project.room?.rooms.length)
+  const hasRooms = Boolean(studio.project.room?.rooms?.length)
   const [view, setView] = useState<StudioView>(() =>
     hasRooms ? "arrange" : "structure"
   )
@@ -81,15 +101,16 @@ function Studio() {
   useShortcut("viewStructure", () => setView("structure"), { enabled: ready })
   useShortcut("viewArrange", () => setView("arrange"), { enabled: ready })
   useShortcut("viewSummary", () => setView("summary"), { enabled: ready })
-  // 구조 화면은 저장하지 않은 초안이 따로 있어서 구조 편집기가 저장을 맡습니다.
+  // The structure editor owns saving because its unsaved draft is separate.
   useShortcut("save", studio.saveProject, {
     enabled: ready && view !== "structure",
   })
 
-  // 저장된 구조가 바뀌면 구조 편집기를 새 기준으로 다시 시작합니다.
+  // Restart the structure editor when the saved structure changes.
   const structureKey = useMemo(
-    () => `${studio.project.id}:${JSON.stringify(studio.project.room ?? null)}`,
-    [studio.project.id, studio.project.room]
+    () =>
+      `${studio.project.id}:${studio.editorEpoch}:${JSON.stringify(studio.project.room ?? null)}`,
+    [studio.project.id, studio.project.room, studio.editorEpoch]
   )
 
   const enterRoom = (index: number) => {
@@ -113,9 +134,13 @@ function Studio() {
         dirty={studio.dirty}
         saving={studio.saving}
         saveFailed={studio.saveFailed}
+        saveRejected={studio.saveRejected}
+        saveConflict={Boolean(studio.conflict)}
+        onReviewConflict={studio.reviewConflict}
         saveBusy={studio.busy === "save"}
         onViewChange={setView}
         onSave={studio.saveProject}
+        onRestoreSaved={() => studio.restoreSavedProject()}
         onCreateProject={() => setNewProjectOpen(true)}
         onOpenSample={() => {
           studio.openSampleProject()
@@ -139,8 +164,9 @@ function Studio() {
                 key={structureKey}
                 room={studio.project.room}
                 active={view === "structure"}
-                saving={applying}
+                saving={applying || studio.conflict?.status === "applying"}
                 onDirtyChange={setStructureDirty}
+                onDraftChange={studio.rememberRoomDraft}
                 onApply={(nextRoom) => {
                   setApplying(true)
                   void studio.applyRoom(nextRoom).then((saved) => {
@@ -177,7 +203,8 @@ function Studio() {
       <NoticeSnackbar
         notice={studio.notice}
         onShown={studio.dismissNotice}
-        onRetrySave={studio.saveProject}
+        onRetrySave={studio.retryFailedSave}
+        onRestoreSaved={studio.restoreSavedProject}
       />
       <input
         ref={uploadRef}
@@ -199,6 +226,21 @@ function Studio() {
           if (created) resetNavigation("structure")
           return created
         }}
+      />
+      <CommandReviewDialog
+        review={ready ? studio.commandReview : null}
+        project={studio.project}
+        onCancel={studio.cancelCommandReview}
+        onConfirm={studio.confirmCommandReview}
+        onChoose={studio.chooseCommandCandidate}
+        onRequestAgain={studio.requestCommandAgain}
+      />
+      <ProjectConflictDialog
+        conflict={ready ? studio.conflict : null}
+        onLoad={() => void studio.loadConflictLatest()}
+        onDiscard={studio.discardConflictDraft}
+        onReapply={() => void studio.reapplyConflictDraft()}
+        onDismiss={studio.dismissConflict}
       />
       <ShortcutGuide open={guideOpen} view={view} onOpenChange={setGuideOpen} />
       <FloorPlanDialog

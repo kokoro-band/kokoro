@@ -14,7 +14,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
   vi.stubEnv("VITE_API_MODE", "server")
-  vi.mocked(request).mockResolvedValue(sampleProject)
+  vi.mocked(request).mockImplementation(async (config) =>
+    config.url?.endsWith("/commands")
+      ? { project: { ...sampleProject, revision: 0 } }
+      : { ...sampleProject, revision: 0 }
+  )
 })
 
 describe("project API paths", () => {
@@ -61,7 +65,7 @@ describe("project API paths", () => {
   it("uses validated project paths for every project request", async () => {
     const { getProject, saveProject, saveRoom, sendCommand, uploadPlan } =
       await import("./project-api")
-    const project = structuredClone(sampleProject)
+    const project = { ...structuredClone(sampleProject), revision: 0 }
     const file = new File(["plan"], "plan.pdf", { type: "application/pdf" })
 
     await getProject(project.id)
@@ -82,6 +86,51 @@ describe("project API paths", () => {
     expect(vi.mocked(request).mock.calls[3][0].timeout).toBe(UPLOAD_TIMEOUT_MS)
     expect(vi.mocked(request).mock.calls[2][0].data).toEqual({
       room: sampleRoom,
+      expectedRevision: 0,
     })
+  })
+})
+
+describe("furniture catalog source", () => {
+  it("loads the catalog the server registered in server mode", async () => {
+    const item = {
+      id: "bench-server",
+      name: "서버 벤치",
+      category: "의자",
+      description: "서버에만 있는 벤치",
+      price: 120000,
+      width: 1.4,
+      depth: 0.4,
+      color: "#123456",
+    }
+    vi.mocked(request).mockResolvedValue({
+      version: 1,
+      unit: "m",
+      dimensionKind: "example",
+      priceKind: "example",
+      currency: "KRW",
+      sourceAssetCount: 1,
+      items: [item],
+    })
+    const { fetchFurnitureCatalog } = await import("./project-api")
+
+    await expect(fetchFurnitureCatalog()).resolves.toEqual([item])
+    expect(request).toHaveBeenCalledWith({ url: "/furniture-catalog" })
+  })
+
+  it("rejects a malformed server catalog instead of guessing", async () => {
+    vi.mocked(request).mockResolvedValue({ version: 2, items: [] })
+    const { fetchFurnitureCatalog } = await import("./project-api")
+
+    await expect(fetchFurnitureCatalog()).rejects.toThrow()
+  })
+
+  it("uses the bundled contract catalog without a server", async () => {
+    vi.stubEnv("VITE_API_MODE", "local")
+    const { fetchFurnitureCatalog } = await import("./project-api")
+    const { catalog } = await import("./data")
+
+    await expect(fetchFurnitureCatalog()).resolves.toEqual(catalog)
+    expect(request).not.toHaveBeenCalled()
   })
 })

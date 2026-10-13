@@ -20,11 +20,7 @@ import {
 import { Type } from "@/components/kokoro/Type"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
-import {
-  canPlaceFurniture,
-  nearestPlacement,
-  roomCenter,
-} from "@/features/studio/house-navigation"
+import { roomCenter } from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
 
@@ -124,31 +120,29 @@ export function ArrangeView({
     if (!selected || !direction) return
     const x = round1(selected.x + direction[0] * distance)
     const z = round1(selected.z + direction[1] * distance)
-    if (canPlaceFurniture(studio.project, room, x, z))
-      studio.previewSelected({ x, z })
+    studio.previewSelected({ x, z }, room)
   }
 
   const rotate = (degrees: number) => {
     if (!selected) return
-    studio.updateSelected({
-      rotation: (selected.rotation + degrees + 360) % 360,
-    })
+    studio.updateSelected(
+      {
+        rotation: (selected.rotation + degrees + 360) % 360,
+      },
+      room
+    )
   }
 
   /** 입력한 좌표가 방 밖이면 가장 가까운 안쪽 자리로 옮기고, 맞췄는지 알려 줍니다. */
   const placeSelected = (update: { x?: number; z?: number }) => {
     if (!selected) return false
     const target = { x: update.x ?? selected.x, z: update.z ?? selected.z }
-    // An out-of-bounds item may need both axes repaired separately. Do not clamp
-    // it back to the invalid starting point while the other axis is still outside.
-    if (selectedIssue) {
-      studio.updateSelected(target)
-      return false
-    }
-    const placed = nearestPlacement(studio.project, room, selected, target)
-    if (placed.x !== selected.x || placed.z !== selected.z)
-      studio.updateSelected(placed)
-    return placed.x !== target.x || placed.z !== target.z
+    const placed = studio.updateSelected(target, room)
+    return (
+      !!placed &&
+      (Math.abs(placed.x - target.x) > 1e-5 ||
+        Math.abs(placed.z - target.z) > 1e-5)
+    )
   }
 
   /** 모바일 시트가 닫히면 사라진 버튼 대신 도크의 첫 버튼으로 포커스를 옮깁니다. */
@@ -245,11 +239,15 @@ export function ArrangeView({
 
   const addFurniture = (catalogId: string) => {
     setInspectorTab("selection")
-    studio.addFurniture(catalogId, room ? roomCenter(room) : undefined)
+    studio.addFurniture(catalogId, room ? roomCenter(room) : undefined, room)
     if (isMobile) setSheet("selection")
   }
 
-  const send = (text: string) => studio.sendMessage(text, room?.polygon)
+  const send = (text: string) => {
+    // SEED returns focus to this input when the command review closes.
+    assistantInputRef.current?.focus()
+    studio.sendMessage(text, room?.polygon)
+  }
 
   const navigator = (
     <RoomNavigator
@@ -276,7 +274,7 @@ export function ArrangeView({
       bounds={studio.roomBounds}
       roomName={room?.name ?? null}
       onPlace={placeSelected}
-      onPreview={studio.previewSelected}
+      onPreview={(update) => studio.previewSelected(update, room)}
       onCommitPreview={studio.commitPreview}
       onDelete={deleteSelected}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
@@ -314,6 +312,10 @@ export function ArrangeView({
       roomName={room?.name ?? null}
       chatBusy={studio.busy === "chat"}
       busy={busy}
+      engine={studio.assistantEngine}
+      browserAiStatus={studio.browserAiStatus}
+      onEngineChange={studio.setAssistantEngine}
+      onStopAi={studio.stopBrowserAi}
       onInputChange={studio.setInput}
       onSend={send}
       inputRef={assistantInputRef}
@@ -323,6 +325,7 @@ export function ArrangeView({
 
   const scene = (
     <SceneEditor
+      key={studio.project.id}
       project={studio.project}
       focusRoom={room}
       selectedId={studio.selectedId}
@@ -337,6 +340,8 @@ export function ArrangeView({
       onSelect={selectSceneFurniture}
       onMove={studio.moveFurniture}
       onMoveEnd={studio.commitPreview}
+      onConstrainPose={studio.constrainPose}
+      onPlace={studio.placeFurniture}
       minimap={
         <HouseMap
           room={houseRoom}
@@ -403,12 +408,13 @@ export function ArrangeView({
           </nav>
         </SnackbarAvoidOverlap>
         <BottomSheet.Root
-          open={sheet !== null}
+          open={sheet !== null && !studio.conflict?.open}
+          modal={!studio.commandReview}
           onOpenChange={(open) => {
             if (!open) setSheet(null)
           }}
           onAnimationEnd={(open) => {
-            if (!open) focusDock()
+            if (!open && !studio.conflict?.open) focusDock()
           }}
         >
           <BottomSheet.Backdrop />

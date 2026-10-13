@@ -37,6 +37,23 @@
   gap: var(--seed-dimension-x1);
 }
 
+.door-menu {
+  min-width: 18rem;
+}
+
+.door-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--seed-dimension-x4);
+  width: 100%;
+}
+
+.door-menu-row-action {
+  flex: none;
+  color: var(--seed-color-fg-neutral-muted);
+}
+
 .viewport-canvas {
   position: relative;
   flex: 1;

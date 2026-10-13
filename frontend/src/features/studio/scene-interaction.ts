@@ -1,6 +1,8 @@
 export type CursorTool = "select" | "move" | "pan"
 type Point = [x: number, z: number]
-type Hit = { id: string; center: Point }
+export type SceneHit =
+  | { kind?: "furniture"; id: string; center: Point }
+  | { kind: "door"; id: string }
 
 /** Owns pointer gestures before OrbitControls can handle their bubbling events. */
 export function bindSceneInteraction({
@@ -11,16 +13,18 @@ export function bindSceneInteraction({
   onSelect,
   onMove,
   onCommit,
+  onToggleDoor = () => {},
   setCameraEnabled,
   resetCameraGesture,
 }: {
   element: HTMLElement
   initialTool: CursorTool
-  pick: (event: PointerEvent) => Hit | null
+  pick: (event: PointerEvent) => SceneHit | null
   pointAt: (event: PointerEvent) => Point | null
   onSelect: (id: string | null) => void
   onMove: (id: string, point: Point) => boolean
   onCommit: () => void
+  onToggleDoor?: (id: string) => void
   setCameraEnabled: (enabled: boolean) => void
   resetCameraGesture: () => void
 }) {
@@ -31,6 +35,12 @@ export function bindSceneInteraction({
     start: [number, number]
     offset: Point
     moved: boolean
+  } | null = null
+  let doorGesture: {
+    pointerId: number
+    id: string
+    start: Point
+    cancelled: boolean
   } | null = null
   const cameraPointers = new Set<number>()
   const window = element.ownerDocument.defaultView
@@ -63,6 +73,13 @@ export function bindSceneInteraction({
     cursor()
   }
 
+  function finishDoor() {
+    const previous = doorGesture
+    doorGesture = null
+    if (previous) release(previous.pointerId)
+    cursor()
+  }
+
   function finishCamera() {
     const pointers = [...cameraPointers]
     cameraPointers.clear()
@@ -83,8 +100,19 @@ export function bindSceneInteraction({
       return
     }
     stop(event)
-    if (gesture || event.button !== 0 || !event.isPrimary) return
+    if (gesture || doorGesture || event.button !== 0 || !event.isPrimary) return
     const hit = pick(event)
+    if (hit?.kind === "door") {
+      doorGesture = {
+        pointerId: event.pointerId,
+        id: hit.id,
+        start: [event.clientX, event.clientY],
+        cancelled: false,
+      }
+      element.setPointerCapture(event.pointerId)
+      element.style.cursor = "pointer"
+      return
+    }
     onSelect(hit?.id ?? null)
     if (tool !== "move" || !hit) return
     const point = pointAt(event)
@@ -103,6 +131,22 @@ export function bindSceneInteraction({
   function move(event: PointerEvent) {
     if (tool === "pan") return
     stop(event)
+    if (doorGesture) {
+      if (
+        event.pointerId === doorGesture.pointerId &&
+        Math.hypot(
+          event.clientX - doorGesture.start[0],
+          event.clientY - doorGesture.start[1]
+        ) >= 3
+      )
+        doorGesture.cancelled = true
+      return
+    }
+    if (!gesture) {
+      cursor()
+      if (pick(event)?.kind === "door") element.style.cursor = "pointer"
+      return
+    }
     if (!gesture || gesture.pointerId !== event.pointerId) return
     if (
       !gesture.moved &&
@@ -130,15 +174,33 @@ export function bindSceneInteraction({
       return
     }
     stop(event)
+    if (doorGesture?.pointerId === event.pointerId) {
+      const previous = doorGesture
+      const hit = pick(event)
+      finishDoor()
+      if (
+        !previous.cancelled &&
+        Math.hypot(
+          event.clientX - previous.start[0],
+          event.clientY - previous.start[1]
+        ) < 3 &&
+        hit?.kind === "door" &&
+        hit.id === previous.id
+      )
+        onToggleDoor(previous.id)
+      return
+    }
     if (gesture?.pointerId === event.pointerId) finishFurniture()
   }
 
   function cancel(event: PointerEvent) {
+    if (doorGesture?.pointerId === event.pointerId) finishDoor()
     if (gesture?.pointerId === event.pointerId) finishFurniture()
     if (cameraPointers.has(event.pointerId)) finishCamera()
   }
 
   function finish() {
+    finishDoor()
     finishFurniture()
     finishCamera()
   }

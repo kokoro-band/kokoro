@@ -13,12 +13,16 @@ public interface ProjectRepository {
 
     Optional<RenovationProject> findById(String id);
 
+    /** Call inside the write transaction, before reading or changing dependent rows. */
+    Optional<RenovationProject> lockById(String id);
+
+    /** Ordered, locked recovery snapshot. Only these projects and their current jobs may be recovered. */
+    List<RenovationProject> lockProcessing();
+
     boolean tryStartFloorPlan(String projectId, String ownerId, FloorPlan floorPlan, Instant updatedAt);
 
     boolean updateFloorPlanStatus(String projectId, String jobId, ConversionStatus status, int progress,
                                   String errorCode, String errorMessage, boolean retryable);
-
-    int failProcessingFloorPlans(String errorCode, String errorMessage);
 
     void insert(RenovationProject project);
 

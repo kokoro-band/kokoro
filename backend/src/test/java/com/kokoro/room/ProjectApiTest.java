@@ -66,7 +66,7 @@ class ProjectApiTest {
         String id = response.split("\"id\":\"")[1].split("\"")[0];
 
         MockMultipartFile floorPlan = new MockMultipartFile(
-                "file", "plan.pdf", "application/pdf", "floor-plan".getBytes());
+                "file", "plan.pdf", "application/pdf", "%PDF-1.7\n".getBytes());
         String uploadResponse = mockMvc.perform(multipart("/api/projects/{id}/floor-plan", id).file(floorPlan))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.floorPlan.jobId").isNotEmpty())
@@ -88,7 +88,7 @@ class ProjectApiTest {
         MockMultipartFile invalid = new MockMultipartFile(
                 "file", "plan.txt", "text/plain", "not-a-plan".getBytes());
         mockMvc.perform(multipart("/api/projects/living-room-01/floor-plan").file(invalid))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnsupportedMediaType());
 
         mockMvc.perform(put("/api/projects/living-room-01/layout")
                         .contentType(MediaType.APPLICATION_JSON)

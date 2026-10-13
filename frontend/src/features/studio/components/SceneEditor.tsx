@@ -1,5 +1,6 @@
 import {
   lazy,
+  useCallback,
   Suspense,
   useEffect,
   useRef,
@@ -17,16 +18,31 @@ import {
   IconSofaLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon } from "@seed-design/react"
+import { DoorClosed, DoorOpen } from "lucide-react"
 import { HelpBubbleAnchor } from "seed-design/ui/help-bubble"
 import { ProgressCircle } from "seed-design/ui/progress-circle"
+import {
+  MenuRoot,
+  MenuTrigger,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+} from "seed-design/ui/menu"
 
 import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
 import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
 import { Type } from "@/components/kokoro/Type"
 import { roomForFurniture } from "@/features/studio/house-navigation"
+import { doorMenuLabels } from "@/features/studio/room-door-labels"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts"
-import type { Project, RoomLabel, ViewMode } from "@/features/studio/types"
+import type {
+  Furniture,
+  Project,
+  RoomLabel,
+  ViewMode,
+} from "@/features/studio/types"
 import type { CursorTool } from "@/features/studio/scene-interaction"
 
 const RoomScene = lazy(async () => {
@@ -53,8 +69,8 @@ const cursorShortcuts: Record<CursorTool, ShortcutId> = {
 }
 
 const hints: Record<CursorTool, string> = {
-  select: "가구를 눌러 선택해요. 옮기려면 2번을 누르세요.",
-  move: "가구를 끌어서 옮겨요. 화면을 옮기려면 3번을 누르세요.",
+  select: "가구를 눌러 선택해요. 문을 누르면 열고 닫을 수 있어요.",
+  move: "가구는 벽에 맞춰 멈춰요. 문을 누르면 열고 닫을 수 있어요.",
   pan: "화면을 끌어서 옮겨요. 휠로 확대해요.",
 }
 
@@ -74,6 +90,8 @@ export function SceneEditor({
   onSelect,
   onMove,
   onMoveEnd,
+  onConstrainPose,
+  onPlace,
 }: {
   project: Project
   focusRoom: RoomLabel | null
@@ -88,8 +106,23 @@ export function SceneEditor({
   onRedo: () => void
   onFullscreenError: () => void
   onSelect: (id: string | null) => void
-  onMove: (id: string, x: number, z: number) => void
+  onMove: (
+    id: string,
+    x: number,
+    z: number,
+    focus?: RoomLabel | null
+  ) => boolean
   onMoveEnd: () => void
+  onConstrainPose: (
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
+    focus?: RoomLabel | null
+  ) => Furniture
+  onPlace: (
+    id: string,
+    pose: Pick<Furniture, "x" | "z" | "rotation">,
+    focus?: RoomLabel | null
+  ) => boolean
 }) {
   const panelRef = useRef<HTMLElement>(null)
   const xrEntryRef = useRef<HTMLDivElement>(null)
@@ -99,6 +132,30 @@ export function SceneEditor({
   const [hintTool, setHintTool] = useState<CursorTool | null>(null)
   const hintTimerRef = useRef<number | undefined>(undefined)
   const hintClosedAtRef = useRef(0)
+  const [doorStates, setDoorStates] = useState<Record<string, boolean>>({})
+  const [doorMenuOpen, setDoorMenuOpen] = useState(false)
+  const [highlightedDoorId, setHighlightedDoorId] = useState<string | null>(
+    null
+  )
+  const onDoorChange = useCallback(function changeDoorState(
+    id: string,
+    open: boolean
+  ) {
+    setDoorStates((states) => ({ ...states, [id]: open }))
+  }, [])
+  const roomModel = project.room
+  const doors =
+    roomModel?.openings.filter((opening) => opening.type === "door") ?? []
+  const doorLabels = roomModel ? doorMenuLabels(roomModel) : null
+  const allDoorsOpen = doors.every((door) => doorStates[door.id] === true)
+  const allDoorsClosed = doors.every((door) => !doorStates[door.id])
+  const changeAllDoors = (open: boolean) => {
+    setDoorStates((states) => {
+      const next = { ...states }
+      for (const door of doors) next[door.id] = open
+      return next
+    })
+  }
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
@@ -132,7 +189,6 @@ export function SceneEditor({
     [isMobile, isMinimapOpen]
   )
 
-  // Help opens only on hover dwell or keyboard focus. Clicks, 1/2/3 and touch
   const showToolHintSoon = (value: CursorTool, at: number) => {
     window.clearTimeout(hintTimerRef.current)
     const delay = at - hintClosedAtRef.current < 300 ? 0 : 600
@@ -189,6 +245,70 @@ export function SceneEditor({
           aria-label="보기 방식"
         />
         <div className="viewport-toolbar-actions">
+          {mode !== "vr" && doors.length > 0 && (
+            <MenuRoot
+              size="small"
+              placement="bottom-end"
+              open={doorMenuOpen}
+              onOpenChange={(open, details) => {
+                if (details?.reason === "itemClick") return
+                setDoorMenuOpen(open)
+                if (!open) setHighlightedDoorId(null)
+              }}
+            >
+              <MenuTrigger asChild>
+                <ActionButton
+                  variant="ghost"
+                  size="small"
+                  aria-label="문 열고 닫기"
+                >
+                  문
+                </ActionButton>
+              </MenuTrigger>
+              <MenuContent className="door-menu" aria-label="문 열고 닫기">
+                {doors.length > 1 && (
+                  <MenuGroup>
+                    <MenuGroupLabel>모든 문</MenuGroupLabel>
+                    <MenuItem
+                      label="모두 열기"
+                      prefixIcon={<DoorOpen />}
+                      disabled={allDoorsOpen}
+                      onClick={() => changeAllDoors(true)}
+                    />
+                    <MenuItem
+                      label="모두 닫기"
+                      prefixIcon={<DoorClosed />}
+                      disabled={allDoorsClosed}
+                      onClick={() => changeAllDoors(false)}
+                    />
+                  </MenuGroup>
+                )}
+                <MenuGroup>
+                  {doors.length > 1 && <MenuGroupLabel>각 문</MenuGroupLabel>}
+                  {doors.map((door) => (
+                    <MenuItem
+                      key={door.id}
+                      label={
+                        <span className="door-menu-row">
+                          <span>{doorLabels?.get(door.id) ?? "문"}</span>
+                          <span className="door-menu-row-action">
+                            {doorStates[door.id] ? "닫기" : "열기"}
+                          </span>
+                        </span>
+                      }
+                      onPointerEnter={() => setHighlightedDoorId(door.id)}
+                      onPointerLeave={() => setHighlightedDoorId(null)}
+                      onFocus={() => setHighlightedDoorId(door.id)}
+                      onBlur={() => setHighlightedDoorId(null)}
+                      onClick={() =>
+                        onDoorChange(door.id, !doorStates[door.id])
+                      }
+                    />
+                  ))}
+                </MenuGroup>
+              </MenuContent>
+            </MenuRoot>
+          )}
           <ActionButton
             variant="ghost"
             size="small"
@@ -261,6 +381,11 @@ export function SceneEditor({
             onSelect={onSelect}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
+            onConstrainPose={onConstrainPose}
+            onPlace={onPlace}
+            doorStates={doorStates}
+            highlightedDoorId={highlightedDoorId}
+            onDoorChange={onDoorChange}
             xrEntryContainer={xrEntryRef}
           />
         </Suspense>

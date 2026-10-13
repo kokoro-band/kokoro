@@ -55,10 +55,18 @@ export function FloorPlanDialog({
     uploadAttempt?.status ?? project.floorPlan.status
   const progress = uploadAttempt?.progress ?? project.floorPlan.progress
   const badge = statusBadge[status]
+  const statusLabel =
+    status === "READY"
+      ? isServerMode
+        ? "파일 처리 완료"
+        : "예제 구조 표시"
+      : badge.label
   const phase =
     uploadAttempt?.phase === "UPLOADING"
       ? "올리고 있어요"
-      : "치수를 읽고 있어요"
+      : isServerMode
+        ? "파일을 처리하고 있어요"
+        : "예제 집을 준비하고 있어요"
 
   return (
     <ContentDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -108,9 +116,16 @@ export function FloorPlanDialog({
                 </Type>
               </div>
               <Badge tone={badge.tone} variant="weak" size="medium">
-                {badge.label}
+                {statusLabel}
               </Badge>
             </div>
+
+            {isServerMode && status === "READY" && (
+              <Type variant="description" as="p">
+                원본 파일 처리가 끝났어요. 방 구조나 실제 치수를 자동으로 추출한
+                결과는 아니에요.
+              </Type>
+            )}
 
             {status === "FAILED" && (
               <Callout
@@ -125,7 +140,7 @@ export function FloorPlanDialog({
             <dl className="stat-list">
               <div>
                 <Type variant="description" as="dt">
-                  집 크기
+                  현재 집 크기
                 </Type>
                 <Type variant="label" as="dd" numeric>
                   {project.room
@@ -135,7 +150,7 @@ export function FloorPlanDialog({
               </div>
               <div>
                 <Type variant="description" as="dt">
-                  천장 높이
+                  현재 천장 높이
                 </Type>
                 <Type variant="label" as="dd" numeric>
                   {(

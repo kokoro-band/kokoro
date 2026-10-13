@@ -1,5 +1,6 @@
 import {
   IconArrowClockwiseCircularLine,
+  IconArrowCounterclockwiseCircularLine,
   IconArrowDownHorizlineLine,
   IconChevronDownLine,
   IconDocumentLine,
@@ -40,9 +41,13 @@ export function AppBar({
   dirty,
   saving,
   saveFailed,
+  saveRejected,
+  saveConflict = false,
+  onReviewConflict,
   saveBusy,
   onViewChange,
   onSave,
+  onRestoreSaved,
   onCreateProject,
   onOpenSample,
   onOpenFloorPlan,
@@ -52,15 +57,19 @@ export function AppBar({
   projectName: string
   view: StudioView
   structureDirty: boolean
-  /** 프로젝트를 불러온 뒤에만 프로젝트 메뉴와 화면 전환을 보여 줍니다. */
+  /** Show the project menu and view navigation after a project loads. */
   showViews: boolean
-  /** 저장하지 않은 배치 변경이 있을 때 */
+  /** Whether the furniture layout has unsaved changes. */
   dirty: boolean
   saving: boolean
   saveFailed: boolean
+  saveRejected: boolean
+  saveConflict?: boolean
+  onReviewConflict?: () => void
   saveBusy: boolean
   onViewChange: (view: StudioView) => void
   onSave: () => void
+  onRestoreSaved: () => void
   onCreateProject: () => void
   onOpenSample: () => void
   onOpenFloorPlan: () => void
@@ -71,7 +80,10 @@ export function AppBar({
     <header className="app-bar">
       <div className="app-bar-start">
         <a className="app-bar-brand" href="#workspace" aria-label="코코로">
-          <img src="/assets/pixel/kokoro-mark.svg" alt="" />
+          <img
+            src={`${import.meta.env.BASE_URL}assets/pixel/kokoro-mark.svg`}
+            alt=""
+          />
           <Type variant="title" className="app-bar-wordmark">
             kokoro
           </Type>
@@ -164,7 +176,28 @@ export function AppBar({
             {saving || saveBusy ? "저장 중" : dirty ? "저장 안 됨" : "저장됨"}
           </Type>
         )}
-        {saveFailed && (
+        {saveRejected && (
+          <ActionButton
+            variant="neutralWeak"
+            size="small"
+            onClick={onRestoreSaved}
+            disabled={saving}
+            title="마지막으로 저장한 배치로 돌아가요"
+          >
+            <PrefixIcon svg={<IconArrowCounterclockwiseCircularLine />} />
+            저장된 배치로 되돌리기
+          </ActionButton>
+        )}
+        {saveConflict && (
+          <ActionButton
+            variant="neutralWeak"
+            size="small"
+            onClick={onReviewConflict}
+          >
+            저장 충돌 해결
+          </ActionButton>
+        )}
+        {saveFailed && !saveRejected && !saveConflict && (
           <ActionButton
             variant="neutralWeak"
             size="small"

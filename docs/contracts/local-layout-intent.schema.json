@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kokoro-band/kokoro/docs/contracts/local-layout-intent.schema.json",
+  "title": "로컬 모델이 만드는 배치 의도",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "intents"],
+  "properties": {
+    "version": { "const": 1 },
+    "intents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/add" },
+          { "$ref": "#/$defs/move" },
+          { "$ref": "#/$defs/rotate" },
+          { "$ref": "#/$defs/remove" },
+          { "$ref": "#/$defs/clear" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "query": { "type": "string", "maxLength": 100, "pattern": "\\S" },
+    "catalogId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,99}$" },
+    "relation": { "enum": ["NEAR", "FAR_FROM"] },
+    "add": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "catalogId"],
+      "properties": {
+        "type": { "const": "ADD" },
+        "catalogId": { "$ref": "#/$defs/catalogId" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "anchorQuery": { "$ref": "#/$defs/query" },
+        "relation": { "$ref": "#/$defs/relation" }
+      },
+      "dependentRequired": { "relation": ["anchorQuery"] }
+    },
+    "move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "targetQuery"],
+      "properties": {
+        "type": { "const": "MOVE" },
+        "targetQuery": { "$ref": "#/$defs/query" },
+        "anchorQuery": { "$ref": "#/$defs/query" },
+        "relation": { "$ref": "#/$defs/relation" }
+      },
+      "dependentRequired": { "relation": ["anchorQuery"] }
+    },
+    "rotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "targetQuery", "rotation"],
+      "properties": {
+        "type": { "const": "ROTATE" },
+        "targetQuery": { "$ref": "#/$defs/query" },
+        "rotation": { "type": "number", "minimum": -360, "maximum": 360 }
+      }
+    },
+    "remove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "targetQuery"],
+      "properties": {
+        "type": { "const": "REMOVE" },
+        "targetQuery": { "$ref": "#/$defs/query" }
+      }
+    },
+    "clear": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": { "type": { "const": "CLEAR" } }
+    }
+  }
+}

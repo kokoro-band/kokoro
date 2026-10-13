@@ -895,15 +895,25 @@ export function buildRoomModel(
   }
 
   const outline = largestLoop(outlineSegments)
+  const openingWalls = new Set(openings.map((opening) => opening.wallId))
   const walls: Wall[] = mergeSegments([
     ...outlineSegments,
     ...dedupe(interiorSegments),
-  ]).map((segment) => ({
-    id: wallId(segment),
-    a: segment.a,
-    b: segment.b,
-    thickness: segment.exterior ? exteriorThickness : interiorThickness,
-  }))
+  ]).map((segment) => {
+    const reverse = { ...segment, a: segment.b, b: segment.a }
+    // Collinear merging may reverse an unchanged wall. Keep the orientation
+    // referenced by existing openings so both distances and door hinges survive.
+    const oriented =
+      !openingWalls.has(wallId(segment)) && openingWalls.has(wallId(reverse))
+        ? reverse
+        : segment
+    return {
+      id: wallId(oriented),
+      a: oriented.a,
+      b: oriented.b,
+      thickness: oriented.exterior ? exteriorThickness : interiorThickness,
+    }
+  })
 
   const labels: RoomLabel[] = rooms.map((room) => ({
     name: room.name,

@@ -55,13 +55,12 @@ public class FloorPlanJobRepository {
                 timestamp(job.startedAt()), timestamp(job.completedAt()), job.jobId(), job.projectId()) == 1;
     }
 
-    public int failProcessing(Instant completedAt, String errorCode, String errorMessage) {
-        return jdbc.update("""
-                UPDATE floor_plan_jobs
-                   SET status = 'FAILED', error_code = ?, error_message = ?, retryable = TRUE,
-                       completed_at = ?
-                 WHERE status = 'PROCESSING'
-                """, errorCode, errorMessage, timestamp(completedAt));
+    public List<String> findObjectKeysByProject(String projectId) {
+        return jdbc.queryForList("""
+                SELECT object_key FROM floor_plan_jobs
+                 WHERE project_id = ? AND object_key IS NOT NULL
+                 ORDER BY created_at, job_id
+                """, String.class, projectId);
     }
 
     public void deleteByProject(String projectId) {

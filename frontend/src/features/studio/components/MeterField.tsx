@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { TextField, TextFieldInput } from "seed-design/ui/text-field"
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, Math.round(value * 10) / 10))
+function clamp(value: number, min: number, max: number, precision: number) {
+  const factor = 10 ** precision
+  return Math.min(max, Math.max(min, Math.round(value * factor) / factor))
 }
 
 /**
@@ -16,6 +17,7 @@ export function MeterField({
   max,
   suffix = "m",
   step = 0.1,
+  precision = 1,
   onCommit,
 }: {
   label: string
@@ -24,17 +26,18 @@ export function MeterField({
   max: number
   suffix?: string
   step?: number
+  precision?: number
   onCommit: (value: number) => void
 }) {
   const [draft, setDraft] = useState<string | null>(null)
-  const shown = draft ?? (step >= 1 ? String(value) : value.toFixed(1))
+  const shown = draft ?? (step >= 1 ? String(value) : value.toFixed(precision))
 
   function commit() {
     if (draft === null) return
     const parsed = Number(draft.replace(",", "."))
     setDraft(null)
     if (!Number.isFinite(parsed) || draft.trim() === "") return
-    const next = clamp(parsed, min, max)
+    const next = clamp(parsed, min, max, precision)
     if (next !== value) onCommit(next)
   }
 
@@ -59,7 +62,8 @@ export function MeterField({
             const next = clamp(
               base + (event.key === "ArrowUp" ? step : -step),
               min,
-              max
+              max,
+              precision
             )
             setDraft(null)
             onCommit(next)

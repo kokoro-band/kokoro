@@ -1,6 +1,12 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useState } from "react"
 
-type History<T> = { past: T[]; present: T; future: T[] }
+type History<T> = {
+  past: T[]
+  present: T
+  future: T[]
+  pending: boolean
+  lastTag: { tag: string; at: number } | null
+}
 
 const historyLimit = 50
 const mergeWindowMs = 700
@@ -10,80 +16,85 @@ export function useEditorHistory<T>(initial: () => T) {
     past: [],
     present: initial(),
     future: [],
+    pending: false,
+    lastTag: null,
   }))
-  const pending = useRef(false)
-  const lastTag = useRef<{ tag: string; at: number } | null>(null)
 
-  const apply = useCallback((updater: (current: T) => T, push: boolean) => {
+  const set = useCallback((updater: (current: T) => T, tag?: string) => {
+    const now = Date.now()
     setHistory((current) => {
       const next = updater(current.present)
       if (Object.is(next, current.present)) return current
-      if (!push) return { ...current, present: next }
+      const merge =
+        tag !== undefined &&
+        current.lastTag?.tag === tag &&
+        now - current.lastTag.at < mergeWindowMs
       return {
-        past: [...current.past, current.present].slice(-historyLimit),
+        past: merge
+          ? current.past
+          : [...current.past, current.present].slice(-historyLimit),
         present: next,
         future: [],
+        pending: false,
+        lastTag: tag === undefined ? null : { tag, at: now },
       }
     })
   }, [])
 
-  const set = useCallback(
-    (updater: (current: T) => T, tag?: string) => {
-      const now = Date.now()
-      const merge =
-        tag !== undefined &&
-        lastTag.current?.tag === tag &&
-        now - lastTag.current.at < mergeWindowMs
-      lastTag.current = tag === undefined ? null : { tag, at: now }
-      apply(updater, !merge)
-    },
-    [apply]
-  )
-
   const mark = useCallback(() => {
-    pending.current = true
+    setHistory((current) => ({ ...current, pending: true, lastTag: null }))
   }, [])
 
-  const replace = useCallback(
-    (updater: (current: T) => T) => {
-      const push = pending.current
-      pending.current = false
-      lastTag.current = null
-      apply(updater, push)
-    },
-    [apply]
-  )
+  const replace = useCallback((updater: (current: T) => T) => {
+    setHistory((current) => {
+      const next = updater(current.present)
+      if (Object.is(next, current.present)) return current
+      return {
+        past: current.pending
+          ? [...current.past, current.present].slice(-historyLimit)
+          : current.past,
+        present: next,
+        future: [],
+        pending: false,
+        lastTag: null,
+      }
+    })
+  }, [])
 
   const reset = useCallback((value: T) => {
-    pending.current = false
-    lastTag.current = null
     setHistory((current) => ({
       past: [...current.past, current.present].slice(-historyLimit),
       present: value,
       future: [],
+      pending: false,
+      lastTag: null,
     }))
   }, [])
 
   const undo = useCallback(() => {
-    lastTag.current = null
     setHistory((current) => {
-      if (!current.past.length) return current
+      if (!current.past.length)
+        return { ...current, pending: false, lastTag: null }
       return {
         past: current.past.slice(0, -1),
         present: current.past[current.past.length - 1],
         future: [current.present, ...current.future],
+        pending: false,
+        lastTag: null,
       }
     })
   }, [])
 
   const redo = useCallback(() => {
-    lastTag.current = null
     setHistory((current) => {
-      if (!current.future.length) return current
+      if (!current.future.length)
+        return { ...current, pending: false, lastTag: null }
       return {
         past: [...current.past, current.present],
         present: current.future[0],
         future: current.future.slice(1),
+        pending: false,
+        lastTag: null,
       }
     })
   }, [])

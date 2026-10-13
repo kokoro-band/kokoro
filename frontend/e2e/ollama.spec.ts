@@ -75,11 +75,17 @@ async function propose(page: Page, project: Project, message: string) {
 suite(
   "Ollama rotates a selected pending ADD chair only after confirmation and persists it",
   async ({ page, request, projectIds }, info) => {
-    const initial = await prepare(
+    const prepared = await prepare(
       page,
       info.project.name === "narrow",
       projectIds
     )
+    const readBase = async () => {
+      const response = await request.get(`${apiURL}/projects/${prepared.id}`)
+      expect(response.status()).toBe(200)
+      return (await response.json()) as Project
+    }
+    const initial = await readBase()
     expect(initial.furniture).toHaveLength(1)
     const intent = {
       version: 1,
@@ -112,11 +118,6 @@ suite(
       exact: true,
     })
     await expect(choice).toBeEnabled()
-    const readBase = async () => {
-      const response = await request.get(`${apiURL}/projects/${initial.id}`)
-      expect(response.status()).toBe(200)
-      return (await response.json()) as Project
-    }
     expect(await readBase()).toEqual(initial)
 
     const selecting = savedResponse(

@@ -17,7 +17,7 @@ export const apiURL = localUrl(process.env.KOKORO_E2E_API)
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
-  testIgnore: "**/local-ai/**",
+  testIgnore: ["**/local-ai/**", "**/ollama.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,

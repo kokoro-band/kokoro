@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path"
 import { createServer } from "node:net"
 import { statfs } from "node:fs/promises"
 
@@ -58,4 +59,18 @@ export async function waitUntil(
     await new Promise((resolve) => setTimeout(resolve, 150))
   }
   throw new Error("E2E service readiness timed out")
+}
+
+export function serverTestSetup(args, frontend, source = process.env) {
+  const ollama = args[0] === "--ollama"
+  const command = playwrightArguments(ollama ? args.slice(1) : args)
+  if (!ollama)
+    return { backend: resolve(frontend, "../backend"), args: command }
+  const backend = source.KOKORO_E2E_BACKEND ?? resolve(frontend, "../backend")
+  if (!isAbsolute(backend))
+    throw new Error("Ollama integration requires an absolute backend path")
+  return {
+    backend,
+    args: [...command, "--config=playwright.ollama.config.ts"],
+  }
 }

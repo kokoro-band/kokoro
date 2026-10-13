@@ -62,20 +62,27 @@ export function CommandReviewDialog({
   onRequestAgain: () => void
 }) {
   const applying = review?.status === "applying"
+  const unresolved =
+    applying ||
+    (review?.status === "retry" &&
+      Boolean(review.response.requiresConfirmation))
   const stale =
     review?.status === "stale" ||
     Boolean(review && review.baseKey !== commandLayoutKey(project))
   const candidates = review?.response.candidates ?? []
+  const hasPendingAdd = review?.localIntent?.intents.some(
+    (intent) => intent.type === "ADD"
+  )
   const choosing =
     candidates.length > 0 && !review?.response.requiresConfirmation
   return (
     <ContentDialog.Root
       open={Boolean(review)}
       onOpenChange={(open) => {
-        if (!open && !applying) onCancel()
+        if (!open && !unresolved) onCancel()
       }}
-      closeOnEscape={!applying}
-      closeOnInteractOutside={!applying}
+      closeOnEscape={!unresolved}
+      closeOnInteractOutside={!unresolved}
     >
       <ContentDialog.Backdrop />
       <ContentDialog.Positioner>
@@ -101,15 +108,18 @@ export function CommandReviewDialog({
                     const item = review?.response.project.furniture.find(
                       (entry) => entry.id === candidate.furnitureId
                     )
+                    const pendingAdd = !item && hasPendingAdd
                     return (
                       <ActionButton
                         key={candidate.furnitureId}
                         variant="neutralWeak"
                         size="medium"
-                        disabled={applying || stale || !item}
+                        disabled={applying || stale || (!item && !pendingAdd)}
                         onClick={() => onChoose(candidate.furnitureId)}
                       >
-                        {`${index + 1}. ${inRoom(project, candidate.name, item?.x, item?.z)} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
+                        {pendingAdd
+                          ? `${index + 1}. ${candidate.name} (추가 예정)`
+                          : `${index + 1}. ${inRoom(project, candidate.name, item?.x, item?.z)} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
                       </ActionButton>
                     )
                   })}
@@ -143,7 +153,7 @@ export function CommandReviewDialog({
               <ActionButton
                 variant="neutralWeak"
                 size="medium"
-                disabled={applying}
+                disabled={unresolved}
                 onClick={onCancel}
               >
                 취소

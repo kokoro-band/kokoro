@@ -2,16 +2,36 @@ import { ActionButton, ContentDialog, ResponsivePair } from "@seed-design/react"
 import { Type } from "@/components/kokoro/Type"
 import { commandLayoutKey } from "../command-review"
 import { catalog } from "../data"
+import { containsPoint } from "../house-navigation"
 import type { CommandReview, LayoutCommand, Project } from "../types"
+
+/** 방이 여럿이면 가구 이름 앞에 그 가구가 있는 방 이름을 붙입니다. */
+function inRoom(
+  project: Project,
+  name: string,
+  x?: number | null,
+  z?: number | null
+) {
+  const rooms = project.room?.rooms ?? []
+  const room =
+    rooms.length > 1 && typeof x === "number" && typeof z === "number"
+      ? rooms.find((entry) => containsPoint(entry.polygon, x, z))
+      : undefined
+  return room ? `${room.name} · ${name}` : name
+}
 
 function describeCommand(command: LayoutCommand, project: Project) {
   const furniture = project.furniture.find(
     (item) => item.id === command.furnitureId
   )
-  const name =
+  const name = inRoom(
+    project,
     furniture?.name ??
-    catalog.find((item) => item.id === command.catalogId)?.name ??
-    "가구"
+      catalog.find((item) => item.id === command.catalogId)?.name ??
+      "가구",
+    command.type === "ADD" ? command.x : furniture?.x,
+    command.type === "ADD" ? command.z : furniture?.z
+  )
   switch (command.type) {
     case "CLEAR":
       return `가구 ${project.furniture.length}개 모두 삭제: ${project.furniture.map((item) => item.name).join(", ") || "없음"}`
@@ -89,7 +109,7 @@ export function CommandReviewDialog({
                         disabled={applying || stale || !item}
                         onClick={() => onChoose(candidate.furnitureId)}
                       >
-                        {`${index + 1}. ${candidate.name} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
+                        {`${index + 1}. ${inRoom(project, candidate.name, item?.x, item?.z)} (${item?.x ?? "?"}, ${item?.z ?? "?"} m)`}
                       </ActionButton>
                     )
                   })}

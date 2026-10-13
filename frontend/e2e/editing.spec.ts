@@ -240,6 +240,10 @@ suite(
     })
     await expect(issues).toBeVisible()
     await issues.getByRole("button", { name: /셸 체어/ }).click()
+    if (narrow)
+      await page
+        .getByRole("button", { name: "선택한 가구", exact: true })
+        .click()
     const xResponse = savedResponse(page, `/projects/${initial.id}/layout`)
     await field(page, "가로", "1")
     const partial = await projectResponse(await xResponse)

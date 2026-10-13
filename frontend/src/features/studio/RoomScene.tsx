@@ -4,7 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
-import { roomCenter } from "./house-navigation"
+import { roomAtPoint, roomCenter } from "./house-navigation"
 import { upgradeFurnitureModel } from "./furniture-models"
 import { addBox, makeFallbackModel } from "./furniture-fallback"
 import {
@@ -81,6 +81,8 @@ type Props = {
   doorStates: Record<string, boolean>
   highlightedDoorId: string | null
   onDoorChange: (id: string, open: boolean) => void
+  /** 집 전체를 볼 때 빈 바닥을 누르면 그 방으로 들어갑니다. */
+  onEnterRoom?: (index: number) => void
   /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
   xrEntryContainer?: RefObject<HTMLElement | null>
 }
@@ -149,6 +151,7 @@ export function RoomScene({
   doorStates,
   highlightedDoorId,
   onDoorChange,
+  onEnterRoom,
   xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -162,6 +165,12 @@ export function RoomScene({
     },
     [furniture]
   )
+
+  // The handler changes on every render; a ref keeps the renderer alive.
+  const enterRoomRef = useRef(onEnterRoom)
+  useEffect(function rememberEnterRoom() {
+    enterRoomRef.current = onEnterRoom
+  })
 
   useEffect(
     function initializeRoomRenderer() {
@@ -394,10 +403,30 @@ export function RoomScene({
               pointAt,
               onSelect,
               onToggleDoor: toggleDoor,
+              onPickFloor([x, z]) {
+                if (focusRoom || !room) return
+                const index = roomAtPoint(
+                  room.rooms,
+                  x + bounds.width / 2,
+                  z + bounds.depth / 2
+                )
+                if (index >= 0) enterRoomRef.current?.(index)
+              },
               onMove(id, [x, z]) {
                 return onMove(id, x + bounds.width / 2, z + bounds.depth / 2)
               },
               onCommit: onMoveEnd,
+              zoomCamera(factor) {
+                const offset = camera.position.clone().sub(controls.target)
+                offset.setLength(
+                  THREE.MathUtils.clamp(
+                    offset.length() * factor,
+                    controls.minDistance,
+                    controls.maxDistance
+                  )
+                )
+                camera.position.copy(controls.target).add(offset)
+              },
               setCameraEnabled(enabled) {
                 controls.enabled = enabled
               },

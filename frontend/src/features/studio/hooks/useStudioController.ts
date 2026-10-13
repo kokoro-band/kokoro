@@ -587,10 +587,17 @@ export function useStudioController() {
     function previewFurniture(
       id: string,
       update: Partial<Furniture>,
-      focus?: RoomLabel | null
+      focus?: RoomLabel | null,
+      magnetic = false
     ) {
       return showFurniturePose(id, (current) =>
-        constrainFurniturePose(projectRef.current, current, update, focus)
+        constrainFurniturePose(
+          projectRef.current,
+          current,
+          update,
+          focus,
+          magnetic
+        )
       )
     },
     [showFurniturePose]
@@ -603,7 +610,7 @@ export function useStudioController() {
       z: number,
       focus?: RoomLabel | null
     ) {
-      return previewFurniture(id, { x, z }, focus)
+      return previewFurniture(id, { x, z }, focus, true)
     },
     [previewFurniture]
   )
@@ -667,7 +674,8 @@ export function useStudioController() {
       projectRef.current,
       current,
       update,
-      focus
+      focus,
+      false
     )
     if (
       next.x === current.x &&

@@ -49,6 +49,45 @@ export function wallBox(wall: Wall): Box {
   }
 }
 
+/**
+ * Wall pieces left around door openings. Arranging is planning, so furniture
+ * may pass a doorway whether its door is drawn open or closed. Windows stay
+ * solid.
+ */
+export function solidWalls(room: Project["room"]): Box[] {
+  return (room?.walls ?? []).flatMap((wall) => {
+    const box = wallBox(wall)
+    const length = box.width * 2
+    const doors = (room?.openings ?? [])
+      .filter(
+        (opening) => opening.type === "door" && opening.wallId === wall.id
+      )
+      .map((opening) => [
+        Math.min(opening.from, opening.to),
+        Math.max(opening.from, opening.to),
+      ])
+      .sort((a, b) => a[0] - b[0])
+    const pieces: Box[] = []
+    let start = 0
+    for (const [from, to] of [...doors, [length, length]]) {
+      const end = Math.min(from, length)
+      if (end - start > 1e-8) {
+        const middle = (start + end) / 2
+        pieces.push({
+          ...box,
+          center: [
+            wall.a[0] + box.x[0] * middle,
+            wall.a[1] + box.x[1] * middle,
+          ],
+          width: (end - start) / 2,
+        })
+      }
+      start = Math.max(start, to)
+    }
+    return pieces
+  })
+}
+
 export function overlaps(a: Box, b: Box) {
   const radius = (box: Box, axis: Point2) =>
     Math.abs(dot(box.x, axis)) * box.width +
@@ -149,7 +188,7 @@ export function doorClearances(project: Project): Box[] {
         ],
         x: box.x,
         z: normal,
-        width: Math.abs(opening.to - opening.from) / 2 + DOOR_CLEARANCE,
+        width: Math.abs(opening.to - opening.from) / 2,
         depth: DOOR_CLEARANCE / 2,
       },
     ]
@@ -158,9 +197,9 @@ export function doorClearances(project: Project): Box[] {
 
 /** One actionable reason per furniture item, including both sides of a collision. */
 export function placementIssues(project: Project): PlacementIssue[] {
-  const { room, furniture } = project
+  const { furniture } = project
   const outline = houseOutline(project)
-  const walls = room?.walls.map(wallBox) ?? []
+  const walls = solidWalls(project.room)
   const doors = doorClearances(project)
   const boxes = furniture.map(footprint)
   return furniture.flatMap((item, index) => {

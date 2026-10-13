@@ -37,7 +37,12 @@ import { roomForFurniture } from "@/features/studio/house-navigation"
 import { doorMenuLabels } from "@/features/studio/room-door-labels"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts"
-import type { Project, RoomLabel, ViewMode } from "@/features/studio/types"
+import type {
+  Furniture,
+  Project,
+  RoomLabel,
+  ViewMode,
+} from "@/features/studio/types"
 import type { CursorTool } from "@/features/studio/scene-interaction"
 
 const RoomScene = lazy(async () => {
@@ -83,8 +88,11 @@ export function SceneEditor({
   onRedo,
   onFullscreenError,
   onSelect,
+  onEnterRoom,
   onMove,
   onMoveEnd,
+  onConstrainPose,
+  onPlace,
 }: {
   project: Project
   focusRoom: RoomLabel | null
@@ -98,6 +106,8 @@ export function SceneEditor({
   onUndo: () => void
   onRedo: () => void
   onFullscreenError: () => void
+  /** 집 전체에서 빈 바닥을 누르면 그 방으로 들어갑니다. */
+  onEnterRoom?: (index: number) => void
   onSelect: (id: string | null) => void
   onMove: (
     id: string,
@@ -106,6 +116,16 @@ export function SceneEditor({
     focus?: RoomLabel | null
   ) => boolean
   onMoveEnd: () => void
+  onConstrainPose: (
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
+    focus?: RoomLabel | null
+  ) => Furniture
+  onPlace: (
+    id: string,
+    pose: Pick<Furniture, "x" | "z" | "rotation">,
+    focus?: RoomLabel | null
+  ) => boolean
 }) {
   const panelRef = useRef<HTMLElement>(null)
   const xrEntryRef = useRef<HTMLDivElement>(null)
@@ -362,8 +382,11 @@ export function SceneEditor({
             room={project.room}
             focusRoom={focusRoom}
             onSelect={onSelect}
+            onEnterRoom={onEnterRoom}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
+            onConstrainPose={onConstrainPose}
+            onPlace={onPlace}
             doorStates={doorStates}
             highlightedDoorId={highlightedDoorId}
             onDoorChange={onDoorChange}

@@ -109,6 +109,52 @@ describe("manual placement controller", () => {
     expect(studio().selected?.rotation).toBe(0)
     expect(placementIssues(studio().project)).toEqual([])
   })
+  it("works out a held VR pose against the walls without touching the project", async () => {
+    const studio = await setup()
+    const chair = studio().project.furniture[0]
+    const pose = studio().constrainPose(chair, { x: 5 })
+    expect(pose.x).toBeCloseTo(2.575, 5)
+    const turned = studio().constrainPose(pose, { rotation: 45 })
+    expect(
+      placementIssues({ ...studio().project, furniture: [turned] })
+    ).toEqual([])
+    expect(studio().project.furniture[0]).toBe(chair)
+    expect(studio().dirty).toBe(false)
+    expect(studio().canUndo).toBe(false)
+  })
+  it("saves a released VR grab as one undo entry", async () => {
+    const studio = await setup()
+    await act(async () => {
+      expect(
+        studio().placeFurniture("chair", { x: 1.5, z: 2.5, rotation: 30 })
+      ).toBe(true)
+      studio().commitPreview()
+    })
+    expect(studio().project.furniture[0]).toMatchObject({
+      x: 1.5,
+      z: 2.5,
+      rotation: 30,
+    })
+    const saved = JSON.parse(
+      localStorage.getItem("kokoro-remodel-project-v1")!
+    ) as Project
+    expect(saved.furniture[0]).toMatchObject({ x: 1.5, z: 2.5, rotation: 30 })
+    await act(async () => studio().undo())
+    expect(studio().project.furniture[0]).toMatchObject({
+      x: 1,
+      z: 2,
+      rotation: 0,
+    })
+    expect(studio().canUndo).toBe(false)
+  })
+  it("never saves a released VR pose inside a wall", async () => {
+    const studio = await setup()
+    await act(async () => {
+      studio().placeFurniture("chair", { x: 3, z: 2, rotation: 0 })
+      studio().commitPreview()
+    })
+    expect(placementIssues(studio().project)).toEqual([])
+  })
   it("places a newly added item outside the wall", async () => {
     const studio = await setup()
     await act(async () => studio().addFurniture("chair-shell", [3, 4]))

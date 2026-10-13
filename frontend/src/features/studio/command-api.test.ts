@@ -112,3 +112,128 @@ describe("local command review contract", () => {
     ).rejects.toThrow("다시 요청")
   })
 })
+
+describe("local commands inside a focused room", () => {
+  async function twoRooms() {
+    const api = await localApi()
+    const { buildRoomModel } = await import("./room-builder")
+    const room = buildRoomModel({
+      rooms: [
+        { id: "a", name: "거실", x: 0, z: 0, width: 4.8, depth: 6.9 },
+        { id: "b", name: "침실", x: 4.8, z: 0, width: 4.8, depth: 6.9 },
+      ],
+      wallHeight: 2.4,
+    })
+    const [a, b] = room.rooms
+    const project = {
+      ...structuredClone(sampleProject),
+      dimensions: { width: 9.6, depth: 6.9, height: 2.4 },
+      room,
+      furniture: [] as ReturnType<typeof api.makeFurniture>[],
+    }
+    return { api, project, a: a.polygon, b: b.polygon }
+  }
+
+  it("replaces only the focused room's furniture with the minimalist preset", async () => {
+    const { api, project, b } = await twoRooms()
+    const sofa = api.makeFurniture("sofa-cloud", 2, 4)
+    const plant = api.makeFurniture("plant-olive", 4, 6)
+    const chair = api.makeFurniture("chair-shell", 7, 3)
+    project.furniture = [sofa, plant, chair]
+    const proposal = await api.sendCommand(project, "미니멀한 거실로 꾸며줘", b)
+    expect(
+      proposal.proposedCommands.filter((command) => command.type === "REMOVE")
+    ).toEqual([{ type: "REMOVE", furnitureId: chair.id }])
+    const applied = await api.confirmCommand(project, proposal.proposalId!)
+    expect(applied.project.furniture).toEqual(
+      expect.arrayContaining([sofa, plant])
+    )
+    expect(applied.project.furniture).toHaveLength(5)
+    expect(
+      applied.project.furniture.filter((item) => item.x > 4.8)
+    ).toHaveLength(3)
+  })
+
+  it("does not take furniture from another room", async () => {
+    const { api, project, b } = await twoRooms()
+    const chair = api.makeFurniture("chair-shell", 3.5, 1.7)
+    project.furniture = [chair]
+    const response = await api.sendCommand(project, "창가에 의자를 옮겨줘", b)
+    expect(response.project.furniture).toEqual([chair])
+    expect(response.commands).toEqual([])
+    expect(response.reply).toContain("이 방에서 의자를 찾지 못했어요")
+  })
+
+  it("chooses and removes only among the focused room's furniture", async () => {
+    const { api, project, a, b } = await twoRooms()
+    const other = api.makeFurniture("chair-shell", 2, 2)
+    const one = api.makeFurniture("chair-shell", 6, 2)
+    const two = api.makeFurniture("chair-shell", 8, 5)
+    project.furniture = [other, one, two]
+    const choice = await api.sendCommand(project, "의자를 옮겨줘", b)
+    expect(choice.candidates.map((item) => item.furnitureId)).toEqual([
+      one.id,
+      two.id,
+    ])
+    const removal = await api.sendCommand(project, "의자를 삭제해줘", a)
+    expect(removal.proposedCommands).toEqual([
+      { type: "REMOVE", furnitureId: other.id },
+    ])
+  })
+
+  it("empties only the focused room", async () => {
+    const { api, project, b } = await twoRooms()
+    const sofa = api.makeFurniture("sofa-cloud", 2, 4)
+    const chair = api.makeFurniture("chair-shell", 7, 3)
+    project.furniture = [sofa, chair]
+    const proposal = await api.sendCommand(project, "방을 비워줘", b)
+    expect(proposal.proposedCommands).toEqual([
+      { type: "REMOVE", furnitureId: chair.id },
+    ])
+    const applied = await api.confirmCommand(project, proposal.proposalId!)
+    expect(applied.project.furniture).toEqual([sofa])
+  })
+})
+
+describe("local commands use the catalog placement rules", () => {
+  async function withTinyRoom() {
+    const api = await localApi()
+    const { buildRoomModel } = await import("./room-builder")
+    const { placementIssues } = await import("./placement-issues")
+    const room = buildRoomModel({
+      rooms: [
+        { id: "a", name: "거실", x: 0, z: 0, width: 9.4, depth: 6.9 },
+        { id: "b", name: "창고", x: 9.4, z: 0, width: 1, depth: 1 },
+      ],
+      wallHeight: 2.4,
+    })
+    const project = {
+      ...structuredClone(sampleProject),
+      dimensions: { width: 10.4, depth: 6.9, height: 2.4 },
+      room,
+      furniture: [] as ReturnType<typeof api.makeFurniture>[],
+    }
+    return { api, project, room, placementIssues }
+  }
+
+  it("refuses furniture that cannot fit the focused room", async () => {
+    const { api, project, room } = await withTinyRoom()
+    const response = await api.sendCommand(
+      project,
+      "소파를 놓아줘",
+      room.rooms[1].polygon
+    )
+    expect(response.project.furniture).toEqual([])
+    expect(response.commands).toEqual([])
+    expect(response.reply).toContain("소파를 놓을 자리가 없어요")
+  })
+
+  it("adds furniture without overlapping walls, doors or other furniture", async () => {
+    const { api, project, room, placementIssues } = await withTinyRoom()
+    const focus = room.rooms[0].polygon
+    project.furniture = [api.makeFurniture("chair-shell", 6.8, 1.7)]
+    const response = await api.sendCommand(project, "의자를 놓아줘", focus)
+    expect(response.project.furniture).toHaveLength(2)
+    expect(placementIssues(response.project)).toEqual([])
+  })
+})

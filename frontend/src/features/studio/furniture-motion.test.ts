@@ -312,4 +312,8 @@ describe("turns with no room", () => {
     const flush = { ...sofa, x: 1.2, z: 3 }
     expect(turnBlocker(layout(flush), flush, 180)).toBe("wall")
   })
+  it("refuses a turn that would recover an invalid item to another position", () => {
+    const invalid = { ...sofa, x: -0.2, z: 3, rotation: 0 }
+    expect(turnBlocker(layout(invalid), invalid, 90)).toBe("wall")
+  })
 })

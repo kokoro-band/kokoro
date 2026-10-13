@@ -245,8 +245,18 @@ export function turnBlocker(
   current: Furniture,
   rotation: number
 ): "wall" | Furniture | null {
-  const turned = constrainFurniturePose(project, current, { rotation })
-  if (Math.abs(((turned.rotation - rotation + 540) % 360) - 180) > 1e-6)
+  const turned = constrainFurniturePose(
+    project,
+    current,
+    { rotation },
+    undefined,
+    false
+  )
+  if (
+    turned.x !== current.x ||
+    turned.z !== current.z ||
+    Math.abs(((turned.rotation - rotation + 540) % 360) - 180) > 1e-6
+  )
     return "wall"
   const before = footprint(current)
   const after = footprint(turned)

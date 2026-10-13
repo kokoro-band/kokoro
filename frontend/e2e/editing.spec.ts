@@ -264,7 +264,7 @@ suite(
 )
 
 suite(
-  "furniture inputs clamp at the wall and rotation, undo and export agree",
+  "furniture inputs clamp at the house boundary and rotation, undo and export agree",
   async ({ page, projectIds }, info) => {
     const narrow = info.project.name === "narrow"
     const initial = await createRoom(page, (id) => projectIds.push(id))
@@ -294,7 +294,7 @@ suite(
     expect(moved.furniture[0].x).toBeCloseTo(0.425, 2)
     expect(moved.furniture[0].z).toBe(added.furniture[0].z)
     await expect(
-      page.getByRole("status").filter({ hasText: "벽이나 경계" })
+      page.getByRole("status").filter({ hasText: "집 바깥 경계" })
     ).toBeVisible()
     const centeredResponse = savedResponse(
       page,

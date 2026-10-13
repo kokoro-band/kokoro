@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test"
 import { sampleProject } from "./data"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
   turnBlocker,
 } from "./furniture-motion"
@@ -12,6 +13,7 @@ import {
   placementIssues,
   wallBox,
 } from "./placement-issues"
+import { buildRoomModel } from "./room-builder"
 import type { Furniture, Project, RoomModel, Wall } from "./types"
 
 const room: RoomModel = {
@@ -60,7 +62,33 @@ describe("wall-safe furniture editing", () => {
       expect(moved.x).toBeCloseTo(0.425, 5)
       expectSafe(moved)
     }
+    const exact = constrainFurniturePose(
+      project(),
+      chair(2, 2),
+      { x: -10 },
+      undefined,
+      false
+    )
+    expect(exact.x).toBeCloseTo(0.425, 5)
+    expectSafe(exact)
   })
+  it.each([
+    ["numeric", 2, 0.47],
+    ["arrow", 0.6, 0.5],
+  ] as const)(
+    "preserves an exact %s edit near the wall without attraction",
+    (_, from, x) => {
+      const moved = constrainFurniturePose(
+        project(),
+        chair(from, 2),
+        { x },
+        undefined,
+        false
+      )
+      expect(moved.x).toBe(x)
+      expectSafe(moved)
+    }
+  )
   it("uses the rotated width and depth rather than a fixed center margin", () => {
     const sofa = { ...chair(2, 2), catalogId: "sofa-cloud", rotation: 45 }
     const moved = constrainFurniturePose(project(), sofa, { x: -5 })
@@ -239,6 +267,49 @@ describe("wall-safe furniture editing", () => {
     }
     expect(findFurniturePlacement(project(tiny), chair(0.25, 0.25))).toBeNull()
   })
+
+  it.each([0, 90])(
+    "finds the narrow gap between sofas at %i degrees and rejects a smaller gap",
+    (rotation) => {
+      const model = buildRoomModel({
+        rooms: [
+          { id: "room", name: "거실", x: 0, z: 0, width: 5.3, depth: 1.2 },
+        ],
+        wallHeight: 2.4,
+      })
+      const sofas: Furniture[] = [1.2, 4.1].map((x, index) => ({
+        ...chair(x, 0.6),
+        id: `sofa-${index}`,
+        catalogId: "sofa-cloud",
+        name: "클라우드 소파",
+        category: "소파",
+      }))
+      const scene = { ...project(model), furniture: sofas }
+      const item = { ...chair(2.7, 0.6), rotation }
+      expect(
+        placementIssues({
+          ...scene,
+          furniture: [...sofas, { ...item, x: 2.65 }],
+        })
+      ).toEqual([])
+
+      const placed = findFreePlacement(scene, item)
+      expect(placed).not.toBeNull()
+      expect(placed!.x).toBeGreaterThanOrEqual(2.625)
+      expect(placed!.x).toBeLessThanOrEqual(2.675)
+      expect(placed!.z).toBeCloseTo(0.6)
+      expect(
+        placementIssues({ ...scene, furniture: [...sofas, placed!] })
+      ).toEqual([])
+
+      expect(
+        findFreePlacement(
+          { ...scene, furniture: [sofas[0], { ...sofas[1], x: 4 }] },
+          item
+        )
+      ).toBeNull()
+    }
+  )
 })
 
 describe("moving next to other furniture", () => {
@@ -311,5 +382,9 @@ describe("turns with no room", () => {
   it("reports the wall when the turn would sweep through it", () => {
     const flush = { ...sofa, x: 1.2, z: 3 }
     expect(turnBlocker(layout(flush), flush, 180)).toBe("wall")
+  })
+  it("refuses a turn that would recover an invalid item to another position", () => {
+    const invalid = { ...sofa, x: -0.2, z: 3, rotation: 0 }
+    expect(turnBlocker(layout(invalid), invalid, 90)).toBe("wall")
   })
 })

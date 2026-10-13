@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   IconArrowClockwiseCircularLine,
   IconHouseLine,
@@ -131,11 +138,26 @@ export function ArrangeView({
   // 장면을 새로 만들면서 끌기가 끊기기 때문입니다.
   const [moveCommits, setMoveCommits] = useState(0)
   const followedCommit = useRef(0)
-  const commitStudioPreview = studio.commitPreview
+  const commitStudioPreviewRef = useRef(studio.commitPreview)
+  useLayoutEffect(() => {
+    commitStudioPreviewRef.current = studio.commitPreview
+  }, [studio.commitPreview])
+  const keyboardPendingRef = useRef(false)
   const commitMove = useCallback(() => {
-    commitStudioPreview()
+    keyboardPendingRef.current = false
+    commitStudioPreviewRef.current()
     setMoveCommits((count) => count + 1)
-  }, [commitStudioPreview])
+  }, [])
+  const commitKeyboardMove = useCallback(() => {
+    if (keyboardPendingRef.current) commitMove()
+  }, [commitMove])
+  useEffect(() => {
+    window.addEventListener("blur", commitKeyboardMove)
+    return () => {
+      window.removeEventListener("blur", commitKeyboardMove)
+      commitKeyboardMove()
+    }
+  }, [commitKeyboardMove])
   // 실행 취소와 다시 실행도 가구를 다른 방으로 되돌릴 수 있어 같이 따라갑니다.
   const undo = () => {
     studio.undo()
@@ -163,10 +185,13 @@ export function ArrangeView({
     const direction = nudgeDirection(event.code, viewForwardRef.current)
     if (!selected || !direction) return
     // 벽에 붙은 가구는 0.1 m 눈금 밖에 있으므로 지금 자리에서 그대로 더합니다.
-    studio.previewSelected({
-      x: selected.x + direction[0] * distance,
-      z: selected.z + direction[1] * distance,
-    })
+    if (
+      studio.previewSelected({
+        x: selected.x + direction[0] * distance,
+        z: selected.z + direction[1] * distance,
+      })
+    )
+      keyboardPendingRef.current = true
   }
 
   const rotate = (degrees: number) => {
@@ -258,7 +283,7 @@ export function ArrangeView({
     enabled: hasSelection,
   })
   // 끌어서 옮길 때처럼 키를 떼면 한 번에 실행 취소 기록으로 남깁니다.
-  useShortcut("nudge", commitMove, { enabled: hasHouse, keyup: true })
+  useShortcut("nudge", commitKeyboardMove, { enabled: hasHouse, keyup: true })
   useShortcut("rotate", () => rotate(90), { enabled: hasSelection })
   useShortcut("rotateBack", () => rotate(-90), { enabled: hasSelection })
   useShortcut("deleteFurniture", deleteSelected, { enabled: hasSelection })

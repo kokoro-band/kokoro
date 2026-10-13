@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, useState } from "react"
+import { act, createRef, useImperativeHandle, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "seed-design/ui/snackbar"
@@ -36,7 +36,10 @@ const chair: Furniture = {
   rotation: 0,
 }
 
-async function setup(furniture: Furniture[] = [chair]) {
+async function setup(
+  furniture: Furniture[] = [chair],
+  initialRoom: number | null = living
+) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   localStorage.setItem(
     "kokoro-remodel-project-v1",
@@ -45,17 +48,25 @@ async function setup(furniture: Furniture[] = [chair]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+  const controller = createRef<ReturnType<typeof useStudioController>>()
   function Harness() {
     const studio = useStudioController()
-    const [index, setIndex] = useState<number | null>(living)
+    useImperativeHandle(controller, () => studio)
+    const [index, setIndex] = useState<number | null>(initialRoom)
+    const [arranging, setArranging] = useState(true)
     return (
-      <ArrangeView
-        studio={studio}
-        roomIndex={index}
-        isMobile={false}
-        onRoomChange={setIndex}
-        onOpenStructure={() => {}}
-      />
+      <>
+        <button onClick={() => setArranging(false)}>Leave arrangement</button>
+        {arranging && (
+          <ArrangeView
+            studio={studio}
+            roomIndex={index}
+            isMobile={false}
+            onRoomChange={setIndex}
+            onOpenStructure={() => {}}
+          />
+        )}
+      </>
     )
   }
   const container = document.createElement("div")
@@ -115,7 +126,7 @@ async function setup(furniture: Furniture[] = [chair]) {
     JSON.parse(localStorage.getItem("kokoro-remodel-project-v1")!) as Project
   const saved = () =>
     project().furniture.find((item) => item.id === "chair-01")!
-  return { container, find, click, press, choose, project, saved }
+  return { container, find, click, press, choose, project, saved, controller }
 }
 
 describe("keyboard furniture editing", () => {
@@ -137,6 +148,42 @@ describe("keyboard furniture editing", () => {
     expect(ui.saved().x).toBeCloseTo(chair.x + 0.3, 9)
     await ui.click("button", "실행 취소")
     expect(ui.saved()).toEqual(chair)
+  })
+
+  it.each(["leaving ArrangeView", "window blur"])(
+    "saves a held-arrow preview on %s and restores it with one undo",
+    async (interruption) => {
+      const ui = await setup()
+      const item = await ui.choose()
+      for (let step = 0; step < 3; step++) {
+        await ui.press(item, "keydown", "ArrowRight", { repeat: step > 0 })
+        expect(ui.saved()).toEqual(chair)
+      }
+      if (interruption === "leaving ArrangeView") {
+        await ui.click("button", "Leave arrangement")
+      } else {
+        await act(async () => window.dispatchEvent(new Event("blur")))
+        expect(ui.saved().x).toBeCloseTo(chair.x + 0.3, 9)
+        await act(async () => window.dispatchEvent(new Event("blur")))
+        await ui.press(item, "keyup", "ArrowRight")
+      }
+      expect(ui.saved().x).toBeCloseTo(chair.x + 0.3, 9)
+      await act(async () => ui.controller.current!.undo())
+      expect(ui.saved()).toEqual(chair)
+      expect(ui.controller.current!.canUndo).toBe(false)
+    }
+  )
+
+  it("refuses keyboard rotation of an invalid item without relocating or saving it", async () => {
+    const invalid = { ...chair, catalogId: "sofa-cloud", x: -0.2, z: 3 }
+    const ui = await setup([invalid], null)
+    await act(async () => ui.controller.current!.selectFurniture(invalid.id))
+    const item = ui.find("output")
+    await ui.press(item, "keydown", "KeyR", { key: "r" })
+    expect(ui.controller.current!.selected).toEqual(invalid)
+    expect(ui.saved()).toEqual(invalid)
+    expect(ui.controller.current!.notice?.text).toContain("벽에 닿아서")
+    expect(ui.controller.current!.canUndo).toBe(false)
   })
 
   it("moves exactly 0.1 m from a position that is off the 0.1 m grid", async () => {

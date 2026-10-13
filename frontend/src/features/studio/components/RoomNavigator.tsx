@@ -69,6 +69,8 @@ export function RoomNavigator({
     <PlacementIssueList
       furniture={project.furniture}
       issues={issues}
+      rooms={rooms}
+      roomIndex={room ? roomIndex : null}
       selectedId={selectedId}
       onSelect={onSelectIssue}
     />

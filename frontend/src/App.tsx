@@ -11,6 +11,7 @@ import { CommandReviewDialog } from "@/features/studio/components/CommandReviewD
 import { FloorPlanDialog } from "@/features/studio/components/FloorPlanDialog"
 import { NewProjectDialog } from "@/features/studio/components/NewProjectDialog"
 import { ProjectStartup } from "@/features/studio/components/ProjectStartup"
+import { ReplaceProjectDialog } from "@/features/studio/components/ReplaceProjectDialog"
 import { ProjectConflictDialog } from "@/features/studio/components/ProjectConflictDialog"
 import { ShortcutGuide } from "@/features/studio/components/ShortcutGuide"
 import { StructureView } from "@/features/studio/components/StructureView"
@@ -92,6 +93,7 @@ function Studio() {
   const [roomIndex, setRoomIndex] = useState<number | null>(null)
   const [structureDirty, setStructureDirty] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [replacing, setReplacing] = useState<"sample" | "create" | null>(null)
   const [floorPlanOpen, setFloorPlanOpen] = useState(false)
   const [applying, setApplying] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
@@ -124,6 +126,19 @@ function Studio() {
     setView(next)
   }
 
+  const openTarget = (target: "sample" | "create") => {
+    if (target === "create") {
+      setNewProjectOpen(true)
+      return
+    }
+    studio.openSampleProject()
+    resetNavigation("arrange")
+  }
+  const requestTarget = (target: "sample" | "create") => {
+    if (studio.replacesSavedWork) setReplacing(target)
+    else openTarget(target)
+  }
+
   return (
     <div className="studio-app">
       <AppBar
@@ -141,11 +156,8 @@ function Studio() {
         onViewChange={setView}
         onSave={studio.saveProject}
         onRestoreSaved={() => studio.restoreSavedProject()}
-        onCreateProject={() => setNewProjectOpen(true)}
-        onOpenSample={() => {
-          studio.openSampleProject()
-          resetNavigation("arrange")
-        }}
+        onCreateProject={() => requestTarget("create")}
+        onOpenSample={() => requestTarget("sample")}
         onOpenFloorPlan={() => setFloorPlanOpen(true)}
         onExport={studio.exportProject}
         onOpenShortcuts={() => setGuideOpen(true)}
@@ -215,6 +227,18 @@ function Studio() {
         onChange={(event) => {
           studio.uploadFloorPlan(event.target.files?.[0])
           event.target.value = ""
+        }}
+      />
+      <ReplaceProjectDialog
+        open={replacing !== null}
+        projectName={studio.project.name}
+        target={replacing ?? "sample"}
+        onExport={studio.exportProject}
+        onCancel={() => setReplacing(null)}
+        onConfirm={() => {
+          const target = replacing
+          setReplacing(null)
+          if (target) openTarget(target)
         }}
       />
       <NewProjectDialog

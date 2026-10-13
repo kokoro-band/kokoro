@@ -109,22 +109,15 @@ export function SceneEditor({
   /** 집 전체에서 빈 바닥을 누르면 그 방으로 들어갑니다. */
   onEnterRoom?: (index: number) => void
   onSelect: (id: string | null) => void
-  onMove: (
-    id: string,
-    x: number,
-    z: number,
-    focus?: RoomLabel | null
-  ) => boolean
+  onMove: (id: string, x: number, z: number) => boolean
   onMoveEnd: () => void
   onConstrainPose: (
     item: Furniture,
-    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-    focus?: RoomLabel | null
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
   ) => Furniture
   onPlace: (
     id: string,
-    pose: Pick<Furniture, "x" | "z" | "rotation">,
-    focus?: RoomLabel | null
+    pose: Pick<Furniture, "x" | "z" | "rotation">
   ) => boolean
 }) {
   const panelRef = useRef<HTMLElement>(null)
@@ -162,10 +155,13 @@ export function SceneEditor({
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
+  // 고른 가구는 끌려서 옆방으로 넘어가는 동안에도 화면에 남깁니다.
   const visibleFurniture =
     focusIndex >= 0 && rooms
       ? project.furniture.filter(
-          (item) => roomForFurniture(rooms, item) === focusIndex
+          (item) =>
+            item.id === selectedId ||
+            roomForFurniture(rooms, item) === focusIndex
         )
       : project.furniture
 

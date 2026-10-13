@@ -587,7 +587,6 @@ export function useStudioController() {
     function previewFurniture(
       id: string,
       update: Partial<Furniture>,
-      focus?: RoomLabel | null,
       magnetic = false
     ) {
       return showFurniturePose(id, (current) =>
@@ -595,7 +594,7 @@ export function useStudioController() {
           projectRef.current,
           current,
           update,
-          focus,
+          undefined,
           magnetic
         )
       )
@@ -604,13 +603,8 @@ export function useStudioController() {
   )
 
   const moveFurniture = useCallback(
-    function moveFurniture(
-      id: string,
-      x: number,
-      z: number,
-      focus?: RoomLabel | null
-    ) {
-      return previewFurniture(id, { x, z }, focus, true)
+    function moveFurniture(id: string, x: number, z: number) {
+      return previewFurniture(id, { x, z }, true)
     },
     [previewFurniture]
   )
@@ -621,10 +615,9 @@ export function useStudioController() {
    */
   const constrainPose = useCallback(function constrainPose(
     item: Furniture,
-    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-    focus?: RoomLabel | null
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
   ) {
-    return constrainFurniturePose(projectRef.current, item, update, focus)
+    return constrainFurniturePose(projectRef.current, item, update)
   }, [])
 
   /** Applies a released VR pose. It was wall-limited along the hand path, so
@@ -632,15 +625,13 @@ export function useStudioController() {
   const placeFurniture = useCallback(
     function placeFurniture(
       id: string,
-      pose: Pick<Furniture, "x" | "z" | "rotation">,
-      focus?: RoomLabel | null
+      pose: Pick<Furniture, "x" | "z" | "rotation">
     ) {
       return showFurniturePose(id, (current) => {
         const target = { ...current, ...pose }
-        return findFurniturePlacement(projectRef.current, target, focus) ===
-          target
+        return findFurniturePlacement(projectRef.current, target) === target
           ? target
-          : constrainFurniturePose(projectRef.current, current, pose, focus)
+          : constrainFurniturePose(projectRef.current, current, pose)
       })
     },
     [showFurniturePose]
@@ -661,10 +652,7 @@ export function useStudioController() {
     [persistLayout, syncSaveState]
   )
 
-  function updateSelected(
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
-  ) {
+  function updateSelected(update: Partial<Furniture>) {
     if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(
       (item) => item.id === selectedId
@@ -674,7 +662,7 @@ export function useStudioController() {
       projectRef.current,
       current,
       update,
-      focus,
+      undefined,
       false
     )
     if (
@@ -1529,8 +1517,8 @@ export function useStudioController() {
     moveFurniture,
     constrainPose,
     placeFurniture,
-    previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
-      if (selectedId) return previewFurniture(selectedId, update, focus)
+    previewSelected: (update: Partial<Furniture>) => {
+      if (selectedId) return previewFurniture(selectedId, update)
       return false
     },
     commitPreview,

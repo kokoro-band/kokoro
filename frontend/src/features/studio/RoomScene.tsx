@@ -66,24 +66,17 @@ type Props = {
   room?: RoomModel
   focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
-  onMove: (
-    id: string,
-    x: number,
-    z: number,
-    focus?: RoomLabel | null
-  ) => boolean
+  onMove: (id: string, x: number, z: number) => boolean
   onMoveEnd: () => void
   /** Wall-limits a pose without saving it. Used every frame of a VR grab. */
   onConstrainPose: (
     item: Furniture,
-    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-    focus?: RoomLabel | null
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
   ) => Furniture
   /** Applies the pose of a released VR grab as a preview for onMoveEnd. */
   onPlace: (
     id: string,
-    pose: Pick<Furniture, "x" | "z" | "rotation">,
-    focus?: RoomLabel | null
+    pose: Pick<Furniture, "x" | "z" | "rotation">
   ) => boolean
   doorStates: Record<string, boolean>
   highlightedDoorId: string | null
@@ -420,12 +413,7 @@ export function RoomScene({
                 if (index >= 0) enterRoomRef.current?.(index)
               },
               onMove(id, [x, z]) {
-                return onMove(
-                  id,
-                  x + bounds.width / 2,
-                  z + bounds.depth / 2,
-                  focusRoom
-                )
+                return onMove(id, x + bounds.width / 2, z + bounds.depth / 2)
               },
               onCommit: onMoveEnd,
               zoomCamera(factor) {
@@ -521,7 +509,7 @@ export function RoomScene({
         if (step.rotate !== undefined) update.rotation = step.rotate
         if (update.x === undefined && update.rotation === undefined) return
         const previous = grab.item
-        const next = onConstrainPose(previous, update, focusRoom)
+        const next = onConstrainPose(previous, update)
         if (
           next.x === previous.x &&
           next.z === previous.z &&
@@ -539,7 +527,7 @@ export function RoomScene({
         grab = null
         if (changed) {
           const pose = { x: item.x, z: item.z, rotation: item.rotation }
-          onPlace(item.id, pose, focusRoom)
+          onPlace(item.id, pose)
           onMoveEnd()
         }
         hand.pulse(0.4, 30)

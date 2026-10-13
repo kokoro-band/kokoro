@@ -63,6 +63,8 @@ export function RoomNavigator({
   onSelectIssue: (id: string) => void
 }) {
   const [query, setQuery] = useState("")
+  // 집 전체에서는 방 목록이 먼저 보이고, 방에 들어가지 않고도 가구를 놓거나 고릅니다.
+  const [houseTab, setHouseTab] = useState<"rooms" | typeof tab>("rooms")
   const rooms = project.room?.rooms ?? []
   const room = roomIndex === null ? null : rooms[roomIndex]
   const issueList = (
@@ -76,9 +78,30 @@ export function RoomNavigator({
     />
   )
 
-  if (!room) {
-    return (
-      <div className="panel">
+  const roomFurniture = room
+    ? project.furniture.filter(
+        (item) => roomForFurniture(rooms, item) === roomIndex
+      )
+    : project.furniture
+  const placeName = (item: Furniture) =>
+    rooms[roomForFurniture(rooms, item)]?.name ?? "방 밖"
+  const activeTab = room ? tab : houseTab
+  const changeTab = (value: typeof houseTab) => {
+    if (!room) setHouseTab(value)
+    else if (value !== "rooms") onTabChange(value)
+  }
+  const normalizedQuery = query.normalize("NFC").trim().toLowerCase()
+  const visibleCatalog = catalog.filter(
+    (item) =>
+      (category === "전체" || item.category === category) &&
+      [item.name, item.category].some((value) =>
+        value.normalize("NFC").toLowerCase().includes(normalizedQuery)
+      )
+  )
+
+  return (
+    <div className="panel">
+      {!room && (
         <header className="panel-header">
           <Type variant="title" as="h2">
             집 전체
@@ -87,6 +110,45 @@ export function RoomNavigator({
             방 {rooms.length}개 · 가구 {project.furniture.length}개
           </Type>
         </header>
+      )}
+      {room && (
+        <header className="panel-header panel-header-back">
+          <ActionButton
+            variant="ghost"
+            size="small"
+            layout="iconOnly"
+            aria-label="집 전체로 돌아가기"
+            onClick={() => onRoomChange(null)}
+          >
+            <Icon svg={<IconChevronLeftLine />} size="x5" />
+          </ActionButton>
+          <div className="panel-header-text">
+            <Type variant="title" as="h2" maxLines={1}>
+              {room.name}
+            </Type>
+            <Type variant="caption" numeric>
+              {roomArea(room).toFixed(1)} m² · 가구 {roomFurniture.length}개 ·{" "}
+              {formatPrice(sumPrice(roomFurniture))}
+            </Type>
+          </div>
+        </header>
+      )}
+      <TabsRoot
+        className="panel-tabs"
+        value={activeTab}
+        onValueChange={(value) => changeTab(value as typeof houseTab)}
+        triggerLayout="fill"
+        size="small"
+      >
+        <TabsList aria-label={room ? "가구 보기" : "방과 가구 보기"}>
+          {!room && <TabsTrigger value="rooms">방 {rooms.length}</TabsTrigger>}
+          <TabsTrigger value="furniture">가구 추가</TabsTrigger>
+          <TabsTrigger value="placed">
+            배치한 가구 {roomFurniture.length}
+          </TabsTrigger>
+        </TabsList>
+      </TabsRoot>
+      {activeTab === "rooms" ? (
         <div className="panel-body">
           {issueList}
           <Type variant="description" as="p" className="panel-intro">
@@ -113,65 +175,7 @@ export function RoomNavigator({
             })}
           </List>
         </div>
-        <footer className="panel-footer panel-total">
-          <Type variant="caption">예상 가구 비용</Type>
-          <Type variant="title" numeric>
-            {formatPrice(sumPrice(project.furniture))}
-          </Type>
-        </footer>
-      </div>
-    )
-  }
-
-  const roomFurniture = project.furniture.filter(
-    (item) => roomForFurniture(rooms, item) === roomIndex
-  )
-  const normalizedQuery = query.normalize("NFC").trim().toLowerCase()
-  const visibleCatalog = catalog.filter(
-    (item) =>
-      (category === "전체" || item.category === category) &&
-      [item.name, item.category].some((value) =>
-        value.normalize("NFC").toLowerCase().includes(normalizedQuery)
-      )
-  )
-
-  return (
-    <div className="panel">
-      <header className="panel-header panel-header-back">
-        <ActionButton
-          variant="ghost"
-          size="small"
-          layout="iconOnly"
-          aria-label="집 전체로 돌아가기"
-          onClick={() => onRoomChange(null)}
-        >
-          <Icon svg={<IconChevronLeftLine />} size="x5" />
-        </ActionButton>
-        <div className="panel-header-text">
-          <Type variant="title" as="h2" maxLines={1}>
-            {room.name}
-          </Type>
-          <Type variant="caption" numeric>
-            {roomArea(room).toFixed(1)} m² · 가구 {roomFurniture.length}개 ·{" "}
-            {formatPrice(sumPrice(roomFurniture))}
-          </Type>
-        </div>
-      </header>
-      <TabsRoot
-        className="panel-tabs"
-        value={tab}
-        onValueChange={(value) => onTabChange(value as typeof tab)}
-        triggerLayout="fill"
-        size="small"
-      >
-        <TabsList aria-label="가구 보기">
-          <TabsTrigger value="furniture">가구 추가</TabsTrigger>
-          <TabsTrigger value="placed">
-            배치한 가구 {roomFurniture.length}
-          </TabsTrigger>
-        </TabsList>
-      </TabsRoot>
-      {tab === "furniture" ? (
+      ) : activeTab === "furniture" ? (
         <div className="panel-body">
           {issueList}
           <ChipTabsRoot
@@ -237,7 +241,7 @@ export function RoomNavigator({
                 title={item.name}
                 detail={formatPrice(item.price)}
                 suffix={<Icon svg={<IconPlusLine />} size="x4" />}
-                aria-label={`${item.name} ${room.name}에 놓기`}
+                aria-label={`${item.name} ${room?.name ?? "집"}에 놓기`}
                 onClick={() => onAddFurniture(item.id)}
               />
             ))}
@@ -247,7 +251,9 @@ export function RoomNavigator({
         <div className="panel-body panel-empty">
           {issueList}
           <Type variant="heading" as="p">
-            아직 이 방에 놓은 가구가 없어요
+            {room
+              ? "아직 이 방에 놓은 가구가 없어요"
+              : "아직 놓은 가구가 없어요"}
           </Type>
           <Type variant="description" as="p">
             가구 추가에서 고르거나 AI 배치에 원하는 모습을 적어 보세요.
@@ -255,7 +261,7 @@ export function RoomNavigator({
           <ActionButton
             variant="neutralWeak"
             size="small"
-            onClick={() => onTabChange("furniture")}
+            onClick={() => changeTab("furniture")}
           >
             가구 고르기
           </ActionButton>
@@ -270,6 +276,16 @@ export function RoomNavigator({
                 data-furniture-id={item.id}
                 highlighted={selectedId === item.id}
                 aria-pressed={selectedId === item.id}
+                // 집 전체에서는 가구가 어느 방에 있는지도 알려 줍니다. 접미 글자는
+                // 버튼 밖에 그려지므로 보조기기에는 설명으로 따로 전합니다.
+                aria-description={room ? undefined : placeName(item)}
+                suffix={
+                  !room && (
+                    <Type variant="caption" maxLines={1}>
+                      {placeName(item)}
+                    </Type>
+                  )
+                }
                 prefix={
                   <FurnitureThumb category={item.category} color={item.color} />
                 }
@@ -280,6 +296,14 @@ export function RoomNavigator({
             ))}
           </List>
         </div>
+      )}
+      {!room && (
+        <footer className="panel-footer panel-total">
+          <Type variant="caption">예상 가구 비용</Type>
+          <Type variant="title" numeric>
+            {formatPrice(sumPrice(project.furniture))}
+          </Type>
+        </footer>
       )}
     </div>
   )

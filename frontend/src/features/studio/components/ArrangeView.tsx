@@ -91,6 +91,14 @@ export function ArrangeView({
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
   const navigatorRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
+  // 모달 시트 밖의 메뉴는 보조기기에서 숨겨지므로 시트 안에 그립니다. 메뉴의
+  // 포털은 처음 붙을 때 한 번만 자리를 정하고, 부모의 ref는 자식 효과보다 늦게
+  // 붙으므로 시트 요소를 상태로 받은 뒤에야 메뉴를 그립니다.
+  const [sheetElement, setSheetElement] = useState<HTMLDivElement | null>(null)
+  const sheetMenuContainer = useMemo(
+    () => ({ current: sheetElement }),
+    [sheetElement]
+  )
   const dockPlaceRef = useRef<HTMLButtonElement>(null)
   const selected = studio.selected
   const issues = useMemo(
@@ -219,6 +227,17 @@ export function ArrangeView({
       dockPlaceRef.current?.focus()
   }
 
+  const selectedRoom = selected ? roomForFurniture(rooms, selected) : -1
+  const moveTargets = rooms.flatMap((entry, index) =>
+    index === selectedRoom ? [] : [{ index, name: entry.name }]
+  )
+  /** 옮긴 방으로 따라가되 선택은 그대로 둡니다. */
+  const moveToRoom = (index: number) => {
+    const target = rooms[index]
+    if (!target || !studio.moveSelectedToRoom(target)) return
+    if (roomIndex !== null) onRoomChange(index)
+  }
+
   const deleteSelected = () => {
     if (!selected) return
     const listItems = () =>
@@ -340,6 +359,9 @@ export function ArrangeView({
       onPreview={(update) => studio.previewSelected(update)}
       onCommitPreview={commitMove}
       onDelete={deleteSelected}
+      moveTargets={isMobile && !sheetElement ? [] : moveTargets}
+      onMoveToRoom={moveToRoom}
+      menuContainer={isMobile ? sheetMenuContainer : undefined}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
     />
   ) : (
@@ -536,7 +558,13 @@ export function ArrangeView({
         >
           <BottomSheet.Backdrop />
           <BottomSheet.Positioner>
-            <BottomSheet.Content ref={sheetRef} className="mobile-sheet">
+            <BottomSheet.Content
+              ref={(node) => {
+                sheetRef.current = node
+                setSheetElement(node)
+              }}
+              className="mobile-sheet"
+            >
               <BottomSheet.Header>
                 <BottomSheet.Title>{sheetTitle}</BottomSheet.Title>
                 <BottomSheet.CloseButton aria-label="닫기">

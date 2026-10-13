@@ -55,7 +55,12 @@ export async function addFurniture(
   await page
     .getByRole("button", { name: `${name} 거실에 놓기`, exact: true })
     .click()
-  return await response
+  const saved = await response
+  if ((page.viewportSize()?.width ?? Infinity) < 820)
+    await page
+      .getByRole("button", { name: "선택한 가구", exact: true })
+      .click()
+  return saved
 }
 export async function reloadProject(page: Page, saved: Project) {
   const read = savedResponse(page, `/projects/${saved.id}`, "GET")

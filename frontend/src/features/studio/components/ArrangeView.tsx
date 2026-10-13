@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react"
 import {
+  IconArrowClockwiseCircularLine,
   IconHouseLine,
   IconPlusLine,
   IconSlider2HorizontalLine,
   IconSparkle2Line,
+  IconTrashcanLine,
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, BottomSheet, Icon, PrefixIcon } from "@seed-design/react"
@@ -26,6 +28,7 @@ import { placementIssues } from "@/features/studio/placement-issues"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
+import { FurnitureThumb } from "./FurnitureThumb"
 import { HouseMap } from "./HouseMap"
 import { RoomNavigator } from "./RoomNavigator"
 import { SceneEditor } from "./SceneEditor"
@@ -70,7 +73,8 @@ export function ArrangeView({
   const selectFurniture = useCallback(
     (id: string | null) => {
       if (id) setInspectorTab("selection")
-      if (isMobile) setSheet(id ? "selection" : null)
+      // 모바일에서는 화면을 가리지 않도록 시트 대신 작은 도구 줄만 보여 줍니다.
+      if (isMobile) setSheet(null)
       selectStudioFurniture(id)
     },
     [isMobile, selectStudioFurniture]
@@ -232,7 +236,8 @@ export function ArrangeView({
   const addFurniture = (catalogId: string) => {
     setInspectorTab("selection")
     studio.addFurniture(catalogId, room ? roomCenter(room) : undefined, room)
-    if (isMobile) setSheet("selection")
+    // 방금 놓은 가구를 화면에서 바로 보고 옮길 수 있게 시트를 닫습니다.
+    if (isMobile) setSheet(null)
   }
 
   const send = (text: string) => {
@@ -369,6 +374,58 @@ export function ArrangeView({
           />
         )}
         {scene}
+        {selected && sheet !== "selection" && (
+          <section className="selection-bar" aria-label="선택한 가구 빠른 도구">
+            <FurnitureThumb
+              category={selected.category}
+              color={selected.color}
+            />
+            <Type
+              variant="label"
+              as="p"
+              className="selection-bar-name"
+              maxLines={1}
+              title={selected.name}
+            >
+              {selected.name}
+            </Type>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              aria-label="90도 돌리기"
+              onClick={() => rotate(90)}
+            >
+              <Icon svg={<IconArrowClockwiseCircularLine />} size="x5" />
+            </ActionButton>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              color="fg.critical"
+              aria-label="가구 빼기"
+              onClick={deleteSelected}
+            >
+              <Icon svg={<IconTrashcanLine />} size="x5" />
+            </ActionButton>
+            <ActionButton
+              variant="neutralWeak"
+              size="small"
+              onClick={() => setSheet("selection")}
+            >
+              자세히
+            </ActionButton>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              aria-label="선택 해제"
+              onClick={() => selectFurniture(null)}
+            >
+              <Icon svg={<IconXmarkLine />} size="x5" />
+            </ActionButton>
+          </section>
+        )}
         <SnackbarAvoidOverlap>
           <nav className="mobile-dock" aria-label="배치 도구">
             <ActionButton

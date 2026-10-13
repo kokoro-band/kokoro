@@ -196,11 +196,6 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
-      # #164 needs the intent API from #168. Keep current-backend E2E separate.
-      - uses: actions/checkout@v7
-        with:
-          ref: 134e96613a74cf3ca82bb51ea8b2fe4e1ab16743
-          path: .e2e-intent-api
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -214,8 +209,6 @@ jobs:
       - run: vp run typecheck:e2e
       - run: vp exec playwright install --with-deps chromium
       - run: vp run test:e2e:ollama --project=${{ matrix.project }}
-        env:
-          KOKORO_E2E_BACKEND: ${{ github.workspace }}/.e2e-intent-api/backend
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

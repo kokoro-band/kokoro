@@ -108,10 +108,14 @@
 }
 
 .inspector-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x2);
   padding: var(--seed-dimension-x3) var(--seed-dimension-x4)
     var(--seed-dimension-x6);
 }
 
+.inspector-move,
 .inspector-delete {
   width: 100%;
 }

@@ -1,7 +1,9 @@
 import {
+  doorClearances,
   footprint,
   insideRoom,
   overlaps,
+  solidWalls,
   wallBox,
   type Box,
 } from "./placement-issues"
@@ -16,7 +18,13 @@ const radius = (box: Box, axis: Point2) =>
   Math.abs(dot(box.x, axis)) * box.width +
   Math.abs(dot(box.z, axis)) * box.depth
 
-function constraints(project: Project, focus?: RoomLabel | null) {
+/** `clearOf` also keeps the item off other furniture and door clearances. */
+function constraints(
+  project: Project,
+  focus?: RoomLabel | null,
+  clearOf?: Furniture,
+  manual = false
+) {
   const bounds = project.room?.bounds ?? project.dimensions
   const outline: Point2[] = project.room?.outline.length
     ? project.room.outline
@@ -27,7 +35,25 @@ function constraints(project: Project, focus?: RoomLabel | null) {
         [0, bounds.depth],
       ]
   const polygons = focus ? [outline, focus.polygon] : [outline]
-  const walls = project.room?.walls.map(wallBox) ?? []
+  // Manual edits cross internal walls; insertion still avoids every wall.
+  const walls = solidWalls(project.room).filter(
+    (wall) =>
+      !manual ||
+      outline.some((a, index) => {
+        const edge = subtract(outline[(index + 1) % outline.length], a)
+        const offset = subtract(wall.center, a)
+        const length = Math.hypot(...edge)
+        return (
+          length > EPSILON &&
+          Math.abs(edge[0] * offset[1] - edge[1] * offset[0]) <
+            EPSILON * length &&
+          Math.abs(edge[0] * wall.x[1] - edge[1] * wall.x[0]) <
+            EPSILON * length &&
+          dot(offset, edge) >= 0 &&
+          dot(offset, edge) <= length * length
+        )
+      })
+  )
   // Zero-thickness polygon edges still take part in the sweep, including
   // concave notches and room labels that do not have a physical wall.
   const obstacles = [
@@ -43,15 +69,26 @@ function constraints(project: Project, focus?: RoomLabel | null) {
       )
     ),
   ]
+  const blockers = clearOf
+    ? [
+        ...doorClearances(project),
+        ...project.furniture.flatMap((other) => {
+          const box = other.id === clearOf.id ? null : footprint(other)
+          return box ? [box] : []
+        }),
+      ]
+    : []
   return {
     bounds,
     obstacles,
+    blockers,
     valid(item: Furniture) {
       const box = footprint(item)
       return (
         !!box &&
         polygons.every((polygon) => insideRoom(polygon, box)) &&
-        !walls.some((wall) => overlaps(box, wall))
+        !walls.some((wall) => overlaps(box, wall)) &&
+        !blockers.some((blocker) => overlaps(box, blocker))
       )
     },
   }
@@ -158,13 +195,71 @@ function snap(
   return next
 }
 
+/** A shallow wall magnet releases once the requested footprint pushes past 10 cm. */
+function magnetize(
+  current: Furniture,
+  target: Furniture,
+  walls: Box[],
+  scene: ReturnType<typeof constraints>
+) {
+  const before = footprint(current)
+  const box = footprint(target)
+  if (!before || !box) return target
+  const delta = subtract(box.center, before.center)
+  let best = SNAP_DISTANCE + EPSILON
+  let next = target
+  for (const wall of walls) {
+    const distance = dot(subtract(before.center, wall.center), wall.z)
+    if (Math.abs(distance) < radius(before, wall.z) + wall.depth - EPSILON)
+      continue
+    const normal: Point2 = distance < 0 ? [-wall.z[0], -wall.z[1]] : wall.z
+    if (dot(delta, normal) >= -EPSILON) continue
+    const offset = subtract(box.center, wall.center)
+    if (
+      Math.abs(dot(offset, wall.x)) >=
+      wall.width + radius(box, wall.x) - EPSILON
+    )
+      continue
+    const gap = dot(offset, normal) - radius(box, wall.z) - wall.depth
+    if (Math.abs(gap) > best) continue
+    const aligned = {
+      ...target,
+      x: target.x - normal[0] * gap,
+      z: target.z - normal[1] * gap,
+    }
+    if (scene.valid(aligned)) {
+      best = Math.abs(gap)
+      next = aligned
+    }
+  }
+  return next
+}
+
 /** Find a wall-safe position for newly added or previously invalid furniture. */
 export function findFurniturePlacement(
   project: Project,
   item: Furniture,
   focus?: RoomLabel | null
 ): Furniture | null {
-  const scene = constraints(project, focus)
+  return searchPlacement(constraints(project, focus), item)
+}
+
+/**
+ * Nearest position that is wall-safe and also clear of other furniture and
+ * door clearances. Every new placement (catalog and assistant) uses this.
+ */
+export function findFreePlacement(
+  project: Project,
+  item: Furniture,
+  focus?: RoomLabel | null
+): Furniture | null {
+  return searchPlacement(constraints(project, focus, item), item)
+}
+
+function searchPlacement(
+  scene: ReturnType<typeof constraints>,
+  item: Furniture
+): Furniture | null {
   if (scene.valid(item)) return item
   const box = footprint(item)
   if (
@@ -174,17 +269,24 @@ export function findFurniturePlacement(
   )
     return null
   const candidates: Furniture[] = []
-  for (const wall of scene.obstacles) {
-    for (const sign of [-1, 1]) {
-      const distance = dot(subtract(box.center, wall.center), wall.z)
-      const shift = sign * (radius(box, wall.z) + wall.depth + SKIN) - distance
-      candidates.push({
-        ...item,
-        x: item.x + wall.z[0] * shift,
-        z: item.z + wall.z[1] * shift,
-      })
+  const projectFaces = (obstacle: Box, axes: Point2[]) => {
+    for (const axis of axes) {
+      for (const sign of [-1, 1]) {
+        const distance = dot(subtract(box.center, obstacle.center), axis)
+        const shift =
+          sign * (radius(box, axis) + radius(obstacle, axis) + SKIN) - distance
+        candidates.push({
+          ...item,
+          x: item.x + axis[0] * shift,
+          z: item.z + axis[1] * shift,
+        })
+      }
     }
   }
+  for (const wall of scene.obstacles) projectFaces(wall, [wall.z])
+  // Furniture and door clearances can separate along either box's axes.
+  for (const blocker of scene.blockers)
+    projectFaces(blocker, [box.x, box.z, blocker.x, blocker.z])
   candidates.sort(
     (a, b) =>
       Math.hypot(a.x - item.x, a.z - item.z) -
@@ -220,12 +322,13 @@ export function constrainFurniturePose(
   project: Project,
   current: Furniture,
   update: Partial<Pick<Furniture, "x" | "z" | "rotation">>,
-  focus?: RoomLabel | null
+  focus?: RoomLabel | null,
+  magnetic = true
 ): Furniture {
   const target = { ...current, ...update }
   if (![target.x, target.z, target.rotation].every(Number.isFinite))
     return current
-  const scene = constraints(project, focus)
+  const scene = constraints(project, focus, undefined, true)
   if (!scene.valid(current)) {
     return findFurniturePlacement(project, target, focus) ?? current
   }
@@ -243,10 +346,13 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
-  next = snap(
-    next,
-    subtract([target.x, target.z], [current.x, current.z]),
-    scene
-  )
+  if (magnetic) {
+    next = magnetize(current, next, solidWalls(project.room), scene)
+    next = snap(
+      next,
+      subtract([target.x, target.z], [current.x, current.z]),
+      scene
+    )
+  }
   return scene.valid(next) ? next : current
 }

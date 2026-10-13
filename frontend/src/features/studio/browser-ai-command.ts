@@ -1,8 +1,5 @@
 import { catalog } from "./data"
-import {
-  findFurniturePlacement,
-  constrainFurniturePose,
-} from "./furniture-motion"
+import { findFreePlacement, constrainFurniturePose } from "./furniture-motion"
 import { assertFurnitureCount } from "./input-limits"
 import { containsPoint } from "./house-navigation"
 import { placementIssues } from "./placement-issues"
@@ -138,7 +135,7 @@ function findSafePlacement(
 ) {
   const exists = project.furniture.some((entry) => entry.id === item.id)
   for (const [x, z] of positions) {
-    const candidate = findFurniturePlacement(project, { ...item, x, z }, room)
+    const candidate = findFreePlacement(project, { ...item, x, z }, room)
     if (!candidate) continue
     if (requireProximity && Math.hypot(candidate.x - x, candidate.z - z) > 0.75)
       continue

@@ -2,10 +2,18 @@ import { describe, expect, it } from "vite-plus/test"
 import { sampleProject } from "./data"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
 } from "./furniture-motion"
-import { footprint, insideRoom, overlaps, wallBox } from "./placement-issues"
-import type { Furniture, Project, RoomModel } from "./types"
+import {
+  footprint,
+  insideRoom,
+  overlaps,
+  placementIssues,
+  wallBox,
+} from "./placement-issues"
+import { buildRoomModel } from "./room-builder"
+import type { Furniture, Project, RoomModel, Wall } from "./types"
 
 const room: RoomModel = {
   version: 2,
@@ -53,14 +61,40 @@ describe("wall-safe furniture editing", () => {
       expect(moved.x).toBeCloseTo(0.425, 5)
       expectSafe(moved)
     }
+    const exact = constrainFurniturePose(
+      project(),
+      chair(2, 2),
+      { x: -10 },
+      undefined,
+      false
+    )
+    expect(exact.x).toBeCloseTo(0.425, 5)
+    expectSafe(exact)
   })
+  it.each([
+    ["numeric", 2, 0.47],
+    ["arrow", 0.6, 0.5],
+  ] as const)(
+    "preserves an exact %s edit near the wall without attraction",
+    (_, from, x) => {
+      const moved = constrainFurniturePose(
+        project(),
+        chair(from, 2),
+        { x },
+        undefined,
+        false
+      )
+      expect(moved.x).toBe(x)
+      expectSafe(moved)
+    }
+  )
   it("uses the rotated width and depth rather than a fixed center margin", () => {
     const sofa = { ...chair(2, 2), catalogId: "sofa-cloud", rotation: 45 }
     const moved = constrainFurniturePose(project(), sofa, { x: -5 })
     expect(moved.x).toBeCloseTo(0.1 + (1.1 + 0.46) / Math.sqrt(2), 5)
     expectSafe(moved)
   })
-  it("cannot tunnel across a thin internal wall even when the endpoint is clear", () => {
+  it("moves across internal walls and warns only when the final footprint overlaps", () => {
     const model = {
       ...room,
       walls: [
@@ -74,9 +108,44 @@ describe("wall-safe furniture editing", () => {
       ],
     }
     const moved = constrainFurniturePose(project(model), chair(1, 2), { x: 5 })
-    expect(moved.x).toBeCloseTo(2.67, 5)
+    expect(moved.x).toBe(5)
+    const overlapping = constrainFurniturePose(project(model), moved, { x: 3 })
+    expect(overlapping.x).toBe(3)
+    expect(
+      placementIssues({ ...project(model), furniture: [overlapping] })[0].reason
+    ).toContain("벽")
+    expect(
+      constrainFurniturePose(project(model), overlapping, { x: 1 }).x
+    ).toBe(1)
     expectSafe(moved, model)
   })
+  it("moves through internal doors, solid wall sections and windows", () => {
+    const wall: Wall = { id: "inner", a: [3, 0], b: [3, 6], thickness: 0.2 }
+    const opening = { id: "gap", wallId: "inner", from: 2.5, to: 3.5 }
+    const withOpening = (type: "door" | "window") =>
+      project({
+        ...room,
+        walls: [wall],
+        openings: [{ ...opening, type, bottom: 0, top: 2.1 }],
+      })
+    const door = withOpening("door")
+    // The 0.65 m chair fits the 1 m doorway and ends on the far side.
+    expect(constrainFurniturePose(door, chair(4, 3), { x: 2 })).toMatchObject({
+      x: 2,
+      z: 3,
+    })
+    // Manual placement crosses internal walls anywhere.
+    expect(constrainFurniturePose(door, chair(4, 1), { x: 2 }).x).toBe(2)
+    // Door jambs do not block movement either.
+    expect(constrainFurniturePose(door, chair(4, 3.3), { x: 2 }).x).toBe(2)
+    expect(
+      constrainFurniturePose(withOpening("window"), chair(4, 3), { x: 2 }).x
+    ).toBe(2)
+    // The example home's bedroom door, from the living room side.
+    const home = { ...sampleProject, furniture: [] }
+    expect(constrainFurniturePose(home, chair(4, 3.85), { x: 2.4 }).x).toBe(2.4)
+  })
+
   it("slides along walls and releases immediately when moved away", () => {
     const moved = constrainFurniturePose(project(), chair(2, 2), {
       x: -2,
@@ -104,7 +173,7 @@ describe("wall-safe furniture editing", () => {
     expect(moved.z).toBeCloseTo(before.z, 5)
     expectSafe(moved)
   })
-  it("blocks diagonal walls and concave boundary crossings", () => {
+  it("crosses diagonal internal walls but blocks concave boundary crossings", () => {
     const diagonal = {
       ...room,
       walls: [
@@ -120,7 +189,7 @@ describe("wall-safe furniture editing", () => {
       x: 4,
       z: 1,
     })
-    expect(moved.z - moved.x).toBeGreaterThan(0.79)
+    expect(moved).toMatchObject({ x: 4, z: 1 })
     expectSafe(moved, diagonal)
     const concave: RoomModel = {
       ...room,
@@ -197,4 +266,47 @@ describe("wall-safe furniture editing", () => {
     }
     expect(findFurniturePlacement(project(tiny), chair(0.25, 0.25))).toBeNull()
   })
+
+  it.each([0, 90])(
+    "finds the narrow gap between sofas at %i degrees and rejects a smaller gap",
+    (rotation) => {
+      const model = buildRoomModel({
+        rooms: [
+          { id: "room", name: "거실", x: 0, z: 0, width: 5.3, depth: 1.2 },
+        ],
+        wallHeight: 2.4,
+      })
+      const sofas: Furniture[] = [1.2, 4.1].map((x, index) => ({
+        ...chair(x, 0.6),
+        id: `sofa-${index}`,
+        catalogId: "sofa-cloud",
+        name: "클라우드 소파",
+        category: "소파",
+      }))
+      const scene = { ...project(model), furniture: sofas }
+      const item = { ...chair(2.7, 0.6), rotation }
+      expect(
+        placementIssues({
+          ...scene,
+          furniture: [...sofas, { ...item, x: 2.65 }],
+        })
+      ).toEqual([])
+
+      const placed = findFreePlacement(scene, item)
+      expect(placed).not.toBeNull()
+      expect(placed!.x).toBeGreaterThanOrEqual(2.625)
+      expect(placed!.x).toBeLessThanOrEqual(2.675)
+      expect(placed!.z).toBeCloseTo(0.6)
+      expect(
+        placementIssues({ ...scene, furniture: [...sofas, placed!] })
+      ).toEqual([])
+
+      expect(
+        findFreePlacement(
+          { ...scene, furniture: [sofas[0], { ...sofas[1], x: 4 }] },
+          item
+        )
+      ).toBeNull()
+    }
+  )
 })

@@ -15,7 +15,8 @@ import {
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
-import type { Furniture, RoomLabel, RoomModel, ViewMode } from "./types"
+import { viewForward } from "./keyboard-nudge"
+import type { Furniture, Point2, RoomLabel, RoomModel, ViewMode } from "./types"
 import { localizeVrEntry } from "./vr-entry"
 import { furnitureModelKey, planFurnitureSync } from "./scene-furniture-sync"
 import { holdStep, startHold, type Hold } from "./vr-grab"
@@ -81,6 +82,8 @@ type Props = {
   doorStates: Record<string, boolean>
   highlightedDoorId: string | null
   onDoorChange: (id: string, open: boolean) => void
+  /** 화면 위쪽이 가리키는 평면도 방향을 여기에 적어 둡니다. 방향키 이동에 씁니다. */
+  viewForwardRef?: RefObject<Point2>
   /** VR 진입 버튼을 넣을 DOM 위치. 없으면 렌더러 위에 둡니다. */
   xrEntryContainer?: RefObject<HTMLElement | null>
 }
@@ -149,6 +152,7 @@ export function RoomScene({
   doorStates,
   highlightedDoorId,
   onDoorChange,
+  viewForwardRef,
   xrEntryContainer,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -231,6 +235,16 @@ export function RoomScene({
       controls.maxDistance = 16 * scale
       controls.enableRotate = mode !== "2d"
       controls.update()
+      // Arrow keys move furniture the way the view is turned.
+      const reportViewForward = () => {
+        if (!viewForwardRef) return
+        viewForwardRef.current = viewForward(
+          controls.target.x - camera.position.x,
+          controls.target.z - camera.position.z
+        )
+      }
+      controls.addEventListener("change", reportViewForward)
+      reportViewForward()
 
       const ambient = new THREE.HemisphereLight(
         sceneColors.ambientSky,
@@ -599,6 +613,7 @@ export function RoomScene({
       onPlace,
       onSelect,
       onDoorChange,
+      viewForwardRef,
       xrEntryContainer,
     ]
   )

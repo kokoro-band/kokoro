@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { useStudioController } from "./useStudioController"
 import { sampleProject } from "../data"
 import { placementIssues } from "../placement-issues"
-import type { Project } from "../types"
+import type { Furniture, Project } from "../types"
 
 type Studio = ReturnType<typeof useStudioController>
 const cleanups: (() => Promise<void>)[] = []
@@ -15,7 +15,17 @@ afterEach(async () => {
   localStorage.clear()
   vi.unstubAllGlobals()
 })
-async function setup() {
+const sofa: Furniture = {
+  id: "sofa",
+  catalogId: "sofa-cloud",
+  name: "소파",
+  category: "소파",
+  x: 1.45,
+  z: 3,
+  rotation: 0,
+  color: "#000",
+}
+async function setup(extra: Furniture[] = []) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   const project: Project = {
     ...sampleProject,
@@ -46,6 +56,7 @@ async function setup() {
         rotation: 0,
         color: "#000",
       },
+      ...extra,
     ],
   }
   localStorage.setItem("kokoro-remodel-project-v1", JSON.stringify(project))
@@ -154,6 +165,29 @@ describe("manual placement controller", () => {
       studio().commitPreview()
     })
     expect(placementIssues(studio().project)[0].reason).toContain("벽")
+  })
+  it("refuses a quarter turn onto other furniture and says which item is in the way", async () => {
+    const studio = await setup([sofa])
+    await act(async () => studio().selectFurniture("sofa"))
+    // Turned on the spot, the sofa's long side would cover the chair.
+    await act(async () => studio().updateSelected({ rotation: 90 }))
+    expect(studio().project.furniture[1]).toEqual(sofa)
+    expect(studio().canUndo).toBe(false)
+    expect(studio().notice?.text).toContain("의자")
+    expect(studio().notice?.text).toContain("돌릴 수 없어요")
+    // A half turn ends on the same floor, so it is allowed.
+    await act(async () => studio().updateSelected({ rotation: 180 }))
+    expect(studio().selected?.rotation).toBe(180)
+    expect(studio().selected).toMatchObject({ x: sofa.x, z: sofa.z })
+  })
+  it("refuses a turn the house boundary stops instead of turning part-way", async () => {
+    const edge = { ...sofa, x: 1.1, z: 4 }
+    const studio = await setup([edge])
+    await act(async () => studio().selectFurniture("sofa"))
+    await act(async () => studio().updateSelected({ rotation: 90 }))
+    expect(studio().project.furniture[1]).toEqual(edge)
+    expect(studio().canUndo).toBe(false)
+    expect(studio().notice?.text).toContain("벽")
   })
   it("places a newly added item outside the wall", async () => {
     const studio = await setup()

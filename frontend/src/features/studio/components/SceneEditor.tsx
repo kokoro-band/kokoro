@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react"
 import {
   IconArrowUturnLeftLine,
@@ -39,6 +40,7 @@ import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import { shortcutText, type ShortcutId } from "@/features/studio/shortcuts"
 import type {
   Furniture,
+  Point2,
   Project,
   RoomLabel,
   ViewMode,
@@ -88,6 +90,7 @@ export function SceneEditor({
   onRedo,
   onFullscreenError,
   onSelect,
+  viewForwardRef,
   onMove,
   onMoveEnd,
   onConstrainPose,
@@ -105,6 +108,8 @@ export function SceneEditor({
   onUndo: () => void
   onRedo: () => void
   onFullscreenError: () => void
+  /** 화면 위쪽이 평면도의 어느 방향인지 장면이 적어 둡니다. */
+  viewForwardRef?: RefObject<Point2>
   onSelect: (id: string | null) => void
   onMove: (id: string, x: number, z: number) => boolean
   onMoveEnd: () => void
@@ -356,7 +361,30 @@ export function SceneEditor({
           </ActionButton>
         </div>
       </div>
-      <div className="viewport-canvas">
+      {/* 방향키 단축키는 어디서나 동작하지만, 키보드로 이 영역에 멈춰 방법을 읽게 합니다. */}
+      <div
+        className="viewport-canvas"
+        {...(mode !== "vr" && {
+          role: "group",
+          tabIndex: 0,
+          "aria-label": "가구 편집 영역",
+          "aria-describedby": "viewport-keyboard-help",
+        })}
+      >
+        {mode !== "vr" && (
+          <div className="viewport-overlay overlay-top-start viewport-keyboard-help">
+            <Type
+              variant="label"
+              as="p"
+              id="viewport-keyboard-help"
+              className="viewport-hint"
+            >
+              가구를 고르고 방향키를 누르면 0.1 m씩 옮겨요. Shift와 함께 누르면
+              0.5 m씩 옮기고, {shortcutText("rotate")} 키로 90° 돌려요.{" "}
+              {shortcutText("guide")} 키로 단축키를 모두 볼 수 있어요.
+            </Type>
+          </div>
+        )}
         <Suspense
           fallback={
             <div className="viewport-loading" aria-live="polite">
@@ -375,6 +403,7 @@ export function SceneEditor({
             room={project.room}
             focusRoom={focusRoom}
             onSelect={onSelect}
+            viewForwardRef={viewForwardRef}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
             onConstrainPose={onConstrainPose}

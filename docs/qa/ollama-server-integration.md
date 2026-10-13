@@ -37,7 +37,9 @@
 
 ## PR CI 구성
 
-기존 서버 E2E는 현재 브랜치의 백엔드로 실행합니다. Ollama 통합 검사는 별도 `ollama-e2e` 작업에서 #168의 고정 커밋 `134e96613a74cf3ca82bb51ea8b2fe4e1ab16743` 백엔드로 desktop과 narrow를 실행하며, 실패와 취소 및 누락은 `CI result`를 실패시킵니다. #168 병합 후 이 고정 의존성을 현재 백엔드로 전환해야 합니다.
+기존 서버 E2E와 별도 `ollama-e2e` 작업은 현재 브랜치의 백엔드로 desktop과 narrow를 실행합니다. #168과 #174가 main에 반영되어 고정 의존 백엔드를 제거했습니다. Ollama 검사의 실패와 취소 및 누락은 `CI result`를 실패시킵니다.
 
 - CI 판정 RED: `node --test .github/scripts/ci-changes.test.mjs`에서 Ollama 작업 실패와 취소 및 생략을 성공으로 판정한 3개 테스트가 실패했습니다. GREEN: 27개 통과.
-- 실행 경로 RED: `vp test e2e/runtime.test.ts`에서 현재 백엔드 유지와 명시적 의존 백엔드 선택 2개가 실패했습니다. GREEN: 현재 백엔드와 별도 Ollama 설정을 구분하고 상대 경로나 미지정 의존성을 거절합니다.
+- 초기 실행 경로 RED: `vp test e2e/runtime.test.ts`에서 현재 백엔드 유지와 명시적 의존 백엔드 선택 2개가 실패했습니다. 당시 GREEN은 현재 백엔드와 별도 Ollama 설정을 구분하고 상대 경로나 미지정 의존성을 거절하는 것이었습니다.
+- 현재 백엔드 전환 RED: 같은 명령에서 백엔드 경로를 생략한 Ollama 검사 1개가 실패했습니다. GREEN: 26개 통과. 경로를 생략하면 현재 백엔드를 사용하고 명시적 절대 경로는 허용하며 상대 경로는 거절합니다.
+- Codex CLI 검증: `vp run test:e2e:ollama --project=desktop`과 `--project=narrow` 각각 4개 통과. 추가 예정 가구 선택, 확인 전 미저장, 선택한 가구만 회전, 재시도 중복 방지와 새로고침 후 저장 유지까지 현재 Spring API와 별도 PostgreSQL에서 확인했습니다. Ollama 응답만 모킹했습니다.

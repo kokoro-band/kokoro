@@ -59,7 +59,33 @@ describe("wall-safe furniture editing", () => {
       expect(moved.x).toBeCloseTo(0.425, 5)
       expectSafe(moved)
     }
+    const exact = constrainFurniturePose(
+      project(),
+      chair(2, 2),
+      { x: -10 },
+      undefined,
+      false
+    )
+    expect(exact.x).toBeCloseTo(0.425, 5)
+    expectSafe(exact)
   })
+  it.each([
+    ["numeric", 2, 0.47],
+    ["arrow", 0.6, 0.5],
+  ] as const)(
+    "preserves an exact %s edit near the wall without attraction",
+    (_, from, x) => {
+      const moved = constrainFurniturePose(
+        project(),
+        chair(from, 2),
+        { x },
+        undefined,
+        false
+      )
+      expect(moved.x).toBe(x)
+      expectSafe(moved)
+    }
+  )
   it("uses the rotated width and depth rather than a fixed center margin", () => {
     const sofa = { ...chair(2, 2), catalogId: "sofa-cloud", rotation: 45 }
     const moved = constrainFurniturePose(project(), sofa, { x: -5 })

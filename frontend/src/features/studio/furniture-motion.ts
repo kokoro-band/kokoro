@@ -3,6 +3,7 @@ import {
   footprint,
   insideRoom,
   overlaps,
+  solidWalls,
   wallBox,
   type Box,
 } from "./placement-issues"
@@ -91,45 +92,6 @@ function constraints(
       )
     },
   }
-}
-
-/**
- * Wall pieces left around door openings. Arranging is planning, so furniture
- * may pass a doorway whether its door is drawn open or closed. Windows stay
- * solid.
- */
-function solidWalls(room: Project["room"]): Box[] {
-  return (room?.walls ?? []).flatMap((wall) => {
-    const box = wallBox(wall)
-    const length = box.width * 2
-    const doors = (room?.openings ?? [])
-      .filter(
-        (opening) => opening.type === "door" && opening.wallId === wall.id
-      )
-      .map((opening) => [
-        Math.min(opening.from, opening.to),
-        Math.max(opening.from, opening.to),
-      ])
-      .sort((a, b) => a[0] - b[0])
-    const pieces: Box[] = []
-    let start = 0
-    for (const [from, to] of [...doors, [length, length]]) {
-      const end = Math.min(from, length)
-      if (end - start > EPSILON) {
-        const middle = (start + end) / 2
-        pieces.push({
-          ...box,
-          center: [
-            wall.a[0] + box.x[0] * middle,
-            wall.a[1] + box.x[1] * middle,
-          ],
-          width: (end - start) / 2,
-        })
-      }
-      start = Math.max(start, to)
-    }
-    return pieces
-  })
 }
 
 /** Earliest contact during the entire translation, not just its endpoint. */
@@ -377,11 +339,13 @@ export function constrainFurniturePose(
     next = rotated
   }
   next = slide(next, [target.x, target.z], scene.obstacles)
-  if (magnetic) next = magnetize(current, next, solidWalls(project.room), scene)
-  next = snap(
-    next,
-    subtract([target.x, target.z], [current.x, current.z]),
-    scene
-  )
+  if (magnetic) {
+    next = magnetize(current, next, solidWalls(project.room), scene)
+    next = snap(
+      next,
+      subtract([target.x, target.z], [current.x, current.z]),
+      scene
+    )
+  }
   return scene.valid(next) ? next : current
 }

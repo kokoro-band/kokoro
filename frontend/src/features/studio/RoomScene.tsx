@@ -428,6 +428,17 @@ export function RoomScene({
                 )
               },
               onCommit: onMoveEnd,
+              zoomCamera(factor) {
+                const offset = camera.position.clone().sub(controls.target)
+                offset.setLength(
+                  THREE.MathUtils.clamp(
+                    offset.length() * factor,
+                    controls.minDistance,
+                    controls.maxDistance
+                  )
+                )
+                camera.position.copy(controls.target).add(offset)
+              },
               setCameraEnabled(enabled) {
                 controls.enabled = enabled
               },

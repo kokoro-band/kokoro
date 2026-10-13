@@ -56,7 +56,7 @@ export async function addFurniture(
     .getByRole("button", { name: `${name} 거실에 놓기`, exact: true })
     .click()
   const saved = await response
-  if ((page.viewportSize()?.width ?? Infinity) < 820)
+  if (saved.ok() && (page.viewportSize()?.width ?? Infinity) < 820)
     await page.getByRole("button", { name: "선택한 가구", exact: true }).click()
   return saved
 }

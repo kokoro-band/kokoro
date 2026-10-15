@@ -79,6 +79,77 @@ type Write = {
     room?: Project["room"]
   }
 }
+
+suite(
+  "a lost committed layout response preserves the draft and recovers without another commit",
+  async ({ page, request, projectIds }, info) => {
+    const narrow = info.project.name === "narrow"
+    const room = await createRoom(page, (id) => projectIds.push(id))
+    await openFurniture(page, narrow)
+    const initial = await projectResponse(
+      await addFurniture(page, room.id, "셸 체어")
+    )
+    let attempts = 0
+    await page.route("**/projects/" + initial.id + "/layout", async (route) => {
+      if (route.request().method() !== "PUT") return route.continue()
+      if (++attempts !== 1) return route.continue()
+      const committed = await route.fetch({ maxRetries: 0 })
+      expect(committed.status()).toBe(200)
+      expect(((await committed.json()) as Project).revision).toBe(
+        initial.revision! + 1
+      )
+      // The real save committed. Only its browser response is lost.
+      await route.abort("connectionfailed")
+    })
+    try {
+      await field(page, "가로", "2")
+      await expect(conflict(page)).toBeVisible()
+      expect(attempts).toBe(2)
+      const stored = await read(request, initial.id)
+      expect(stored.revision).toBe(initial.revision! + 1)
+      expect(stored.furniture[0]).toMatchObject({
+        id: initial.furniture[0].id,
+        x: 2,
+      })
+      await preview(page, stored.revision!)
+      await conflict(page)
+        .getByRole("button", { name: "나중에 해결", exact: true })
+        .click()
+      await closeSheet(page, narrow)
+      const { exportProject } = await import("./upload-helpers")
+      const draft = await exportProject(page)
+      expect(draft.revision).toBe(initial.revision)
+      expect(draft.furniture).toEqual(stored.furniture)
+      expect(draft.room).toEqual(initial.room)
+      await page
+        .getByRole("button", { name: "저장 충돌 해결", exact: true })
+        .click()
+      const discard = conflict(page).getByRole("button", {
+        name: "내 초안 버리고 서버 내용 사용",
+        exact: true,
+      })
+      const cancelling = page
+        .waitForEvent("dialog")
+        .then((dialog) => dialog.dismiss())
+      await discard.click()
+      await cancelling
+      await expect(conflict(page)).toBeVisible()
+      expect(await read(request, initial.id)).toEqual(stored)
+      const accepting = page
+        .waitForEvent("dialog")
+        .then((dialog) => dialog.accept())
+      await discard.click()
+      await accepting
+      await expect(conflict(page)).not.toBeVisible()
+      await reloadProject(page, stored)
+      expect(attempts).toBe(2)
+      expect(await read(request, initial.id)).toEqual(stored)
+    } finally {
+      await page.unrouteAll({ behavior: "wait" })
+    }
+  }
+)
+
 function recordWrites(page: Page, id: string) {
   const writes: Write[] = []
   page.on("request", (request) => {

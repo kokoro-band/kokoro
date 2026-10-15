@@ -202,6 +202,67 @@ async function setup() {
 }
 
 describe("save recovery through the real App and SEED UI", () => {
+  it("gives upload geometry conflict recovery the only active dialog and preserves the structure draft", async () => {
+    const ui = await setup()
+    await ui.click("구조")
+    await ui.type("이름", "내 미저장 구조")
+    await ui.click("검증 A 프로젝트 메뉴")
+    await ui.click("도면 파일")
+    const input = document.querySelector<HTMLInputElement>(
+      '.studio-app > input[type="file"]'
+    )!
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [new File(["plan"], "plan.png", { type: "image/png" })],
+    })
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+      await vi.advanceTimersByTimeAsync(350)
+    })
+    const uploading = http.calls.find((call) =>
+      call.config.url?.endsWith("/floor-plan")
+    )!
+    expect(uploading).toBeDefined()
+    const uploaded: Project = {
+      ...ui.initial,
+      revision: 1,
+      floorPlan: {
+        ...ui.initial.floorPlan,
+        fileName: "plan.png",
+        status: "PROCESSING",
+        progress: 0,
+      },
+    }
+    await act(async () => {
+      uploading.resolve(uploaded)
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    const status = http.calls.at(-1)!
+    expect(status.config.url).toBe("/projects/project-a")
+    await act(async () =>
+      status.resolve({
+        ...uploaded,
+        revision: 2,
+        room: {
+          ...ui.initial.room!,
+          rooms: [{ ...ui.initial.room!.rooms[0], name: "다른 탭의 방" }],
+        },
+        floorPlan: { ...uploaded.floorPlan, status: "READY", progress: 100 },
+      })
+    )
+    await settle()
+    const dialogs = [...document.querySelectorAll('[role="dialog"]')]
+    expect(dialogs).toHaveLength(1)
+    expect(dialogs[0].textContent).toContain("서버 내용이 바뀌었어요")
+    expect(ui.saves()).toHaveLength(0)
+    await ui.click("나중에 해결")
+    await ui.click("닫기", document.querySelector(".floor-plan-dialog")!)
+    const names = [...document.querySelectorAll<HTMLInputElement>("input")].map(
+      (node) => node.value
+    )
+    expect(names).toContain("내 미저장 구조")
+    expect(names).not.toContain("다른 탭의 방")
+  })
   it("closes the mobile furniture sheet while conflict recovery owns the dialog", async () => {
     viewport.mobile = true
     const ui = await setup()

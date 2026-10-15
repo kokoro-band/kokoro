@@ -6,6 +6,7 @@ import type { Project } from "../src/features/studio/types"
 import { apiURL } from "../playwright.config"
 import {
   suite,
+  expectPersistedProject,
   createRoom,
   openFurniture,
   addFurniture,
@@ -248,7 +249,7 @@ for (const operation of [
         expect(saved.room!.rooms[0].name).toBe("새 프로젝트의 미저장 구조")
         expect(saved.furniture).toEqual(next.furniture)
         expect(saved.floorPlan).toEqual(next.floorPlan)
-        expect(await read(request, next.id)).toEqual(saved)
+        expectPersistedProject(await read(request, next.id), saved)
         await reloadProject(page, saved)
         expect(held.count()).toBe(1)
         const after = await read(request, previous.id)

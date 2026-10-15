@@ -13,6 +13,17 @@ export async function projectResponse(response: Response) {
   expect(response.status()).toBe(200)
   return (await response.json()) as Project
 }
+// Java's write response can contain nanoseconds, while PostgreSQL rounds to
+// microseconds. Compare every persisted field exactly and allow only the
+// resulting millisecond boundary difference in JavaScript's timestamp parser.
+export function expectPersistedProject(actual: Project, expected: Project) {
+  const { updatedAt, ...contents } = actual
+  const { updatedAt: expectedUpdatedAt, ...expectedContents } = expected
+  expect(contents).toEqual(expectedContents)
+  expect(
+    Math.abs(Date.parse(updatedAt) - Date.parse(expectedUpdatedAt))
+  ).toBeLessThanOrEqual(1)
+}
 export async function createRoom(page: Page, remember: (id: string) => void) {
   await page.goto("/")
   await page.getByRole("button", { name: /프로젝트 메뉴$/ }).click()

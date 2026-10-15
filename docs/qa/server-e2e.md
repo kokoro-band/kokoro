@@ -186,6 +186,8 @@ PR #150의 `d775910`은 CI 36694071167에서 새 8개를 포함한 브라우저 
 
 CI의 두 번 실행 설정은 구성 검증을 마쳤으며, 최종 커밋의 실제 CI 결과는 게시 후 별도로 기록해야 합니다.
 
+첫 [CI 실행](https://github.com/kokoro-band/kokoro/actions/runs/38741027452)의 desktop 2회차에서 새 E2E의 전체 프로젝트 비교 10개가 실패했습니다. Java 쓰기 응답의 나노초 `updatedAt`과 PostgreSQL 조회의 마이크로초 반올림 값이 달랐고, 버전과 내용은 같았습니다. macOS 로컬 시계에서는 재현되지 않았던 테스트 비교 오류입니다. 저장 결과 비교는 나머지 필드를 모두 정확히 검사하고, 시간만 JavaScript 파서의 밀리초 경계 차이 1ms를 허용하도록 수정했습니다. 제품 응답이나 재시도 설정은 바꾸지 않았습니다. 수정 커밋의 네 독립 CI 실행을 새로 확인합니다.
+
 운영 인증은 #12에서 확인합니다. HTTPS와 헤드셋 및 발표 리허설 기록도 별도입니다. PR 검사 통과는 main 병합이나 배포를 뜻하지 않습니다.
 
 설정 기준은 [Playwright의 CI 안내](https://playwright.dev/docs/ci-intro)와 [서버 준비 확인 안내](https://playwright.dev/docs/test-webserver)입니다. 이 저장소는 DB까지 정리해야 하므로 별도 실행기에서 서버 수명을 관리합니다.

@@ -1,7 +1,13 @@
 import { Buffer } from "node:buffer"
 import { expect } from "@playwright/test"
 import type { Project } from "../src/features/studio/types"
-import { suite, savedResponse, projectResponse, reloadProject } from "./helpers"
+import {
+  suite,
+  savedResponse,
+  projectResponse,
+  reloadProject,
+  expectPersistedProject,
+} from "./helpers"
 import {
   choose,
   closeSheet,
@@ -48,7 +54,7 @@ suite(
       await expect(
         dialog.getByRole("button", { name: "이 배치로 시작", exact: true })
       ).toBeEnabled()
-      expect(await read(request, initial.id)).toEqual(initial)
+      expectPersistedProject(await read(request, initial.id), initial)
       if (cancel) {
         await dialog.getByRole("button", { name: "닫기", exact: true }).click()
         await expect(
@@ -59,7 +65,7 @@ suite(
           .getByRole("button", { name: "이 배치로 시작", exact: true })
           .click()
         await expect(dialog).not.toBeVisible()
-        expect(await read(request, initial.id)).toEqual(initial)
+        expectPersistedProject(await read(request, initial.id), initial)
         const saving = savedResponse(page, "/projects/" + initial.id + "/room")
         await page
           .getByRole("button", { name: "구조 저장", exact: true })
@@ -69,7 +75,7 @@ suite(
         expect(saved.room).not.toEqual(initial.room)
         expect(saved.floorPlan).toEqual(initial.floorPlan)
         expect(saved.furniture).toEqual(initial.furniture)
-        expect(await read(request, initial.id)).toEqual(saved)
+        expectPersistedProject(await read(request, initial.id), saved)
         await reloadProject(page, saved)
       }
     }
@@ -118,7 +124,7 @@ suite(
     ] as const) {
       await choose(page, button, file)
       await expect(dialog).toContainText(message)
-      expect(await read(request, initial.id)).toEqual(initial)
+      expectPersistedProject(await read(request, initial.id), initial)
     }
     await choose(page, button, await png(page, true))
     await expect(dialog).toContainText("방을 찾지 못했어요")
@@ -137,7 +143,7 @@ suite(
     await expect(
       page.getByRole("textbox", { name: "이름", exact: true })
     ).toHaveValue("내 미저장 거실")
-    expect(await read(request, initial.id)).toEqual(initial)
+    expectPersistedProject(await read(request, initial.id), initial)
     expect(posts).toHaveLength(0)
   }
 )
@@ -155,7 +161,7 @@ suite(
     await upload(page)
     await expect(planDialog(page)).toContainText("아직 올린 도면이 없어요")
     expect(posts).toHaveLength(0)
-    expect(await read(request, initial.id)).toEqual(initial)
+    expectPersistedProject(await read(request, initial.id), initial)
     await upload(page, pdf())
     await ready(page, "original.pdf")
     await expect(planDialog(page)).toContainText(
@@ -220,7 +226,7 @@ suite(
     ] as const) {
       await upload(page, file)
       await expect(planDialog(page)).toContainText(message)
-      expect(await read(request, initial.id)).toEqual(baseline)
+      expectPersistedProject(await read(request, initial.id), baseline)
     }
     expect(posts).toHaveLength(1)
     const rejected = savedResponse(
@@ -237,7 +243,7 @@ suite(
     await expect(planDialog(page)).toContainText(
       "파일의 확장자와 내용이 일치하는"
     )
-    expect(await read(request, initial.id)).toEqual(baseline)
+    expectPersistedProject(await read(request, initial.id), baseline)
     const beforeRetry = await preserved(page, request, initial)
     expect(beforeRetry.exported.floorPlan).toEqual(baseline.floorPlan)
     await openPlan(page)
@@ -280,7 +286,7 @@ suite(
         exact: true,
       })
       await expect(retry).toBeEnabled()
-      expect(await read(request, initial.id)).toEqual(initial)
+      expectPersistedProject(await read(request, initial.id), initial)
       await retry.dblclick()
       await arrived.opened
       expect(attempts).toBe(2)
@@ -421,7 +427,7 @@ suite(
       })
       expect(saved.room!.rooms[0].name).toBe("내 미저장 거실")
       expect(saved.floorPlan).toEqual(status.floorPlan)
-      expect(await read(request, initial.id)).toEqual(saved)
+      expectPersistedProject(await read(request, initial.id), saved)
       await reloadProject(page, saved)
     } finally {
       release.release()
@@ -495,7 +501,7 @@ suite(
       expect(exported.room).toEqual(initial.room)
       expect(exported.furniture).toEqual(initial.furniture)
       expect(exported.revision).toBe(uploaded.revision)
-      expect(await read(request, initial.id)).toEqual(latest)
+      expectPersistedProject(await read(request, initial.id), latest)
       expect(writes).toBe(0)
     } finally {
       fetchNow.release()

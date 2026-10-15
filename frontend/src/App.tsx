@@ -272,7 +272,7 @@ function Studio() {
       />
       <ShortcutGuide open={guideOpen} view={view} onOpenChange={setGuideOpen} />
       <FloorPlanDialog
-        open={floorPlanOpen}
+        open={floorPlanOpen && !studio.conflict?.open}
         project={studio.project}
         uploadAttempt={studio.uploadAttempt}
         uploadRef={uploadRef}

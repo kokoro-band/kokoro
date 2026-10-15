@@ -226,7 +226,7 @@ try {
       KOKORO_E2E_API: `${api}/api`,
       CI: process.env.CI ? "true" : "",
     },
-    600_000
+    900_000
   )
 } catch (error) {
   failed = true

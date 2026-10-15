@@ -183,7 +183,15 @@ public class RoomModelValidator {
         if (shape(polygon).contains(point.x(), point.z())) return true;
         for (int i = 0; i < polygon.size(); i++) {
             Point a = polygon.get(i), b = polygon.get((i + 1) % polygon.size());
-            if (java.awt.geom.Line2D.ptSegDist(a.x(), a.z(), b.x(), b.z(), point.x(), point.z()) <= EPSILON) return true;
+            double dx = b.x() - a.x(), dz = b.z() - a.z();
+            double cross = (point.x() - a.x()) * dz - (point.z() - a.z()) * dx;
+            // ptSegDist subtracts squared lengths and can lose precision at an
+            // exact boundary point. Measure perpendicular distance directly.
+            if (Math.abs(cross) <= EPSILON * Math.hypot(dx, dz)
+                    && point.x() >= Math.min(a.x(), b.x()) - EPSILON
+                    && point.x() <= Math.max(a.x(), b.x()) + EPSILON
+                    && point.z() >= Math.min(a.z(), b.z()) - EPSILON
+                    && point.z() <= Math.max(a.z(), b.z()) + EPSILON) return true;
         }
         return false;
     }

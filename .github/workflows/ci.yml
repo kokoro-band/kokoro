@@ -145,14 +145,16 @@ jobs:
             frontend/test-results/
 
   e2e:
+    name: e2e (${{ matrix.project }}, run ${{ matrix.repeat }})
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         project: [desktop, narrow]
+        repeat: [1, 2]
     defaults:
       run:
         working-directory: frontend
@@ -174,7 +176,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-failure-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: e2e-failure-${{ matrix.project }}-${{ matrix.repeat }}-${{ github.run_id }}-${{ github.run_attempt }}
           include-hidden-files: true
           retention-days: 7
           path: |

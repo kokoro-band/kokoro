@@ -24,6 +24,30 @@ class RoomModelValidatorTest {
     }
 
     @Test
+    void acceptsAnImportedRoomWhoseSharedWallEndsOnAFractionalBoundary() throws Exception {
+        var room = mapper.readTree("""
+                {"version":2,"unit":"m","wallHeight":2.4,
+                 "bounds":{"width":8.5,"depth":7.8},
+                 "outline":[[0,0],[8.5,0],[8.5,7.8],[0,7.8]],
+                 "walls":[{"id":"shared","a":[4.3,0],"b":[4.3,7.8],"thickness":0.12}],
+                 "openings":[],"rooms":[],"spawn":[2.15,3.9]}
+                """);
+        assertDoesNotThrow(() -> validator.validate(mapper.treeToValue(room, RoomModel.class)));
+    }
+
+    @Test
+    void stillRejectsWallEndsInAConcaveCutoutInsideTheBoundingBox() throws Exception {
+        var room = fixture();
+        room.set("walls", mapper.readTree("""
+                [{"id":"outside","a":[5,3],"b":[3,1],"thickness":0.12}]
+                """));
+        room.set("openings", mapper.createArrayNode());
+        var error = assertThrows(InvalidRoomException.class,
+                () -> validator.validate(mapper.treeToValue(room, RoomModel.class)));
+        assertTrue(error.violations().stream().anyMatch(violation -> violation.path().equals("walls[0]")));
+    }
+
+    @Test
     void acceptsEditorConcaveRoomAndMissingOptionalFields() throws Exception {
         var room = fixture();
         assertDoesNotThrow(() -> validator.validate(mapper.treeToValue(room, RoomModel.class)));

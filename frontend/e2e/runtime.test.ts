@@ -70,6 +70,19 @@ describe("isolated E2E runtime", () => {
     }
   )
   it.each([
+    ["--suite=uploads"],
+    ["--project=desktop", "--suite=uploads"],
+    ["--suite=uploads", "--project=desktop"],
+  ])("selects the upload suite with validated arguments %j", (...args) => {
+    expect(playwrightArguments(args)).toEqual([
+      "exec",
+      "playwright",
+      "test",
+      ...(args.includes("--project=desktop") ? ["--project=desktop"] : []),
+      "uploads.spec.ts",
+    ])
+  })
+  it.each([
     ["--project=mobile"],
     ["--project="],
     ["--project=desktop", "--project=narrow"],
@@ -80,6 +93,9 @@ describe("isolated E2E runtime", () => {
     ["--project", "desktop"],
     ["--"],
     [" "],
+    ["--suite=missing"],
+    ["--suite=uploads", "--suite=uploads"],
+    ["--suite=../outside"],
   ])("rejects unsupported or ambiguous arguments %j", (...args) => {
     expect(() => playwrightArguments(args)).toThrow(
       "--project=desktop or --project=narrow"

@@ -39,9 +39,11 @@
 }
 
 .app-bar-brand img {
-  width: var(--seed-dimension-x7);
-  height: var(--seed-dimension-x7);
-  image-rendering: pixelated;
+  flex: none;
+  width: var(--seed-dimension-x9);
+  height: var(--seed-dimension-x9);
+  object-fit: contain;
+  border-radius: var(--seed-radius-r2);
 }
 
 .app-bar-divider {

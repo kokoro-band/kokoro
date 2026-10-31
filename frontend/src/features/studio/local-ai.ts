@@ -162,7 +162,30 @@ function withoutPatterns(value: unknown): unknown {
   )
 }
 
-const replyFormat = withoutPatterns(JSON.parse(intentSchemaSource))
+// Ollama builds a decoding grammar from this schema. The contract's top-level oneOf of bare "required"
+// rules becomes a grammar that accepts any value (the model answered with a lone number), so the model
+// gets the same contract as two concrete object shapes: intents, or a rejection.
+function modelReplyFormat() {
+  const contract = withoutPatterns(JSON.parse(intentSchemaSource)) as {
+    $defs: unknown
+    properties: Record<string, unknown>
+  }
+  const shape = (field: "intents" | "reject") => ({
+    type: "object",
+    additionalProperties: false,
+    required: ["version", field],
+    properties: {
+      version: contract.properties.version,
+      [field]: contract.properties[field],
+    },
+  })
+  return {
+    $defs: contract.$defs,
+    anyOf: [shape("intents"), shape("reject")],
+  }
+}
+
+const replyFormat = modelReplyFormat()
 
 function systemPrompt(catalog: CatalogItem[]) {
   const items = catalog.map(({ id, name, width, depth }) => ({

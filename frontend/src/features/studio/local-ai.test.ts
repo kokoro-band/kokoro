@@ -138,7 +138,22 @@ describe("requestLocalLayoutIntent", () => {
     const body = JSON.parse(fetch.mock.calls[0][1]?.body as string)
     expect(body.messages[0].content).toMatch(/reject/)
     expect(body.messages[0].content).toMatch(/모호|카탈로그에 없는/)
-    expect(body.format.properties).toHaveProperty("reject")
+    // Ollama turns a top-level oneOf of bare "required" rules into a grammar that allows any value,
+    // so the format it receives must be two concrete object shapes.
+    expect(body.format.oneOf).toBeUndefined()
+    expect(body.format.anyOf).toHaveLength(2)
+    const [withIntents, withReject] = body.format.anyOf
+    expect(withIntents).toMatchObject({
+      type: "object",
+      required: ["version", "intents"],
+    })
+    expect(withIntents.properties).not.toHaveProperty("reject")
+    expect(withReject).toMatchObject({
+      type: "object",
+      required: ["version", "reject"],
+    })
+    expect(withReject.properties).not.toHaveProperty("intents")
+    expect(body.format.$defs).toBeDefined()
   })
 
   it("sends only catalog ids, names and footprints to the local model", async () => {

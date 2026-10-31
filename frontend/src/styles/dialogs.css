@@ -235,3 +235,27 @@
   border: 1px solid var(--seed-color-stroke-neutral-weak);
   border-radius: var(--seed-radius-r1_5);
 }
+
+/* 시연 로그인 */
+.auth-screen {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: var(--seed-dimension-x8) var(--seed-dimension-x5);
+  background: var(--seed-color-bg-layer-default);
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--seed-dimension-x4);
+  width: min(100%, 24rem);
+}
+
+.auth-card > h1 {
+  margin: 0;
+}
+
+.auth-card > p {
+  margin: 0;
+}

@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios"
 import { isApiPath, resolveApiBaseUrl } from "./api-url"
+import { currentSession, logout } from "./auth-session"
 
 const defaultMessage = "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요."
 const networkMessage =
@@ -81,12 +82,21 @@ httpClient.interceptors.request.use((config) => {
       false
     )
   config.allowAbsoluteUrls = false
+  const session = currentSession()
+  if (session) config.headers.set("Authorization", `Bearer ${session.token}`)
   return config
 })
 
 httpClient.interceptors.response.use(
   (response) => response,
-  (error: unknown) => Promise.reject(normalizeApiError(error))
+  (error: unknown) => {
+    // A rejected token ends the session; the login screen takes over.
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      const sent = error.config?.url !== "/auth/login"
+      if (sent) logout()
+    }
+    return Promise.reject(normalizeApiError(error))
+  }
 )
 
 export async function request<T>(config: AxiosRequestConfig) {

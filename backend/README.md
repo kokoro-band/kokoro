@@ -15,6 +15,19 @@ docker compose up -d
 
 로컬 실행은 `local` 프로파일을 사용해 별도 인증 키 없이 `local-user` 소유자로 동작합니다. 운영에서는 `prod` 프로파일과 `COGNITO_ISSUER_URI`를 사용해 Cognito JWT를 검증합니다.
 
+시연 배포에는 `demo` 프로파일을 사용합니다. 로그인 경로 `POST /api/auth/login`이 열리고 나머지 API는 발급된 토큰을 요구하며, 계정마다 자기 프로젝트만 볼 수 있습니다. 회원가입과 토큰 갱신은 없습니다. 계정과 서명 키는 환경 변수로만 설정하며 둘 중 하나라도 없거나 서명 키가 32바이트보다 짧으면 서버가 시작하지 않습니다.
+
+```bash
+# 비밀번호 해시는 bcrypt 값입니다. 평문을 환경 변수에 넣지 않습니다.
+HASH=$(htpasswd -nbB -C 10 demo '비밀번호' | cut -d: -f2)
+SPRING_PROFILES_ACTIVE=demo \
+DEMO_ACCOUNTS="demo:$HASH,guest:<다른 해시>" \
+DEMO_JWT_SECRET="<32바이트 이상 무작위 문자열>" \
+./mvnw spring-boot:run
+```
+
+토큰 유효기간은 `DEMO_TOKEN_TTL`(기본 `PT12H`)입니다. 프론트는 `VITE_AUTH_MODE=demo`로 빌드해야 로그인 화면이 나옵니다.
+
 ```bash
 ./mvnw test
 ./mvnw package

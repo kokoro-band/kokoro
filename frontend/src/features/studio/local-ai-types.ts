@@ -18,7 +18,7 @@ export type LocalLayoutIntentItem =
   | { type: "REMOVE"; targetQuery: string }
   | { type: "CLEAR" }
 
-export type LocalLayoutIntent = {
-  version: 1
-  intents: LocalLayoutIntentItem[]
-}
+/** Either intents to carry out or the model's reason for declining, never both. */
+export type LocalLayoutIntent =
+  | { version: 1; intents: LocalLayoutIntentItem[]; reject?: undefined }
+  | { version: 1; reject: { reason: string }; intents?: undefined }

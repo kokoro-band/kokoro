@@ -102,7 +102,7 @@ async function setup() {
 }
 
 const intent = { version: 1, intents: [{ type: "CLEAR" }] }
-async function ollamaProposal(modelIntent = intent) {
+async function ollamaProposal(modelIntent: object = intent) {
   const app = await setup()
   const fetch = vi.fn().mockResolvedValue(
     new Response(
@@ -423,6 +423,19 @@ it("clears model progress when switching projects and ignores the old reply", as
   expect(app.get().project).toEqual(second)
 })
 
+it("shows the model's rejection as guidance without a confirmation or any change", async () => {
+  const reason = "카탈로그에 없는 가구라서 놓을 수 없어요."
+  const rejection = { version: 1, reject: { reason } }
+  const app = await ollamaProposal(rejection)
+  http.calls[2].resolve(response(app.initial, { reply: reason }))
+  await flush()
+  expect(app.get().project).toEqual(app.initial)
+  expect(app.get().commandReview).toBeNull()
+  expect(app.get().canUndo).toBe(false)
+  expect(app.get().messages.at(-1)?.text).toContain(reason)
+  expect(app.get().busy).toBeNull()
+  expect(http.calls).toHaveLength(3)
+})
 it("preserves the layout and request when the server rejects the model intent", async () => {
   const app = await ollamaProposal()
   http.calls[2].reject(

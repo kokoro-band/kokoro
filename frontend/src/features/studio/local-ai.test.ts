@@ -73,6 +73,28 @@ describe("local layout intent contract", () => {
     else expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
   })
 
+  it.each([
+    ["accepts", 200, true],
+    ["rejects", 201, false],
+  ])(
+    "%s %i astral characters in a rejection reason",
+    (_label, length, valid) => {
+      const intent = { version: 1, reject: { reason: "🪑".repeat(length) } }
+      if (valid) expect(parseLocalLayoutIntent(intent)).toEqual(intent)
+      else expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
+    }
+  )
+
+  it("rejects a rejection with an empty intents list", () => {
+    expect(() =>
+      parseLocalLayoutIntent({
+        version: 1,
+        intents: [],
+        reject: { reason: "안내" },
+      })
+    ).toThrow(LocalAiError)
+  })
+
   it.each(["", null, 1])("rejects relation %j", (relation) => {
     const intent = {
       version: 1,
@@ -96,6 +118,27 @@ describe("requestLocalLayoutIntent", () => {
     const prompt = JSON.parse(fetch.mock.calls[0][1]?.body as string)
       .messages[0].content
     expect(prompt).toMatch(/relation.*NEAR.*FAR_FROM/s)
+  })
+
+  it("lets the model decline and says when to", async () => {
+    const reply = {
+      version: 1,
+      reject: { reason: "어떤 가구인지 알려 주세요." },
+    }
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      chatReply(JSON.stringify(reply))
+    )
+
+    const intent = await requestLocalLayoutIntent("깔끔하게 정리해줘", {
+      catalog,
+      fetch,
+    })
+
+    expect(intent).toEqual(reply)
+    const body = JSON.parse(fetch.mock.calls[0][1]?.body as string)
+    expect(body.messages[0].content).toMatch(/reject/)
+    expect(body.messages[0].content).toMatch(/모호|카탈로그에 없는/)
+    expect(body.format.properties).toHaveProperty("reject")
   })
 
   it("sends only catalog ids, names and footprints to the local model", async () => {

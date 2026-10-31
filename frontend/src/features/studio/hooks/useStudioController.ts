@@ -114,13 +114,10 @@ function localCandidateIndex(
   candidates: number
 ) {
   if (!candidates) return undefined
+  const count = intent.intents?.length ?? 0
   const match = /^(\d+)번째 명령/.exec(reply)
-  const index = match
-    ? Number(match[1]) - 1
-    : intent.intents.length === 1
-      ? 0
-      : -1
-  if (index < 0 || index >= intent.intents.length)
+  const index = match ? Number(match[1]) - 1 : count === 1 ? 0 : -1
+  if (index < 0 || index >= count)
     throw new Error("대상 명령을 확인할 수 없어요. 한 가구씩 요청해 주세요.")
   return index
 }

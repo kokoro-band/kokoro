@@ -43,3 +43,23 @@
 - 초기 실행 경로 RED: `vp test e2e/runtime.test.ts`에서 현재 백엔드 유지와 명시적 의존 백엔드 선택 2개가 실패했습니다. 당시 GREEN은 현재 백엔드와 별도 Ollama 설정을 구분하고 상대 경로나 미지정 의존성을 거절하는 것이었습니다.
 - 현재 백엔드 전환 RED: 같은 명령에서 백엔드 경로를 생략한 Ollama 검사 1개가 실패했습니다. GREEN: 26개 통과. 경로를 생략하면 현재 백엔드를 사용하고 명시적 절대 경로는 허용하며 상대 경로는 거절합니다.
 - Codex CLI 검증: `vp run test:e2e:ollama --project=desktop`과 `--project=narrow` 각각 4개 통과. 추가 예정 가구 선택, 확인 전 미저장, 선택한 가구만 회전, 재시도 중복 방지와 새로고침 후 저장 유지까지 현재 Spring API와 별도 PostgreSQL에서 확인했습니다. Ollama 응답만 모킹했습니다.
+
+## 2026년 10월 31일 실제 모델 검증
+
+Ollama 응답을 모킹하지 않고 실제 `qwen3:4b`로 웹과 Spring 및 PostgreSQL 왕복을 확인했습니다. 장비는 Apple M5와 16GB RAM, Ollama 0.40.13, `qwen3:4b`(`359d7dd4bcda`, Q4_K_M)입니다. 기준 main은 `f356570`입니다.
+
+```bash
+cd frontend
+KOKORO_LIVE_AI=1 vp test src/features/studio/local-ai.live.test.ts
+vp run test:e2e:ollama:live --project=desktop
+```
+
+- 모델 단독 검사 `local-ai.live.test.ts` 9개 통과.
+- `e2e/ollama-live.spec.ts` desktop 3개 통과. 회전 제안의 취소 후 서버 배치 유지와 적용 후 새로고침, 빈 방 추가 후 새로고침, 삭제 후 새로고침을 실제 모델로 확인했습니다. 일반 CI는 모델을 받지 않으므로 이 검사를 실행하지 않습니다.
+- 기존 모킹 검사 `vp run test:e2e:ollama`는 desktop과 narrow 8개 통과. 잘못된 JSON 거절과 응답 유실 후 같은 제안 재확인은 이 검사가 담당합니다.
+
+검증 중 확인한 제한입니다.
+
+- 기준물 없이 `모스 소파를 하나 놓아줘`처럼 추가하면 서버가 고정된 기본 위치를 사용합니다. 그 자리에 가구가 있으면 모델이 의도를 맞게 해석해도 `FURNITURE_OVERLAP` 400으로 거절됩니다. 배치는 바뀌지 않지만 사용자에게는 실패로 보입니다.
+- 문이 없는 방에서 `문에서 멀리`를 요청하면 `NO_ANCHOR` 400으로 거절되고 배치는 유지됩니다. 의도한 안전 동작입니다.
+- 실제 Chrome의 로컬 네트워크 접근 허용 안내와 narrow 실제 모델 실행은 이번에 확인하지 않았습니다.

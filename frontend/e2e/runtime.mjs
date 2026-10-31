@@ -67,7 +67,8 @@ export async function waitUntil(
 }
 
 export function serverTestSetup(args, frontend, source = process.env) {
-  const ollama = args[0] === "--ollama"
+  const live = args[0] === "--ollama-live"
+  const ollama = live || args[0] === "--ollama"
   const command = playwrightArguments(ollama ? args.slice(1) : args)
   if (!ollama)
     return { backend: resolve(frontend, "../backend"), args: command }
@@ -76,6 +77,11 @@ export function serverTestSetup(args, frontend, source = process.env) {
     throw new Error("Ollama integration requires an absolute backend path")
   return {
     backend,
-    args: [...command, "--config=playwright.ollama.config.ts"],
+    args: [
+      ...command,
+      live
+        ? "--config=playwright.ollama-live.config.ts"
+        : "--config=playwright.ollama.config.ts",
+    ],
   }
 }

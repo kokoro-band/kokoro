@@ -1,0 +1,9 @@
+app:
+  security:
+    mode: demo
+    demo:
+      # name:bcryptHash pairs separated by commas. Set only through the environment.
+      accounts: ${DEMO_ACCOUNTS:}
+      # At least 32 bytes. Set only through the environment.
+      jwt-secret: ${DEMO_JWT_SECRET:}
+      token-ttl: ${DEMO_TOKEN_TTL:PT12H}

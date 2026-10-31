@@ -21,15 +21,28 @@ class LocalLayoutIntentTest {
     void acceptsEveryValidFixtureAndRejectsEveryInvalidOne() throws IOException {
         JsonNode fixtures = MAPPER.readTree(Files.readString(
                 Path.of("..", "docs", "contracts", "fixtures", "local-layout-intent.json"), StandardCharsets.UTF_8));
-        assertThat(fixtures.path("valid")).hasSize(8);
-        assertThat(fixtures.path("invalid")).hasSize(13);
+        assertThat(fixtures.path("valid")).hasSize(10);
+        assertThat(fixtures.path("invalid")).hasSize(20);
         for (JsonNode valid : fixtures.path("valid")) {
-            assertThat(LocalLayoutIntent.parse(valid.path("intent"))).as(valid.path("id").asString()).isNotEmpty();
+            var parsed = LocalLayoutIntent.parseRequest(valid.path("intent"));
+            assertThat(parsed.intents().isEmpty() ^ (parsed.rejection() == null)).as(valid.path("id").asString()).isTrue();
         }
         for (JsonNode invalid : fixtures.path("invalid")) {
-            assertThatThrownBy(() -> LocalLayoutIntent.parse(invalid.path("intent")))
+            assertThatThrownBy(() -> LocalLayoutIntent.parseRequest(invalid.path("intent")))
                     .as(invalid.path("id").asString()).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         }
+    }
+
+    @Test
+    void aRejectionCarriesOnlyItsReason() {
+        var parsed = LocalLayoutIntent.parseRequest(MAPPER.readTree("""
+                {"version":1,"reject":{"reason":"카탈로그에 없는 가구예요."}}
+                """));
+        assertThat(parsed.intents()).isEmpty();
+        assertThat(parsed.rejection()).isEqualTo("카탈로그에 없는 가구예요.");
+        assertThat(LocalLayoutIntent.parseRequest(MAPPER.readTree("""
+                {"version":1,"intents":[{"type":"CLEAR"}]}
+                """)).rejection()).isNull();
     }
 
     @Test

@@ -304,7 +304,7 @@ HTTP 개발 주소는 정확한 loopback 표기만 허용합니다. 자세한 �
 }
 ```
 
-브라우저의 로컬 모델이 만든 배치 요청(`docs/contracts/local-layout-intent.md`)을 서버가 검사하고 사용자 확인이 필요한 배치 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 항상 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다.
+브라우저의 로컬 모델이 만든 배치 요청(`docs/contracts/local-layout-intent.md`)을 서버가 검사하고 사용자 확인이 필요한 배치 제안을 만듭니다. 이 요청은 프로젝트를 바꾸지 않습니다. 응답은 `POST /layout/commands`와 같은 형태이며 제안이면 `requiresConfirmation: true`와 `proposalId`, `expiresAt`, `proposedCommands`를 포함합니다. 적용은 `POST /layout/commands/confirm`으로만 합니다. 요청이 `reject`(모델이 해석을 거절)이면 `200`에 `reply`로 사유만 돌려주고 `requiresConfirmation: false`이며 `proposalId`와 `proposedCommands`와 `candidates`가 비어 있습니다. 제안을 저장하지 않고 프로젝트도 바꾸지 않습니다.
 
 - 데이터 형식이 JSON 스키마와 다르면 `400`입니다. 정의되지 않은 필드(예: `x`, `z`)도 거절합니다.
 - 서버 카탈로그에 등록되지 않은 `catalogId`와 대상 표현에 맞는 가구가 없는 경우는 `400`입니다.

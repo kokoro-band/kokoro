@@ -329,12 +329,22 @@ public class ProjectService {
                         break;
                     }
                     double[] ratio = DEFAULT_ADD_RATIOS.getOrDefault(intent.catalogId(), new double[] {0.5, 0.5});
+                    FurnitureItem template = new FurnitureItem("planned", intent.catalogId(),
+                            definition.path("name").asString(), definition.path("category").asString(), 0.0, 0.0, 0.0,
+                            definition.path("color").asString());
+                    // A taken default spot moves to the nearest free one; copies of this request see each other.
+                    List<FurnitureItem> layout = new ArrayList<>(working);
                     for (int copy = 0; copy < intent.count(); copy++) {
                         double shift = copy * (definition.path("width").doubleValue() + 0.1);
-                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(),
-                                plannedId(working, project.revision(), intent.catalogId(), index, copy),
+                        RelativePlacementPlanner.Placement spot = relativePlacementPlanner.placeNear(
+                                project.dimensions(), project.room(), layout, template,
                                 Math.round((bounds.width() * ratio[0] + shift) * 100) / 100.0,
-                                Math.round(bounds.depth() * ratio[1] * 100) / 100.0, 0));
+                                Math.round(bounds.depth() * ratio[1] * 100) / 100.0);
+                        String plannedId = plannedId(working, project.revision(), intent.catalogId(), index, copy);
+                        commands.add(new LayoutCommand(LayoutActionType.ADD, intent.catalogId(), plannedId,
+                                spot.x(), spot.z(), spot.rotation()));
+                        layout.add(new FurnitureItem(plannedId, intent.catalogId(), template.name(),
+                                template.category(), spot.x(), spot.z(), (double) spot.rotation(), template.color()));
                     }
                 }
                 default -> {

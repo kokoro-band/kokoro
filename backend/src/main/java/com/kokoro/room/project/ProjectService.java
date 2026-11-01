@@ -300,7 +300,13 @@ public class ProjectService {
     public ChatCommandResponse proposeIntents(String id, JsonNode intentJson, Map<String, String> selections,
                                               Long expectedRevision) {
         RenovationProject project = lock(id, expectedRevision);
-        List<LocalLayoutIntent.Intent> intents = LocalLayoutIntent.parse(intentJson);
+        LocalLayoutIntent.Parsed parsed = LocalLayoutIntent.parseRequest(intentJson);
+        if (parsed.rejection() != null) {
+            // The model declined: nothing to confirm and nothing stored.
+            return new ChatCommandResponse(parsed.rejection(), List.of(), List.of(), false, project, null, null,
+                    List.of(), List.of());
+        }
+        List<LocalLayoutIntent.Intent> intents = parsed.intents();
         Map<String, String> chosen = selections == null ? Map.of() : selections;
         RoomBounds bounds = bounds(project);
         List<LayoutCommand> commands = new ArrayList<>();

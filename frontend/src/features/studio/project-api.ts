@@ -718,8 +718,22 @@ export async function sendLayoutIntent(
     },
   })
   validateCommandResponse(response, project)
-  if (!response.requiresConfirmation && !response.candidates?.length)
+  // A model rejection comes back as guidance only: no proposal, no candidates, nothing changed.
+  const declined = intent.reject !== undefined
+  if (
+    !declined &&
+    !response.requiresConfirmation &&
+    !response.candidates?.length
+  )
     throw new Error("확인할 제안이 올바르지 않아요. 배치는 그대로예요.")
+  if (
+    declined &&
+    (response.requiresConfirmation ||
+      response.proposalId ||
+      response.candidates?.length ||
+      response.proposedCommands?.length)
+  )
+    throw new Error("거절한 요청에 제안이 왔어요. 배치는 그대로예요.")
   if (commandLayoutKey(response.project) !== commandLayoutKey(project))
     throw new Error("제안 응답의 배치가 달라 적용하지 않았어요.")
   return response

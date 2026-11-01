@@ -7,7 +7,9 @@
     { "id": "remove-and-add", "intent": { "version": 1, "intents": [{ "type": "REMOVE", "targetQuery": "화분" }, { "type": "ADD", "catalogId": "sofa-moss" }] } },
     { "id": "clear", "intent": { "version": 1, "intents": [{ "type": "CLEAR" }] } },
     { "id": "add-far-from-door", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "plant-olive", "anchorQuery": "문", "relation": "FAR_FROM" }] } },
-    { "id": "move-near-window", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "anchorQuery": "창문", "relation": "NEAR" }] } }
+    { "id": "move-near-window", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "anchorQuery": "창문", "relation": "NEAR" }] } },
+    { "id": "reject-ambiguous", "intent": { "version": 1, "reject": { "reason": "어떤 가구를 어떻게 옮길지 알 수 없어요. 가구 이름과 원하는 위치를 알려 주세요." } } },
+    { "id": "reject-unsupported-furniture", "intent": { "version": 1, "reject": { "reason": "카탈로그에 없는 가구라서 놓을 수 없어요." } } }
   ],
   "invalid": [
     { "id": "model-coordinates", "reason": "모델은 좌표를 정하지 못합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "x": 1.2, "z": 3 }] } },
@@ -22,6 +24,13 @@
     { "id": "unknown-version", "reason": "지원하지 않는 계약 버전입니다.", "intent": { "version": 2, "intents": [{ "type": "CLEAR" }] } },
     { "id": "extra-field", "reason": "정의되지 않은 필드입니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR", "confirm": true }] } },
     { "id": "relation-without-anchor", "reason": "relation은 anchorQuery와 함께 써야 합니다.", "intent": { "version": 1, "intents": [{ "type": "MOVE", "targetQuery": "소파", "relation": "NEAR" }] } },
-    { "id": "unknown-relation", "reason": "허용하지 않는 relation 값입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "anchorQuery": "창문", "relation": "BESIDE" }] } }
+    { "id": "unknown-relation", "reason": "허용하지 않는 relation 값입니다.", "intent": { "version": 1, "intents": [{ "type": "ADD", "catalogId": "chair-shell", "anchorQuery": "창문", "relation": "BESIDE" }] } },
+    { "id": "reject-with-intents", "reason": "거절과 의도를 함께 보낼 수 없습니다.", "intent": { "version": 1, "intents": [{ "type": "CLEAR" }], "reject": { "reason": "안내" } } },
+    { "id": "reject-without-reason", "reason": "거절에는 사유가 필요합니다.", "intent": { "version": 1, "reject": {} } },
+    { "id": "reject-blank-reason", "reason": "공백뿐인 사유는 거부합니다.", "intent": { "version": 1, "reject": { "reason": "   " } } },
+    { "id": "reject-reason-too-long", "reason": "사유는 200자 이하입니다.", "intent": { "version": 1, "reject": { "reason": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가" } } },
+    { "id": "reject-extra-field", "reason": "정의되지 않은 필드는 거부합니다.", "intent": { "version": 1, "reject": { "reason": "안내", "code": "X" } } },
+    { "id": "reject-not-object", "reason": "거절은 객체여야 합니다.", "intent": { "version": 1, "reject": "안내" } },
+    { "id": "neither-intents-nor-reject", "reason": "의도나 거절 중 하나가 필요합니다.", "intent": { "version": 1 } }
   ]
 }

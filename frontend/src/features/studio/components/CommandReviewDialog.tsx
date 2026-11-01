@@ -70,7 +70,7 @@ export function CommandReviewDialog({
     review?.status === "stale" ||
     Boolean(review && review.baseKey !== commandLayoutKey(project))
   const candidates = review?.response.candidates ?? []
-  const hasPendingAdd = review?.localIntent?.intents.some(
+  const hasPendingAdd = review?.localIntent?.intents?.some(
     (intent) => intent.type === "ADD"
   )
   const choosing =

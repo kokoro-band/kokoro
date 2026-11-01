@@ -199,6 +199,43 @@ class LayoutIntentApiTest {
         }
     }
 
+    private JsonNode rawIntent(String id, String intentJson, int expected) throws Exception {
+        return send(id, "/layout/intents", "{\"intent\":" + intentJson + "}", expected);
+    }
+
+    @Test
+    void aRejectionIsAnsweredWithItsReasonAndStoresNoProposal() throws Exception {
+        String id = projectWithFurniture();
+        long revision = project(id).path("revision").asLong();
+
+        JsonNode answer = rawIntent(id, "{\"version\":1,\"reject\":{\"reason\":\"카탈로그에 없는 가구라서 놓을 수 없어요.\"}}", 200);
+
+        assertThat(answer.path("reply").asString()).isEqualTo("카탈로그에 없는 가구라서 놓을 수 없어요.");
+        assertThat(answer.path("requiresConfirmation").asBoolean()).isFalse();
+        assertThat(answer.path("proposalId").isNull() || answer.path("proposalId").isMissingNode()).isTrue();
+        assertThat(answer.path("proposedCommands")).isEmpty();
+        assertThat(answer.path("candidates")).isEmpty();
+        assertThat(project(id).path("revision").asLong()).isEqualTo(revision);
+        assertThat(furnitureIds(project(id))).containsExactlyInAnyOrder("sofa-a", "chair-a", "chair-b");
+    }
+
+    @Test
+    void aRejectionStillChecksTheProjectRevision() throws Exception {
+        String id = projectWithFurniture();
+        long revision = project(id).path("revision").asLong();
+
+        send(id, "/layout/intents", "{\"intent\":{\"version\":1,\"reject\":{\"reason\":\"안내\"}},\"expectedRevision\":" + (revision + 5) + "}", 409);
+    }
+
+    @Test
+    void aRejectionMixedWithIntentsOrWithoutAReasonIsInvalid() throws Exception {
+        String id = projectWithFurniture();
+
+        rawIntent(id, "{\"version\":1,\"intents\":[{\"type\":\"CLEAR\"}],\"reject\":{\"reason\":\"안내\"}}", 400);
+        rawIntent(id, "{\"version\":1,\"reject\":{}}", 400);
+        assertThat(furnitureIds(project(id))).containsExactlyInAnyOrder("sofa-a", "chair-a", "chair-b");
+    }
+
     private String projectWithFurniture() throws Exception {
         String created = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"의도 검증\",\"roomType\":\"거실\",\"dimensions\":{\"width\":8,\"depth\":6,\"height\":2.4}}"))

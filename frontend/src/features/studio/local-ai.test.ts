@@ -73,6 +73,28 @@ describe("local layout intent contract", () => {
     else expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
   })
 
+  it.each([
+    ["accepts", 200, true],
+    ["rejects", 201, false],
+  ])(
+    "%s %i astral characters in a rejection reason",
+    (_label, length, valid) => {
+      const intent = { version: 1, reject: { reason: "🪑".repeat(length) } }
+      if (valid) expect(parseLocalLayoutIntent(intent)).toEqual(intent)
+      else expect(() => parseLocalLayoutIntent(intent)).toThrow(LocalAiError)
+    }
+  )
+
+  it("rejects a rejection with an empty intents list", () => {
+    expect(() =>
+      parseLocalLayoutIntent({
+        version: 1,
+        intents: [],
+        reject: { reason: "안내" },
+      })
+    ).toThrow(LocalAiError)
+  })
+
   it.each(["", null, 1])("rejects relation %j", (relation) => {
     const intent = {
       version: 1,
@@ -96,6 +118,97 @@ describe("requestLocalLayoutIntent", () => {
     const prompt = JSON.parse(fetch.mock.calls[0][1]?.body as string)
       .messages[0].content
     expect(prompt).toMatch(/relation.*NEAR.*FAR_FROM/s)
+  })
+
+  it("lets the model decline and says when to", async () => {
+    const reply = {
+      version: 1,
+      reject: { reason: "어떤 가구인지 알려 주세요." },
+    }
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      chatReply(JSON.stringify(reply))
+    )
+
+    const intent = await requestLocalLayoutIntent("깔끔하게 정리해줘", {
+      catalog,
+      fetch,
+    })
+
+    expect(intent).toEqual(reply)
+    const body = JSON.parse(fetch.mock.calls[0][1]?.body as string)
+    expect(body.messages[0].content).toMatch(/reject/)
+    expect(body.messages[0].content).toMatch(/모호|카탈로그에 없는/)
+    // Ollama turns a top-level oneOf of bare "required" rules into a grammar that allows any value,
+    // so the format it receives must be two concrete object shapes.
+    expect(body.format.oneOf).toBeUndefined()
+    expect(body.format.anyOf).toHaveLength(2)
+    const [withIntents, withReject] = body.format.anyOf
+    expect(withIntents).toMatchObject({
+      type: "object",
+      required: ["version", "intents"],
+    })
+    expect(withIntents.properties).not.toHaveProperty("reject")
+    expect(withReject).toMatchObject({
+      type: "object",
+      required: ["version", "reject"],
+    })
+    expect(withReject.properties).not.toHaveProperty("intents")
+    expect(body.format.$defs).toBeDefined()
+  })
+
+  it.each([
+    [
+      "a single unknown furniture",
+      [{ type: "ADD", catalogId: "refrigerator" }],
+    ],
+    [
+      "an unknown furniture mixed with a known one",
+      [
+        { type: "REMOVE", targetQuery: "소파" },
+        { type: "ADD", catalogId: "sofa-moss" },
+        { type: "ADD", catalogId: "curtain", count: 2 },
+      ],
+    ],
+  ])(
+    "turns %s into a rejection instead of a proposal",
+    async (_label, intents) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        chatReply(JSON.stringify({ version: 1, intents }))
+      )
+
+      const answer = await requestLocalLayoutIntent("냉장고를 놓아줘", {
+        catalog,
+        fetch,
+      })
+
+      expect(answer.intents).toBeUndefined()
+      expect(answer.reject?.reason).toContain("카탈로그에 없는")
+      // The whole request is declined so a half-applied layout is never proposed.
+      expect(answer).toEqual({
+        version: 1,
+        reject: { reason: expect.stringContaining("카탈로그에 없는") },
+      })
+    }
+  )
+
+  it("keeps a request whose furniture is all in the catalog", async () => {
+    const same = {
+      version: 1,
+      intents: [
+        { type: "ADD", catalogId: "sofa-moss", count: 2 },
+        { type: "MOVE", targetQuery: "의자", anchorQuery: "창가" },
+      ],
+    }
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      chatReply(JSON.stringify(same))
+    )
+
+    expect(
+      await requestLocalLayoutIntent("모스 소파 두 개 놓고 의자를 옮겨줘", {
+        catalog,
+        fetch,
+      })
+    ).toEqual(same)
   })
 
   it("sends only catalog ids, names and footprints to the local model", async () => {

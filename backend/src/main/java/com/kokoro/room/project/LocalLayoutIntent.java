@@ -28,18 +28,43 @@ public final class LocalLayoutIntent {
     private static final Pattern CATALOG_ID = Pattern.compile("^[a-z0-9][a-z0-9-]{0,99}$");
     private static final Set<String> COMMON = Set.of("type");
 
-    public static List<Intent> parse(JsonNode root) {
+    /** Either intents or a rejection reason, never both. */
+    public record Parsed(List<Intent> intents, String rejection) {}
+
+    private static final int MAX_REASON_CODE_POINTS = 200;
+
+    public static Parsed parseRequest(JsonNode root) {
         if (root == null || !root.isObject()) throw invalid("의도 형식이 올바르지 않습니다.");
-        onlyKeys(root, Set.of("version", "intents"));
+        onlyKeys(root, Set.of("version", "intents", "reject"));
         if (!root.path("version").isIntegralNumber() || !root.path("version").canConvertToInt()
                 || root.path("version").intValue() != 1) {
             throw invalid("지원하지 않는 의도 버전입니다.");
         }
+        boolean hasIntents = root.has("intents");
+        boolean hasReject = root.has("reject");
+        if (hasIntents && hasReject) throw invalid("의도와 거절을 함께 보낼 수 없습니다.");
+        if (!hasIntents && !hasReject) throw invalid("의도 또는 거절이 필요합니다.");
+        if (hasReject) return new Parsed(List.of(), reason(root.path("reject")));
         JsonNode items = root.path("intents");
         if (!items.isArray() || items.isEmpty() || items.size() > 10) throw invalid("의도는 1개 이상 10개 이하여야 합니다.");
         List<Intent> result = new ArrayList<>();
         for (JsonNode item : items) result.add(intent(item));
-        return result;
+        return new Parsed(result, null);
+    }
+
+    /** The intents of a request; a rejection has none. */
+    public static List<Intent> parse(JsonNode root) {
+        return parseRequest(root).intents();
+    }
+
+    private static String reason(JsonNode reject) {
+        if (!reject.isObject()) throw invalid("거절 형식이 올바르지 않습니다.");
+        onlyKeys(reject, Set.of("reason"));
+        String reason = text(reject, "reason");
+        if (reason.isBlank() || reason.codePointCount(0, reason.length()) > MAX_REASON_CODE_POINTS) {
+            throw invalid("거절 사유는 공백이 아닌 200자 이하여야 합니다.");
+        }
+        return reason;
     }
 
     private static Intent intent(JsonNode item) {

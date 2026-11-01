@@ -80,7 +80,7 @@ describe.runIf(process.env.KOKORO_LIVE_AI === "1")("local Ollama model", () => {
       const intent = await requestLocalLayoutIntent("소파를 창가로 옮겨줘", {
         catalog,
       })
-      expect(intent.intents[0]).toMatchObject({
+      expect(intent.intents?.[0]).toMatchObject({
         type: "MOVE",
         targetQuery: expect.stringContaining("소파"),
       })

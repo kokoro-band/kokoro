@@ -18,7 +18,7 @@ const datasetPath = new URL(
   import.meta.url
 )
 const resultPath = new URL(
-  "../../../../docs/ai/qwen3-4b-results.json",
+  "../../../../docs/ai/qwen3-4b-reject-results.json",
   import.meta.url
 )
 
@@ -43,6 +43,7 @@ type Measured = {
   raw: Intent[]
   matched: boolean
   wrongProposal: boolean
+  overRejected: boolean
   jsonValid: boolean
   ms: number
 }
@@ -86,10 +87,14 @@ describe.runIf(process.env.KOKORO_LIVE_AI_EVAL === "1")(
         for (const row of dataset.items) {
           const started = performance.now()
           let intents: Intent[] = []
+          let declined = false
           let error: string | null = null
           try {
-            intents = (await requestLocalLayoutIntent(row.input, { catalog }))
-              .intents as Intent[]
+            const answer = await requestLocalLayoutIntent(row.input, {
+              catalog,
+            })
+            declined = answer.reject !== undefined
+            intents = (answer.intents ?? []) as Intent[]
           } catch (caught) {
             if (!(caught instanceof LocalAiError)) throw caught
             error = caught.kind
@@ -99,8 +104,9 @@ describe.runIf(process.env.KOKORO_LIVE_AI_EVAL === "1")(
           const requiresConfirmation = intents.some(
             (intent) => intent.type === "CLEAR"
           )
+          // A row that must be refused counts only when the model declined on purpose; an error is not a refusal.
           const matched = row.expectedRejection
-            ? intents.length === 0
+            ? declined
             : intents.length === row.expectedIntents.length &&
               requiresConfirmation === row.expectedRequiresConfirmation &&
               row.expectedIntents.every(
@@ -122,11 +128,17 @@ describe.runIf(process.env.KOKORO_LIVE_AI_EVAL === "1")(
                     catalogId: e.target ? `${e.target}-x` : undefined,
                   }))
                 ),
-            actual: error ? `오류(${error})` : describeIntents(intents),
+            actual: error
+              ? `오류(${error})`
+              : declined
+                ? "[거절]"
+                : describeIntents(intents),
             raw: intents,
             matched,
             // A proposal for a row that should be refused. It is shown for confirmation, not applied.
             wrongProposal: row.expectedRejection && intents.length > 0,
+            // Declined a request that should have been carried out.
+            overRejected: !row.expectedRejection && declined,
             jsonValid: error !== "invalid-response",
             ms,
           })
@@ -148,6 +160,7 @@ describe.runIf(process.env.KOKORO_LIVE_AI_EVAL === "1")(
                   subset.length
               ) / 10,
             wrongProposal: subset.filter((row) => row.wrongProposal).length,
+            overRejected: subset.filter((row) => row.overRejected).length,
             medianMs: percentile(times, 50),
             p95Ms: percentile(times, 95),
             maxMs: Math.max(...times),

@@ -325,5 +325,24 @@ async function chat(
   } catch (cause) {
     throw new LocalAiError("invalid-response", cause)
   }
-  return parseLocalLayoutIntent(parsed)
+  return declineUnknownFurniture(parseLocalLayoutIntent(parsed), catalog)
+}
+
+const unknownFurnitureReason = "카탈로그에 없는 가구라서 놓을 수 없어요."
+
+// The model must not invent furniture, but a small model does anyway. Check its ids against the catalog
+// the client already holds and decline the whole request, so nothing is half applied and the user sees
+// guidance instead of a server error for an id that never existed.
+function declineUnknownFurniture(
+  intent: LocalLayoutIntent,
+  catalog: CatalogItem[]
+): LocalLayoutIntent {
+  if (!intent.intents) return intent
+  const known = new Set(catalog.map((item) => item.id))
+  const unknown = intent.intents.some(
+    (item) => item.type === "ADD" && !known.has(item.catalogId)
+  )
+  return unknown
+    ? { version: 1, reject: { reason: unknownFurnitureReason } }
+    : intent
 }

@@ -156,6 +156,61 @@ describe("requestLocalLayoutIntent", () => {
     expect(body.format.$defs).toBeDefined()
   })
 
+  it.each([
+    [
+      "a single unknown furniture",
+      [{ type: "ADD", catalogId: "refrigerator" }],
+    ],
+    [
+      "an unknown furniture mixed with a known one",
+      [
+        { type: "REMOVE", targetQuery: "소파" },
+        { type: "ADD", catalogId: "sofa-moss" },
+        { type: "ADD", catalogId: "curtain", count: 2 },
+      ],
+    ],
+  ])(
+    "turns %s into a rejection instead of a proposal",
+    async (_label, intents) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        chatReply(JSON.stringify({ version: 1, intents }))
+      )
+
+      const answer = await requestLocalLayoutIntent("냉장고를 놓아줘", {
+        catalog,
+        fetch,
+      })
+
+      expect(answer.intents).toBeUndefined()
+      expect(answer.reject?.reason).toContain("카탈로그에 없는")
+      // The whole request is declined so a half-applied layout is never proposed.
+      expect(answer).toEqual({
+        version: 1,
+        reject: { reason: expect.stringContaining("카탈로그에 없는") },
+      })
+    }
+  )
+
+  it("keeps a request whose furniture is all in the catalog", async () => {
+    const same = {
+      version: 1,
+      intents: [
+        { type: "ADD", catalogId: "sofa-moss", count: 2 },
+        { type: "MOVE", targetQuery: "의자", anchorQuery: "창가" },
+      ],
+    }
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      chatReply(JSON.stringify(same))
+    )
+
+    expect(
+      await requestLocalLayoutIntent("모스 소파 두 개 놓고 의자를 옮겨줘", {
+        catalog,
+        fetch,
+      })
+    ).toEqual(same)
+  })
+
   it("sends only catalog ids, names and footprints to the local model", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       chatReply(JSON.stringify(moveIntent))

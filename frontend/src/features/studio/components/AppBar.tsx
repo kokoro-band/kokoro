@@ -5,6 +5,7 @@ import {
   IconChevronDownLine,
   IconDocumentLine,
   IconHouseLine,
+  IconPersonLine,
   IconPlusLine,
   IconQuestionmarkCircleLine,
 } from "@karrotmarket/react-monochrome-icon"
@@ -53,6 +54,7 @@ export function AppBar({
   onOpenFloorPlan,
   onExport,
   onOpenShortcuts,
+  onLogout,
 }: {
   projectName: string
   view: StudioView
@@ -75,6 +77,8 @@ export function AppBar({
   onOpenFloorPlan: () => void
   onExport: () => void
   onOpenShortcuts: () => void
+  /** Only passed when the studio sits behind a login. */
+  onLogout?: () => void
 }) {
   return (
     <header className="app-bar">
@@ -130,6 +134,15 @@ export function AppBar({
                     onClick={onExport}
                   />
                 </MenuGroup>
+                {onLogout && (
+                  <MenuGroup>
+                    <MenuItem
+                      label="로그아웃"
+                      prefixIcon={<IconPersonLine />}
+                      onClick={onLogout}
+                    />
+                  </MenuGroup>
+                )}
               </MenuContent>
             </MenuRoot>
           </>

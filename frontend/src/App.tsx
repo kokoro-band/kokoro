@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import {
   Snackbar,
   SnackbarProvider,
@@ -21,6 +27,14 @@ import {
   type Notice,
 } from "@/features/studio/hooks/useStudioController"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
+import { forgetActiveProject } from "@/features/studio/project-api"
+import {
+  authRequired,
+  currentSession,
+  logout,
+  subscribeSession,
+} from "@/lib/auth"
+import { queryClient } from "@/lib/query-client"
 import { useMediaQuery } from "@/lib/use-media-query"
 
 export default function App() {
@@ -84,6 +98,9 @@ function NoticeSnackbar({
 
 function Studio() {
   const studio = useStudioController()
+  const signedIn = Boolean(
+    useSyncExternalStore(subscribeSession, currentSession)
+  )
   const uploadRef = useRef<HTMLInputElement>(null)
   const isMobile = useMediaQuery("(max-width: 820px)")
   const hasRooms = Boolean(studio.project.room?.rooms?.length)
@@ -139,6 +156,18 @@ function Studio() {
     else openTarget(target)
   }
 
+  const signOut = () => {
+    if (
+      studio.dirty &&
+      !window.confirm("저장하지 않은 변경이 있어요. 그래도 로그아웃할까요?")
+    )
+      return
+    // Drop what the previous person had open, then show the login form again.
+    forgetActiveProject()
+    queryClient.clear()
+    logout()
+  }
+
   return (
     <div className="studio-app">
       <AppBar
@@ -161,6 +190,7 @@ function Studio() {
         onOpenFloorPlan={() => setFloorPlanOpen(true)}
         onExport={studio.exportProject}
         onOpenShortcuts={() => setGuideOpen(true)}
+        onLogout={authRequired && signedIn ? signOut : undefined}
       />
       <main id="workspace" className="workspace">
         {!ready ? (

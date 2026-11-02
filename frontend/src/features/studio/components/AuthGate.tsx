@@ -19,20 +19,32 @@ import {
 import { Type } from "@/components/kokoro/Type"
 import { normalizeApiError } from "@/lib/http-client"
 
+type DemoHint = { username: string; password: string }
+
+// An optional public demo account shown as gray placeholder text; it is a hint and never filled in.
+const envHint: DemoHint | undefined = import.meta.env.VITE_DEMO_HINT_USER
+  ? {
+      username: import.meta.env.VITE_DEMO_HINT_USER,
+      password: import.meta.env.VITE_DEMO_HINT_PASSWORD ?? "",
+    }
+  : undefined
+
 /** Shows the login screen first when the build asks for a demo login. */
 export function AuthGate({
   required = authRequired,
+  hint = envHint,
   children,
 }: {
   required?: boolean
+  hint?: DemoHint
   children: ReactNode
 }) {
   const session = useSyncExternalStore(subscribeSession, currentSession)
   if (!required || session) return <>{children}</>
-  return <LoginScreen />
+  return <LoginScreen hint={hint} />
 }
 
-function LoginScreen() {
+function LoginScreen({ hint }: { hint?: DemoHint }) {
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -95,6 +107,7 @@ function LoginScreen() {
             autoComplete="username"
             autoFocus
             maxLength={64}
+            placeholder={signingUp ? undefined : hint?.username}
           />
         </TextField>
         <TextField
@@ -109,6 +122,7 @@ function LoginScreen() {
             type="password"
             autoComplete={signingUp ? "new-password" : "current-password"}
             maxLength={128}
+            placeholder={signingUp ? undefined : hint?.password}
           />
         </TextField>
         {signingUp && (

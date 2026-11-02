@@ -22,14 +22,17 @@ async function flush() {
     for (let i = 0; i < 40; i++) await Promise.resolve()
   })
 }
-function mount(required: boolean) {
+function mount(
+  required: boolean,
+  hint?: { username: string; password: string }
+) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   const container = document.createElement("div")
   document.body.append(container)
   const root = createRoot(container)
   act(() =>
     root.render(
-      <AuthGate required={required}>
+      <AuthGate required={required} hint={hint}>
         <p>스튜디오 화면</p>
       </AuthGate>
     )
@@ -224,4 +227,51 @@ it("goes back to the login form from sign-up", async () => {
   )
 
   expect(container.querySelector('input[name="password-confirm"]')).toBeNull()
+})
+
+function placeholders(container: HTMLElement) {
+  const value = (name: string) =>
+    container
+      .querySelector<HTMLInputElement>(`input[name="${name}"]`)
+      ?.getAttribute("placeholder") ?? null
+  return {
+    username: value("username"),
+    password: value("password"),
+    confirm: value("password-confirm"),
+  }
+}
+
+it("hints the demo account in gray placeholder text on the login form", () => {
+  const container = mount(true, { username: "test", password: "1234" })
+
+  expect(placeholders(container)).toMatchObject({
+    username: "test",
+    password: "1234",
+  })
+  // A placeholder is only a hint, not a typed value.
+  expect(
+    container.querySelector<HTMLInputElement>('input[name="username"]')!.value
+  ).toBe("")
+  expect(buttonWithText(container, "로그인")!.disabled).toBe(true)
+})
+
+it("shows no demo hint on the sign-up form", async () => {
+  const container = mount(true, { username: "test", password: "1234" })
+
+  await openSignup(container)
+
+  expect(placeholders(container)).toEqual({
+    username: null,
+    password: null,
+    confirm: null,
+  })
+})
+
+it("shows no placeholders without a configured hint", () => {
+  const container = mount(true)
+
+  expect(placeholders(container)).toMatchObject({
+    username: null,
+    password: null,
+  })
 })

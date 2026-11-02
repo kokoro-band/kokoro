@@ -105,6 +105,15 @@ export function rememberActiveProject(projectId: string) {
   }
 }
 
+/** Signing out must not leave the next person pointing at the previous person's project. */
+export function forgetActiveProject() {
+  try {
+    localStorage.removeItem(activeProjectStorageKey)
+  } catch {
+    // Nothing remembered that could outlive the session.
+  }
+}
+
 export function getProject(projectId: string) {
   return request<Project>({ url: projectPath(projectId) }).then((project) =>
     validateServerProject(project, projectId)

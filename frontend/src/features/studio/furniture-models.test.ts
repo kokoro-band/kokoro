@@ -30,7 +30,25 @@ const modelHeights: Record<string, number> = {
   "chair-sand": 0.88,
   "plant-olive": 1.22,
   "lamp-arc": 1.68,
+  "bed-linen": 0.98,
+  "bed-day": 0.78,
+  "storage-reed": 0.82,
+  "storage-open": 1.62,
+  "storage-drawer": 0.88,
+  "storage-media": 0.48,
+  "table-dining": 0.74,
+  "table-writing": 0.75,
+  "table-side": 0.43,
+  "chair-bench": 0.46,
+  "chair-stool": 0.55,
+  "sofa-reading": 0.85,
 }
+
+it("publishes the complete furniture collection", () => {
+  expect(catalog.map((item) => item.id).sort()).toEqual(
+    Object.keys(modelHeights).sort()
+  )
+})
 
 it.each(catalog)(
   "publishes a normalized $id model and matching thumbnail",

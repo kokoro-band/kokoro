@@ -7,7 +7,7 @@ import { SceneEditor } from "./SceneEditor"
 import { NewProjectDialog } from "./NewProjectDialog"
 import { useShortcut } from "../hooks/useShortcut"
 import { sampleProject } from "../data"
-import type { ViewMode } from "../types"
+import type { Furniture, ViewMode } from "../types"
 import type { CursorTool } from "../scene-interaction"
 
 // Keep actual SceneEditor, SEED menu/dialog and hotkeys. Replace only WebGL.
@@ -16,14 +16,17 @@ vi.mock("../RoomScene", () => ({
     tool,
     doorStates,
     highlightedDoorId,
+    furniture,
   }: {
     tool: CursorTool
     doorStates: Record<string, boolean>
     highlightedDoorId: string | null
+    furniture: Furniture[]
   }) => (
     <output
       aria-label="장면 입력"
       data-tool={tool}
+      data-furniture={JSON.stringify(furniture.map((item) => item.id))}
       data-doors={JSON.stringify(doorStates)}
       data-highlight={highlightedDoorId ?? ""}
     />
@@ -165,6 +168,17 @@ describe("scene tools wired to actual keyboard controls", () => {
       "집 전체"
     )
     expect(app.button("3D").getAttribute("aria-checked")).toBe("true")
+  })
+  it("shows furniture in every walkable room in VR and restores the editing scope on return", async () => {
+    const app = await setup(0)
+    const visible = (): string[] => JSON.parse(app.scene().dataset.furniture!)
+    const focused = visible()
+    const all = sampleProject.furniture.map((item) => item.id)
+    expect(focused.length).toBeLessThan(all.length)
+    await app.click("VR")
+    expect(visible()).toEqual(all)
+    await app.click("3D")
+    expect(visible()).toEqual(focused)
   })
   it("puts the editing area in the tab order and describes how to move furniture", async () => {
     const app = await setup()

@@ -267,7 +267,7 @@ describe("save recovery through the real App and SEED UI", () => {
     viewport.mobile = true
     const ui = await setup()
     await ui.click("배치")
-    await ui.click("방 고르기")
+    await ui.click("방과 가구")
     await ui.click("거실 비어 있어요")
     await ui.click("가구 놓기")
     await ui.click("셸 체어 거실에 놓기")

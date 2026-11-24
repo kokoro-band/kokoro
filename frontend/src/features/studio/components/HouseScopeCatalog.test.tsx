@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { ArrangeView } from "./ArrangeView"
 import { useStudioController } from "../hooks/useStudioController"
 import { catalog, sampleProject } from "../data"
+import { roomForFurniture } from "../house-navigation"
 import { placementIssues } from "../placement-issues"
 import type { Project } from "../types"
 
@@ -125,9 +126,9 @@ describe("catalogue and furniture list in the whole-house view", () => {
     await ui.click("셸 체어 집에 놓기")
     expect(ui.roomIndex()).toBeNull()
     const furniture = ui.saved().furniture
-    expect(furniture).toHaveLength(5)
+    expect(furniture).toHaveLength(sampleProject.furniture.length + 1)
     expect(placementIssues(ui.saved())).toEqual([])
-    expect(ui.controller.current!.selectedId).toBe(furniture[4].id)
+    expect(ui.controller.current!.selectedId).toBe(furniture.at(-1)!.id)
     expect(
       ui.container.querySelector(".inspector-identity")?.textContent
     ).toContain("셸 체어")
@@ -135,13 +136,16 @@ describe("catalogue and furniture list in the whole-house view", () => {
 
   it("lists every placed item with its room and selects it from the list", async () => {
     const ui = await setup()
-    await ui.click("배치한 가구 4")
+    await ui.click(`배치한 가구 ${sampleProject.furniture.length}`)
     expect(ui.placed().map((item) => item.dataset.furnitureId)).toEqual(
       sampleProject.furniture.map((item) => item.id)
     )
-    for (const item of ui.placed()) {
-      expect(item.closest("li")!.textContent).toContain("거실")
-      expect(item.getAttribute("aria-description")).toBe("거실")
+    const rooms = sampleProject.room!.rooms
+    for (const [index, item] of ui.placed().entries()) {
+      const roomName =
+        rooms[roomForFurniture(rooms, sampleProject.furniture[index])].name
+      expect(item.closest("li")!.textContent).toContain(roomName)
+      expect(item.getAttribute("aria-description")).toBe(roomName)
     }
     const chair = ui
       .placed()

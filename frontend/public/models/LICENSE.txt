@@ -1,4 +1,6 @@
 The current GLBs, thumbnails and oak floor finish were created for Kokoro in Blender.
+The twelve additions for bedrooms, storage, dining and workspaces are original Kokoro designs.
+The historical mappings below apply only to the eight entries in the initial catalog.
 The initial catalog used models from the Kenney Furniture Kit (2.0).
 https://kenney.nl/assets/furniture-kit
 Original kit license: Creative Commons Zero (CC0) — https://creativecommons.org/publicdomain/zero/1.0/

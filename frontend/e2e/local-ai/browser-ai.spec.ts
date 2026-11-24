@@ -63,7 +63,7 @@ test("rotation waits for confirmation and survives reload in storage and furnitu
   ).toBeVisible()
   await page.getByRole("button", { name: "배치", exact: true }).click()
   if (narrow)
-    await page.getByRole("button", { name: "방 고르기", exact: true }).click()
+    await page.getByRole("button", { name: "방과 가구", exact: true }).click()
   await page.getByRole("button", { name: /^거실 가구 2개/ }).click()
   if (narrow)
     await page.getByRole("button", { name: "가구 놓기", exact: true }).click()

@@ -298,7 +298,9 @@ describe("local commands placed beside existing furniture", () => {
     expect(added.map((item) => item.catalogId)).toEqual(["plant-olive"])
     expect(containsPoint(living.polygon, added[0].x, added[0].z)).toBe(true)
     expect(placementIssues(response.project)).toEqual([])
-    expect(response.project.furniture.slice(0, 4)).toEqual(project.furniture)
+    expect(
+      response.project.furniture.slice(0, project.furniture.length)
+    ).toEqual(project.furniture)
   })
 
   it("keeps the layout when two pieces could be the reference", async () => {
@@ -354,7 +356,19 @@ describe("local commands placed by a window", () => {
     const api = await localApi()
     const { placementIssues } = await import("./placement-issues")
     const project = structuredClone(sampleProject)
-    const response = await api.sendCommand(project, "창가에 의자를 옮겨줘")
+    const message = "창가에 의자를 옮겨줘"
+    const choices = await api.sendCommand(project, message)
+    expect(choices.candidates.map((item) => item.furnitureId).sort()).toEqual([
+      "bench-01",
+      "chair-01",
+    ])
+    expect(choices.project.furniture).toEqual(project.furniture)
+    const response = await api.sendCommand(
+      project,
+      message,
+      undefined,
+      "chair-01"
+    )
     const chair = response.project.furniture.find(
       (item) => item.id === "chair-01"
     )!

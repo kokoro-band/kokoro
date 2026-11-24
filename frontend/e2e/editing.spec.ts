@@ -233,7 +233,7 @@ suite(
     expect(shrunk.furniture).toEqual(added.furniture)
     expect(shrunk.room!.bounds).toEqual({ width: 2, depth: 2 })
     if (narrow)
-      await page.getByRole("button", { name: "방 고르기", exact: true }).click()
+      await page.getByRole("button", { name: "방과 가구", exact: true }).click()
     const issues = page.getByRole("region", {
       name: "배치 확인이 필요한 가구",
       exact: true,

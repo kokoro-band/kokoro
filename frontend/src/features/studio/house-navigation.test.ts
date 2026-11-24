@@ -9,13 +9,23 @@ import {
 } from "./house-navigation"
 
 describe("house navigation", () => {
-  it("places the sample furniture in the living room and totals its catalog prices", () => {
+  it("places the sample furniture in its rooms and totals its catalog prices", () => {
     const rooms = sampleProject.room!.rooms
-    const livingRoom = rooms.findIndex((room) => room.name === "거실")
     expect(
-      sampleProject.furniture.map((item) => roomForFurniture(rooms, item))
-    ).toEqual([livingRoom, livingRoom, livingRoom, livingRoom])
-    expect(projectTotal(sampleProject)).toBe(1_463_000)
+      sampleProject.furniture.map(
+        (item) => rooms[roomForFurniture(rooms, item)]?.name
+      )
+    ).toEqual([
+      "거실",
+      "거실",
+      "거실",
+      "거실",
+      "안방",
+      "주방 · 식당",
+      "주방 · 식당",
+      "방1",
+    ])
+    expect(projectTotal(sampleProject)).toBe(3_272_000)
   })
 
   it("chooses an interior point for a room with a recessed corner", () => {

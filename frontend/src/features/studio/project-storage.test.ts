@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { sampleProject } from "./data"
 import {
+  createProject,
   readSavedProjectWithRecovery,
   saveProject,
   saveRoom,
@@ -9,6 +10,8 @@ import {
   maxStoredProjectLength,
   parseStoredProject,
 } from "./project-validation"
+import { roomForFurniture } from "./house-navigation"
+import { placementIssues } from "./placement-issues"
 import { buildRoomModel, createDraft } from "./room-builder"
 
 const key = "kokoro-remodel-project-v1"
@@ -47,6 +50,27 @@ function repeated<T extends object>(value: T, count: number) {
 }
 
 describe("local project read boundary", () => {
+  it("furnishes the first-visit demo by room without adding demo pieces to a user's project", async () => {
+    const demo = readSavedProjectWithRecovery().project
+    const rooms = demo.room!.rooms
+    const byRoom = (name: string) =>
+      demo.furniture
+        .filter((piece) => rooms[roomForFurniture(rooms, piece)]?.name === name)
+        .map((piece) => piece.catalogId)
+    expect(byRoom("안방")).toContain("bed-linen")
+    expect(byRoom("주방 · 식당")).toEqual(
+      expect.arrayContaining(["table-dining", "chair-bench"])
+    )
+    expect(byRoom("방1")).toContain("storage-open")
+    expect(placementIssues(demo)).toEqual([])
+    const previous = { ...demo, furniture: demo.furniture.slice(0, 4) }
+    values.set(key, JSON.stringify(previous))
+    expect(readSavedProjectWithRecovery().project.furniture).toEqual(
+      previous.furniture
+    )
+    expect((await createProject("빈 프로젝트")).furniture).toEqual([])
+  })
+
   it("restores a valid project including repairable out-of-room furniture and old catalog IDs", () => {
     const saved = project()
     saved.furniture[0] = {
@@ -60,6 +84,29 @@ describe("local project read boundary", () => {
     expect(setItem).not.toHaveBeenCalled()
     expect(removeItem).not.toHaveBeenCalled()
   })
+  it.each([
+    ["bed-linen", "침대"],
+    ["storage-open", "수납"],
+  ] as const)(
+    "saves and reopens a placed %s without changing its transform",
+    async (catalogId, category) => {
+      const saved = project()
+      saved.furniture.push({
+        ...saved.furniture[0],
+        id: "added-furniture",
+        catalogId,
+        category,
+        x: 3.4,
+        z: 4.2,
+        rotation: 90,
+      })
+      await saveProject(saved)
+      expect(readSavedProjectWithRecovery().project.furniture).toEqual(
+        saved.furniture
+      )
+    }
+  )
+
   it("accepts new projects with no room and no furniture", () => {
     const saved = {
       ...project(),

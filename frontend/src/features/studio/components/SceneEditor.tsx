@@ -165,9 +165,9 @@ export function SceneEditor({
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
-  // 고른 가구는 끌려서 옆방으로 넘어가는 동안에도 화면에 남깁니다.
+  // VR에서는 고른 방에서 출발해 집 전체를 걸어 다닐 수 있습니다.
   const visibleFurniture =
-    focusIndex >= 0 && rooms
+    mode !== "vr" && focusIndex >= 0 && rooms
       ? project.furniture.filter(
           (item) =>
             item.id === selectedId ||

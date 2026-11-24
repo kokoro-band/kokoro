@@ -12,6 +12,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasSize;
@@ -34,16 +39,22 @@ class FurnitureRegistryTest {
     @Autowired TransactionTemplate transactions;
 
     @Test
-    void exposesEightCompleteEntriesAndTheirSourceInventory() throws Exception {
+    void exposesTheExpandedCollectionAndTheirSourceInventory() throws Exception {
         String body = mvc.perform(get("/api/furniture-catalog"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items", hasSize(8)))
+                .andExpect(jsonPath("$.items", hasSize(20)))
                 .andExpect(jsonPath("$.sourceAssetCount").value(140))
                 .andExpect(jsonPath("$.priceKind").value("example"))
                 .andExpect(jsonPath("$.dimensionKind").value("example"))
                 .andExpect(jsonPath("$.source.license").value("CC0-1.0"))
                 .andReturn().getResponse().getContentAsString();
         for (var item : mapper.readTree(body).path("items")) {
+            var origin = item.path("provenance");
+            if ("kokoro-blender".equals(origin.path("kind").asString())) {
+                var glb = Path.of("../frontend/public/models", origin.path("modelAsset").asString());
+                var digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(glb));
+                assertThat(HexFormat.of().formatHex(digest)).isEqualTo(origin.path("modelSha256").asString());
+            }
             assertThat(item.path("name").asString()).isNotBlank();
             assertThat(item.path("width").doubleValue()).isPositive();
             assertThat(item.path("depth").doubleValue()).isPositive();

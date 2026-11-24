@@ -171,7 +171,8 @@ export function ArrangeView({
   useEffect(function followCommittedMove() {
     if (followedCommit.current === moveCommits) return
     followedCommit.current = moveCommits
-    follow(selected)
+    // VR에서 출발한 방을 바꾸면 렌더러가 교체되어 헤드셋 세션이 끊깁니다.
+    if (studio.mode !== "vr") follow(selected)
   })
 
   /** 집 전체와 방들을 차례로 돕니다. */
@@ -452,7 +453,7 @@ export function ArrangeView({
       sheet === "navigator"
         ? room
           ? `${room.name}에 가구 놓기`
-          : "방 고르기"
+          : "방과 가구"
         : sheet === "assistant"
           ? "AI 배치"
           : "선택한 가구"
@@ -469,64 +470,69 @@ export function ArrangeView({
         )}
         {scene}
         {selected && sheet !== "selection" && (
-          <section className="selection-bar" aria-label="선택한 가구 빠른 도구">
-            <FurnitureThumb
-              catalogId={selected.catalogId}
-              category={selected.category}
-              color={selected.color}
-            />
-            <Type
-              variant="label"
-              as="p"
-              className="selection-bar-name"
-              maxLines={1}
-              title={selected.name}
+          <SnackbarAvoidOverlap>
+            <section
+              className="selection-bar"
+              aria-label="선택한 가구 빠른 도구"
             >
-              {selected.name}
-            </Type>
-            {moveTargets.length > 0 && (
-              <FurnitureRoomMenu
-                targets={moveTargets}
-                onMove={moveToRoom}
-                compact
+              <FurnitureThumb
+                catalogId={selected.catalogId}
+                category={selected.category}
+                color={selected.color}
               />
-            )}
-            <ActionButton
-              variant="ghost"
-              size="small"
-              layout="iconOnly"
-              aria-label="90도 돌리기"
-              onClick={() => rotate(90)}
-            >
-              <Icon svg={<IconArrowClockwiseCircularLine />} size="x5" />
-            </ActionButton>
-            <ActionButton
-              variant="ghost"
-              size="small"
-              layout="iconOnly"
-              color="fg.critical"
-              aria-label="가구 빼기"
-              onClick={deleteSelected}
-            >
-              <Icon svg={<IconTrashcanLine />} size="x5" />
-            </ActionButton>
-            <ActionButton
-              variant="neutralWeak"
-              size="small"
-              onClick={() => setSheet("selection")}
-            >
-              자세히
-            </ActionButton>
-            <ActionButton
-              variant="ghost"
-              size="small"
-              layout="iconOnly"
-              aria-label="선택 해제"
-              onClick={() => selectFurniture(null)}
-            >
-              <Icon svg={<IconXmarkLine />} size="x5" />
-            </ActionButton>
-          </section>
+              <Type
+                variant="label"
+                as="p"
+                className="selection-bar-name"
+                maxLines={1}
+                title={selected.name}
+              >
+                {selected.name}
+              </Type>
+              {moveTargets.length > 0 && (
+                <FurnitureRoomMenu
+                  targets={moveTargets}
+                  onMove={moveToRoom}
+                  compact
+                />
+              )}
+              <ActionButton
+                variant="ghost"
+                size="small"
+                layout="iconOnly"
+                aria-label="90도 돌리기"
+                onClick={() => rotate(90)}
+              >
+                <Icon svg={<IconArrowClockwiseCircularLine />} size="x5" />
+              </ActionButton>
+              <ActionButton
+                variant="ghost"
+                size="small"
+                layout="iconOnly"
+                color="fg.critical"
+                aria-label="가구 빼기"
+                onClick={deleteSelected}
+              >
+                <Icon svg={<IconTrashcanLine />} size="x5" />
+              </ActionButton>
+              <ActionButton
+                variant="neutralWeak"
+                size="small"
+                onClick={() => setSheet("selection")}
+              >
+                자세히
+              </ActionButton>
+              <ActionButton
+                variant="ghost"
+                size="small"
+                layout="iconOnly"
+                aria-label="선택 해제"
+                onClick={() => selectFurniture(null)}
+              >
+                <Icon svg={<IconXmarkLine />} size="x5" />
+              </ActionButton>
+            </section>
+          </SnackbarAvoidOverlap>
         )}
         <SnackbarAvoidOverlap>
           <nav className="mobile-dock" aria-label="배치 도구">
@@ -537,7 +543,7 @@ export function ArrangeView({
               onClick={() => setSheet("navigator")}
             >
               <PrefixIcon svg={room ? <IconPlusLine /> : <IconHouseLine />} />
-              {room ? "가구 놓기" : "방 고르기"}
+              {room ? "가구 놓기" : "방과 가구"}
             </ActionButton>
             <ActionButton
               variant="neutralWeak"
@@ -586,7 +592,7 @@ export function ArrangeView({
               </BottomSheet.Header>
               <BottomSheet.Body
                 className="mobile-sheet-body"
-                // 방 고르기와 AI 배치는 같은 높이로 열어 화면 위쪽을 남기고,
+                // 방과 가구 및 AI 배치는 같은 높이로 열어 화면 위쪽을 남기고,
                 // 선택한 가구는 내용만큼 열되 화면을 넘으면 본문을 스크롤합니다.
                 height={sheet === "selection" ? undefined : "56dvh"}
                 maxHeight={sheet === "selection" ? "72dvh" : "56dvh"}

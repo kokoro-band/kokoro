@@ -194,6 +194,32 @@ describe("furniture search and real local workflow", () => {
     expect(ui.saved().furniture).toEqual([])
   })
 
+  it.each([
+    ["침대", "bed-linen"],
+    ["수납", "storage-open"],
+  ] as const)(
+    "browses %s with dimensions and places the selected item",
+    async (category, catalogId) => {
+      const ui = await setup()
+      await ui.click(category)
+      const items = catalog.filter((item) => item.category === category)
+      expect(ui.catalogButtons()).toHaveLength(items.length)
+      const item = items.find((item) => item.id === catalogId)!
+      await ui.type("가구 검색", item.name)
+      const [button] = ui.catalogButtons()
+      expect(button.closest("li")?.textContent).toContain(
+        `${item.width} × ${item.depth} m`
+      )
+      const image = button.closest("li")!.querySelector("img")!
+      await act(async () => image.dispatchEvent(new Event("error")))
+      expect(
+        button.closest("li")?.querySelector(".furniture-thumb svg")
+      ).not.toBeNull()
+      await act(async () => button.click())
+      expect(ui.saved().furniture[0]).toMatchObject({ catalogId, category })
+    }
+  )
+
   it("combines category and query and recovers from empty results", async () => {
     const ui = await setup()
     await ui.type("가구 검색", "소파")
@@ -211,7 +237,9 @@ describe("furniture search and real local workflow", () => {
     await ui.type("가구 검색", "셸".normalize("NFD"))
     expect(ui.catalogButtons()).toHaveLength(1)
     await ui.type("가구 검색", "")
-    expect(ui.catalogButtons()).toHaveLength(2)
+    expect(ui.catalogButtons()).toHaveLength(
+      catalog.filter((item) => item.category === "의자").length
+    )
     expect(ui.button("의자").getAttribute("aria-selected")).toBe("true")
   })
 

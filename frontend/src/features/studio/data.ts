@@ -1,9 +1,31 @@
 import { sampleRoom } from "./sample-room"
-import type { Project } from "./types"
+import type { Furniture, Project } from "./types"
 import { parseFurnitureCatalog } from "./furniture-catalog"
 import catalogSource from "../../../../docs/contracts/furniture-catalog.json?raw"
 
 export const catalog = parseFurnitureCatalog(JSON.parse(catalogSource))
+
+function sampleFurniture(
+  id: string,
+  catalogId: string,
+  x: number,
+  z: number,
+  rotation = 0
+): Furniture {
+  const entry = catalog.find((item) => item.id === catalogId)
+  if (!entry)
+    throw new Error(`샘플 가구를 카탈로그에서 찾을 수 없습니다: ${catalogId}`)
+  return {
+    id,
+    catalogId,
+    x,
+    z,
+    rotation,
+    name: entry.name,
+    category: entry.category,
+    color: entry.color,
+  }
+}
 
 export const sampleProject: Project = {
   id: "living-room-01",
@@ -23,46 +45,14 @@ export const sampleProject: Project = {
     uploadedAt: new Date().toISOString(),
   },
   furniture: [
-    {
-      id: "sofa-01",
-      catalogId: "sofa-cloud",
-      name: "클라우드 소파",
-      category: "소파",
-      x: 4.5,
-      z: 5.6,
-      rotation: 0,
-      color: "#D8C8B8",
-    },
-    {
-      id: "table-01",
-      catalogId: "table-oak",
-      name: "오크 테이블",
-      category: "테이블",
-      x: 4.8,
-      z: 4.2,
-      rotation: 0,
-      color: "#B98958",
-    },
-    {
-      id: "chair-01",
-      catalogId: "chair-shell",
-      name: "셸 체어",
-      category: "의자",
-      x: 4.5,
-      z: 3.0,
-      rotation: 25,
-      color: "#4A665A",
-    },
-    {
-      id: "plant-01",
-      catalogId: "plant-olive",
-      name: "올리브 화분",
-      category: "장식",
-      x: 6.0,
-      z: 5.9,
-      rotation: 0,
-      color: "#69805E",
-    },
+    sampleFurniture("sofa-01", "sofa-cloud", 4.5, 5.6),
+    sampleFurniture("table-01", "table-oak", 4.8, 4.2),
+    sampleFurniture("chair-01", "chair-shell", 4.5, 3.0, 25),
+    sampleFurniture("plant-01", "plant-olive", 6.0, 5.9),
+    sampleFurniture("bed-01", "bed-linen", 1.18, 4.22),
+    sampleFurniture("dining-01", "table-dining", 4.86, 0.92),
+    sampleFurniture("bench-01", "chair-bench", 4.86, 1.7),
+    sampleFurniture("shelf-01", "storage-open", 9.12, 0.32),
   ],
   updatedAt: new Date().toISOString(),
 }

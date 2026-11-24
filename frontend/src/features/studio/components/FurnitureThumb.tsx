@@ -1,5 +1,12 @@
 import { useState, type CSSProperties } from "react"
-import { Armchair, Flower2, Sofa, Table2 } from "lucide-react"
+import {
+  Archive,
+  Armchair,
+  BedDouble,
+  Flower2,
+  Sofa,
+  Table2,
+} from "lucide-react"
 
 import { catalog } from "@/features/studio/data"
 import type { Category } from "@/features/studio/types"
@@ -8,6 +15,8 @@ const glyphs = {
   소파: Sofa,
   테이블: Table2,
   의자: Armchair,
+  침대: BedDouble,
+  수납: Archive,
   장식: Flower2,
 } satisfies Record<Exclude<Category, "전체">, typeof Sofa>
 

@@ -1,6 +1,8 @@
 package com.kokoro.room;
 
 import com.kokoro.room.project.FurnitureCatalog;
+import com.kokoro.room.project.ProjectInputLimits;
+import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -12,6 +14,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FurnitureCatalogTest {
+    @Test
+    void acceptsBedroomFurnitureForSaving() {
+        for (String category : List.of("침대", "수납")) {
+            ProjectInputLimits.furniture(List.of(
+                    new FurnitureItem("placed", "침대".equals(category) ? "bed-linen" : "storage-open",
+                            "가구", category, 3.0, 3.0, 90.0, "#BBCCDD")));
+        }
+    }
+
     @Test
     void rejectsDuplicatesAndInvalidDimensions() throws Exception {
         var mapper = JsonMapper.builder().build();

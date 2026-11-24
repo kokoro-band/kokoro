@@ -155,6 +155,222 @@
         "license": "CC0-1.0",
         "sourceUrl": "https://kenney.nl/assets/furniture-kit"
       }
+    },
+    {
+      "id": "bed-linen",
+      "name": "리넨 퀸 침대",
+      "category": "침대",
+      "description": "오트밀 쿠션 헤드와 세이지 리넨 침구",
+      "price": 845000,
+      "width": 1.65,
+      "depth": 2.12,
+      "color": "#A8B39D",
+      "modelUrl": "/models/bed-linen.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "bed-linen.glb",
+        "modelSha256": "758b05cde425c776bca7711f3206fc45602267ab92f8fc7cf8d3c431efce9fb2"
+      }
+    },
+    {
+      "id": "bed-day",
+      "name": "애시 데이베드",
+      "category": "침대",
+      "description": "양쪽 팔걸이와 등 쿠션을 갖춘 원목 싱글 침대",
+      "price": 560000,
+      "width": 2.03,
+      "depth": 0.96,
+      "color": "#CBAA87",
+      "modelUrl": "/models/bed-day.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "bed-day.glb",
+        "modelSha256": "e409c1e6c0a5afdfae2cb676340cb6868dabe027c5be7ed46970a76d501e9fd5"
+      }
+    },
+    {
+      "id": "storage-reed",
+      "name": "리드 사이드보드",
+      "category": "수납",
+      "description": "세로살 도어와 황동 손잡이가 있는 낮은 장",
+      "price": 420000,
+      "width": 1.55,
+      "depth": 0.43,
+      "color": "#AB8059",
+      "modelUrl": "/models/storage-reed.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-reed.glb",
+        "modelSha256": "c57514fc15ede9f5bf36ca22953d32826a949905e51ac30c5f87c3212f18e790"
+      }
+    },
+    {
+      "id": "storage-open",
+      "name": "프레임 책장",
+      "category": "수납",
+      "description": "책과 소품을 올리는 네 단 오픈 선반",
+      "price": 239000,
+      "width": 0.88,
+      "depth": 0.33,
+      "color": "#A88968",
+      "modelUrl": "/models/storage-open.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-open.glb",
+        "modelSha256": "8d2d3b40b071128d535b1780db9bb06c7d7415ab5d02c53eca4f95db98111045"
+      }
+    },
+    {
+      "id": "storage-drawer",
+      "name": "미스트 서랍장",
+      "category": "수납",
+      "description": "둥근 나무 손잡이와 세 단의 서랍",
+      "price": 310000,
+      "width": 0.82,
+      "depth": 0.46,
+      "color": "#B3BCB4",
+      "modelUrl": "/models/storage-drawer.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-drawer.glb",
+        "modelSha256": "8627b12f0953f98ad6711a8b4463a5bd3711ee811d468520539b15f404fe9211"
+      }
+    },
+    {
+      "id": "storage-media",
+      "name": "슬릿 TV장",
+      "category": "수납",
+      "description": "오픈 수납칸과 미닫이 패널이 있는 긴 거실장",
+      "price": 379000,
+      "width": 1.8,
+      "depth": 0.42,
+      "color": "#856951",
+      "modelUrl": "/models/storage-media.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-media.glb",
+        "modelSha256": "d331752c50bb0f30e4fa504c7667907e6135a4ed6d1cf2f670f1c84eedfccf00"
+      }
+    },
+    {
+      "id": "table-dining",
+      "name": "트레슬 식탁",
+      "category": "테이블",
+      "description": "사선 받침 두 개로 지지하는 4인용 식탁",
+      "price": 510000,
+      "width": 1.55,
+      "depth": 0.84,
+      "color": "#A97952",
+      "modelUrl": "/models/table-dining.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "table-dining.glb",
+        "modelSha256": "aed2f6bdd45702e68c6b8726db9fb26a5b2c36c0e92a5c66b4f6ce85b478cb09"
+      }
+    },
+    {
+      "id": "table-writing",
+      "name": "스튜디오 책상",
+      "category": "테이블",
+      "description": "얇은 상판 아래 한쪽에 서랍을 둔 책상",
+      "price": 360000,
+      "width": 1.28,
+      "depth": 0.63,
+      "color": "#D1B495",
+      "modelUrl": "/models/table-writing.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "table-writing.glb",
+        "modelSha256": "25b98e06dd9628131053d38388b3e5d551eba97267fb2f8908e9d09baf6273a9"
+      }
+    },
+    {
+      "id": "table-side",
+      "name": "페블 사이드 테이블",
+      "category": "테이블",
+      "description": "트래버틴 톤의 둥근 상판과 골이 진 받침",
+      "price": 129000,
+      "width": 0.48,
+      "depth": 0.48,
+      "color": "#CCB89C",
+      "modelUrl": "/models/table-side.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "table-side.glb",
+        "modelSha256": "e06a00e202eac5ad539bf56aaa071488ab81ca979e2a0f0e6e47b0a5df029480"
+      }
+    },
+    {
+      "id": "chair-bench",
+      "name": "포레스트 벤치",
+      "category": "의자",
+      "description": "긴 패브릭 방석을 올린 참나무 벤치",
+      "price": 215000,
+      "width": 1.25,
+      "depth": 0.39,
+      "color": "#7B8B79",
+      "modelUrl": "/models/chair-bench.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "chair-bench.glb",
+        "modelSha256": "db892fff38e20a9177686327069fbc73bb848735500525f544d6f0bb6dc93d54"
+      }
+    },
+    {
+      "id": "chair-stool",
+      "name": "코르크 스툴",
+      "category": "의자",
+      "description": "원형 좌판에 다리 세 개와 낮은 발받침",
+      "price": 97000,
+      "width": 0.4,
+      "depth": 0.4,
+      "color": "#BC9067",
+      "modelUrl": "/models/chair-stool.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "chair-stool.glb",
+        "modelSha256": "eb76159d5587769efc41c02cc008226f82bb1ccef1c1b2750dc8d6c8ea5f4c5a"
+      }
+    },
+    {
+      "id": "sofa-reading",
+      "name": "브릭 라운지 소파",
+      "category": "소파",
+      "description": "월넛 팔걸이와 테라코타 패브릭의 1인 소파",
+      "price": 398000,
+      "width": 0.83,
+      "depth": 0.86,
+      "color": "#BD8770",
+      "modelUrl": "/models/sofa-reading.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "sofa-reading.glb",
+        "modelSha256": "d6cda4c9b26935335d2b147adacc7235439c5cc558d3fdd90810a06b115b73a1"
+      }
     }
   ],
   "dimensionKind": "example",
@@ -163,6 +379,7 @@
     "url": "https://kenney.nl/assets/furniture-kit",
     "license": "CC0-1.0",
     "retrievedAt": "2026-09-26",
-    "archiveSha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0"
+    "archiveSha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "scope": "initial-source-inventory"
   }
 }

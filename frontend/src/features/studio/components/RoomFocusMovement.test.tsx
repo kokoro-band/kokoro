@@ -20,6 +20,10 @@ type SceneProps = {
   furniture: Furniture[]
   focusRoom: RoomLabel | null
   onMove: (id: string, x: number, z: number) => boolean
+  onPlace: (
+    id: string,
+    pose: Pick<Furniture, "x" | "z" | "rotation">
+  ) => boolean
   onMoveEnd: () => void
 }
 const scene: { current: SceneProps | null } = { current: null }
@@ -200,6 +204,21 @@ describe("room focus is a view, not a movement boundary", () => {
     expect(ui.controller.current!.selectedId).toBe("chair-01")
     await act(async () => ui.controller.current!.undo())
     expect(ui.saved("chair-01").z).toBe(3)
+  })
+
+  it("saves a VR drop in another room without resetting the starting room or scene", async () => {
+    const ui = await setup(living)
+    await ui.click("VR")
+    await ui.select("chair-01")
+    await act(async () => {
+      expect(
+        scene.current!.onPlace("chair-01", { x: 4.5, z: 1.5, rotation: 40 })
+      ).toBe(true)
+      scene.current!.onMoveEnd()
+    })
+    expect(ui.saved("chair-01")).toMatchObject({ x: 4.5, z: 1.5, rotation: 40 })
+    expect(ui.roomIndex()).toBe(living)
+    expect(ui.controller.current!.mode).toBe("vr")
   })
 
   it("returns to the item's room on undo and follows it again on redo", async () => {

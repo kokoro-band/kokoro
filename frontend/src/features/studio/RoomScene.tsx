@@ -110,12 +110,8 @@ function makeFurnitureModel(item: Furniture, bounds: Bounds) {
   const fallback = makeFallbackModel(item, catalogItem)
   if (catalogItem) {
     const box = new THREE.Box3().setFromObject(fallback)
-    const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
-    const sx = size.x > 0 ? catalogItem.width / size.x : 1
-    const sz = size.z > 0 ? catalogItem.depth / size.z : 1
-    fallback.scale.set(sx, 1, sz)
-    fallback.position.set(-center.x * sx, 0, -center.z * sz)
+    fallback.position.set(-center.x, 0, -center.z)
   }
   group.add(fallback)
   group.userData.furnitureId = item.id
@@ -191,9 +187,9 @@ export function RoomScene({
     function initializeRoomRenderer() {
       const host = hostRef.current
       if (!host) return
-      const isStudio3d = mode === "3d"
-      const overview = isStudio3d && !focusRoom
-      const lighting = isStudio3d ? studioColors : sceneColors
+      const showFinishes = mode !== "2d"
+      const overview = mode === "3d" && !focusRoom
+      const lighting = showFinishes ? studioColors : sceneColors
 
       let renderer: THREE.WebGLRenderer
       try {
@@ -211,7 +207,7 @@ export function RoomScene({
       renderer.shadowMap.type = THREE.PCFShadowMap
       renderer.xr.enabled = mode === "vr"
       renderer.setClearColor(lighting.background, 1)
-      if (isStudio3d) renderer.toneMapping = THREE.ACESFilmicToneMapping
+      if (showFinishes) renderer.toneMapping = THREE.ACESFilmicToneMapping
       host.appendChild(renderer.domElement)
 
       const bounds: Bounds = room?.bounds ?? defaultBounds
@@ -282,21 +278,21 @@ export function RoomScene({
       const ambient = new THREE.HemisphereLight(
         lighting.ambientSky,
         lighting.ambientGround,
-        isStudio3d ? 1.9 : 2.4
+        showFinishes ? 1.9 : 2.4
       )
       scene.add(ambient)
       const sun = new THREE.DirectionalLight(
         lighting.sunlight,
-        isStudio3d ? 2.2 : 3
+        showFinishes ? 2.2 : 3
       )
-      sun.position.set(-3, isStudio3d ? 10.5 : 7, -4)
+      sun.position.set(-3, showFinishes ? 10.5 : 7, -4)
       sun.castShadow = true
       sun.shadow.mapSize.set(2048, 2048)
       sun.shadow.camera.left = -7 * scale
       sun.shadow.camera.right = 7 * scale
       sun.shadow.camera.top = 7 * scale
       sun.shadow.camera.bottom = -7 * scale
-      if (isStudio3d) {
+      if (showFinishes) {
         sun.shadow.normalBias = 0.013
         sun.shadow.radius = 3
       }
@@ -305,7 +301,7 @@ export function RoomScene({
       let floorMap: THREE.Texture | undefined
       let roomGroup: THREE.Group
       if (room) {
-        if (isStudio3d) {
+        if (showFinishes) {
           floorMap = new THREE.TextureLoader().load(
             `${import.meta.env.BASE_URL}models/finishes/oak-floor.webp`
           )
@@ -463,9 +459,8 @@ export function RoomScene({
           : null
       }
 
-      const placementGrid = isStudio3d
-        ? roomGroup.getObjectByName("placement-grid")
-        : undefined
+      const placementGrid =
+        mode === "3d" ? roomGroup.getObjectByName("placement-grid") : undefined
       const interaction =
         mode === "vr"
           ? null

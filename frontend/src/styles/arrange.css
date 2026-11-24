@@ -62,7 +62,7 @@
   overscroll-behavior: contain;
 }
 
-.category-tabs {
+.panel-body .category-tabs {
   position: sticky;
   top: 0;
   z-index: var(--z-overlay);
@@ -70,8 +70,10 @@
   background: var(--seed-color-bg-layer-default);
 }
 
-/* SEED Chip Tabs와 Scroll Fog 권장 여백 */
-.category-tabs-list {
+.category-tabs .category-tabs-list {
+  flex-wrap: wrap;
+  row-gap: var(--seed-dimension-x1_5);
+  overflow: visible;
   padding-inline: var(--seed-dimension-x5);
 }
 

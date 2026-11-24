@@ -16,7 +16,6 @@ public final class ProjectInputLimits {
     public static final int MAX_FURNITURE_COUNT = 200;
     private static final double MAX_SAFE_COORDINATE = 9007199254740991d;
     private static final Set<String> RESERVED_IDS = Set.of("__proto__", "constructor", "prototype");
-    private static final Set<String> CATEGORIES = Set.of("소파", "테이블", "의자", "장식");
 
     public static void name(String value) {
         text(value, 1024, "프로젝트 이름은 공백이 아닌 값으로 입력하고 너무 긴 결합 문자는 줄여 주세요.");
@@ -52,8 +51,8 @@ public final class ProjectInputLimits {
             text(item.color(), 20, "가구 색상은 공백이 아닌 20자 이내 값이어야 합니다.");
             if (RESERVED_IDS.contains(item.id()) || RESERVED_IDS.contains(item.catalogId()))
                 throw new ResponseStatusException(BAD_REQUEST, "사용할 수 없는 가구 식별자입니다.");
-            if (item.category() == null || !CATEGORIES.contains(item.category()))
-                throw new ResponseStatusException(BAD_REQUEST, "가구 종류는 소파 또는 테이블 또는 의자 또는 장식이어야 합니다.");
+            if (item.category() == null || !FurnitureCatalog.CATEGORIES.contains(item.category()))
+                throw new ResponseStatusException(BAD_REQUEST, "카탈로그에서 지원하는 가구 종류를 선택해 주세요.");
             if (!between(item.x(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE)
                     || !between(item.z(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE))
                 throw new ResponseStatusException(BAD_REQUEST, "가구 위치는 브라우저에서 처리할 수 있는 유한한 숫자여야 합니다.");

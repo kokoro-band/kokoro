@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
 import * as THREE from "three"
-import { describe, expect, it } from "vite-plus/test"
+import { describe, expect, it, vi } from "vite-plus/test"
 
 import {
   animateDoors,
@@ -98,6 +99,29 @@ describe("whole-house 3D presentation", () => {
     expect(new THREE.Box3().setFromObject(vrWall).max.y).toBeCloseTo(
       sampleRoom.wallHeight
     )
+  })
+
+  it("lets VR walls occlude room labels at a readable physical size", () => {
+    using context = vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+    context.mockReturnValue({
+      measureText: () => ({ width: 80 }),
+      beginPath() {},
+      roundRect() {},
+      fill() {},
+      fillText() {},
+    } as unknown as CanvasRenderingContext2D)
+    const labelsFor = (mode: ViewMode) =>
+      buildRoomGroup(sampleRoom, mode).children.filter(
+        (object): object is THREE.Sprite => object instanceof THREE.Sprite
+      )
+    const desktop = labelsFor("3d")
+    const vr = labelsFor("vr")
+    expect(vr.length).toBe(sampleRoom.rooms.length)
+    expect(desktop.every((label) => !label.material.depthTest)).toBe(true)
+    for (const label of vr) {
+      expect(label.material.depthTest).toBe(true)
+      expect(label.scale.y).toBeCloseTo(0.15)
+    }
   })
 
   it("starts with a hidden 3D grid whose segments stay inside the floor outline", () => {

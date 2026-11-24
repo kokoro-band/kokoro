@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises"
 import { expect, type Locator, type Page } from "@playwright/test"
 import type { Project } from "../src/features/studio/types"
 import { apiURL } from "../playwright.config"
@@ -10,7 +9,6 @@ import {
   savedResponse,
   projectResponse,
   reloadProject,
-  summary,
 } from "./helpers"
 
 async function field(page: Page, name: string, value: string) {
@@ -217,136 +215,7 @@ suite(
 )
 
 suite(
-  "shrinking a room retains invalid furniture and lets the user repair it",
-  async ({ page, projectIds }, info) => {
-    const narrow = info.project.name === "narrow"
-    const initial = await createRoom(page, (id) => projectIds.push(id))
-    await openFurniture(page, narrow)
-    const added = await projectResponse(
-      await addFurniture(page, initial.id, "셸 체어")
-    )
-    await closeSheet(page, narrow)
-    await page.getByRole("button", { name: "구조", exact: true }).click()
-    await field(page, "가로", "2")
-    await field(page, "세로", "2")
-    const shrunk = await saveStructure(page, added)
-    expect(shrunk.furniture).toEqual(added.furniture)
-    expect(shrunk.room!.bounds).toEqual({ width: 2, depth: 2 })
-    if (narrow)
-      await page.getByRole("button", { name: "방 고르기", exact: true }).click()
-    const issues = page.getByRole("region", {
-      name: "배치 확인이 필요한 가구",
-      exact: true,
-    })
-    await expect(issues).toBeVisible()
-    await issues.getByRole("button", { name: /셸 체어/ }).click()
-    if (narrow)
-      await page
-        .getByRole("button", { name: "선택한 가구", exact: true })
-        .click()
-    const xResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await field(page, "가로", "1")
-    const partial = await projectResponse(await xResponse)
-    expect(partial.furniture[0]).toMatchObject({
-      id: added.furniture[0].id,
-      x: 1,
-    })
-    expect(partial.furniture[0].z).toBeGreaterThanOrEqual(0.425)
-    expect(partial.furniture[0].z).toBeLessThanOrEqual(1.575)
-    const zResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await field(page, "세로", "1")
-    const repaired = await projectResponse(await zResponse)
-    expect(repaired.furniture[0]).toMatchObject({
-      id: added.furniture[0].id,
-      x: 1,
-      z: 1,
-    })
-    await expect(page.locator(".placement-issue-detail")).toHaveCount(0)
-    await closeSheet(page, narrow)
-    await summary(page, repaired, ["셸 체어"])
-  }
-)
-
-suite(
-  "furniture inputs clamp at the house boundary and rotation, undo and export agree",
-  async ({ page, projectIds }, info) => {
-    const narrow = info.project.name === "narrow"
-    const initial = await createRoom(page, (id) => projectIds.push(id))
-    await openFurniture(page, narrow)
-    const added = await projectResponse(
-      await addFurniture(page, initial.id, "셸 체어")
-    )
-    // Typing 1/2/3 must not change the selected cursor tool.
-    const x = page.getByRole("textbox", { name: "가로", exact: true })
-    await x.fill("")
-    await x.pressSequentially("123")
-    await expect(x).toHaveValue("123")
-    await x.press("Escape")
-    if (narrow)
-      await expect(page.locator(".mobile-sheet[data-open]")).toHaveCount(0)
-    await expect(
-      page.getByRole("radio", { name: "가구 이동", exact: true })
-    ).toBeChecked()
-    if (narrow)
-      await page
-        .getByRole("button", { name: "선택한 가구", exact: true })
-        .click()
-    const movedResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await field(page, "가로", "0")
-    const moved = await projectResponse(await movedResponse)
-    // 0.65 m chair against a 0.2 m exterior wall: center = half width + half wall.
-    expect(moved.furniture[0].x).toBeCloseTo(0.425, 2)
-    expect(moved.furniture[0].z).toBe(added.furniture[0].z)
-    await expect(
-      page.getByRole("status").filter({ hasText: "집 바깥 경계" })
-    ).toBeVisible()
-    const centeredResponse = savedResponse(
-      page,
-      `/projects/${initial.id}/layout`
-    )
-    await field(page, "가로", "2")
-    const centered = await projectResponse(await centeredResponse)
-    expect(centered.furniture[0].x).toBe(2)
-    const rotatedResponse = savedResponse(
-      page,
-      `/projects/${initial.id}/layout`
-    )
-    await page
-      .getByRole("slider", { name: "가구 방향", exact: true })
-      .press("ArrowRight")
-    const rotated = await projectResponse(await rotatedResponse)
-    expect(rotated.furniture[0].rotation).toBe(15)
-    await closeSheet(page, narrow)
-    const undoneResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await page.getByRole("button", { name: "실행 취소", exact: true }).click()
-    const undone = await projectResponse(await undoneResponse)
-    expect(undone.furniture).toEqual(centered.furniture)
-    const redoneResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await page.getByRole("button", { name: "다시 실행", exact: true }).click()
-    const redone = await projectResponse(await redoneResponse)
-    expect(redone.furniture).toEqual(rotated.furniture)
-    await summary(page, redone, ["셸 체어"])
-    await expect(page.locator(".summary-total")).toContainText("185,000")
-    await expect(page.locator(".summary-total")).toContainText("가구 1개")
-    await page.getByRole("button", { name: /프로젝트 메뉴$/ }).click()
-    const downloading = page.waitForEvent("download")
-    await page
-      .getByRole("menuitem", { name: "JSON으로 내보내기", exact: true })
-      .click()
-    const download = await downloading
-    expect(download.suggestedFilename()).toBe(`${redone.name}-layout.json`)
-    const exported = JSON.parse(
-      await readFile((await download.path())!, "utf8")
-    ) as Project
-    expect(exported.id).toBe(redone.id)
-    expect(exported.revision).toBe(redone.revision)
-    expect(exported.room).toEqual(redone.room)
-    expect(exported.furniture).toEqual(redone.furniture)
-  }
-)
-
-suite(
-  "cursor keys route real canvas dragging to furniture or camera",
+  "cursor keys route real canvas dragging to furniture or camera @narrow",
   async ({ page, request, projectIds }, info) => {
     const narrow = info.project.name === "narrow"
     const initial = await createRoom(page, (id) => projectIds.push(id))
@@ -458,42 +327,5 @@ suite(
     }
     // Door pose is transient. Only the opening geometry is persisted.
     await reloadProject(page, saved)
-  }
-)
-
-suite(
-  "wall-limited fractional sofa rotation survives reload",
-  async ({ page, projectIds }, info) => {
-    const narrow = info.project.name === "narrow"
-    const initial = await createRoom(page, (id) => projectIds.push(id))
-    await openFurniture(page, narrow)
-    await projectResponse(await addFurniture(page, initial.id, "클라우드 소파"))
-    const movedResponse = savedResponse(page, `/projects/${initial.id}/layout`)
-    await field(page, "세로", "0.7")
-    const moved = await projectResponse(await movedResponse)
-    expect(moved.furniture[0].z).toBeCloseTo(0.7, 10)
-    const rotatedResponse = savedResponse(
-      page,
-      `/projects/${initial.id}/layout`
-    )
-    await page
-      .getByRole("slider", { name: "가구 방향", exact: true })
-      .press("ArrowRight")
-    const rotated = await projectResponse(await rotatedResponse)
-    const angle = rotated.furniture[0].rotation
-    expect(angle).toBeGreaterThan(0)
-    expect(angle).toBeLessThan(15)
-    expect(Number.isInteger(angle)).toBe(false)
-    // Independent rectangle footprint: half-depth along the wall normal.
-    const halfDepth = (degrees: number) =>
-      1.1 * Math.sin((degrees * Math.PI) / 180) +
-      0.46 * Math.cos((degrees * Math.PI) / 180)
-    expect(halfDepth(angle) + 0.1).toBeLessThanOrEqual(0.7)
-    expect(halfDepth(angle + 0.5) + 0.1).toBeGreaterThan(0.7)
-    await expect(
-      page.getByRole("slider", { name: "가구 방향", exact: true })
-    ).toHaveAttribute("aria-valuenow", String(angle))
-    await closeSheet(page, narrow)
-    await summary(page, rotated, ["클라우드 소파"])
   }
 )

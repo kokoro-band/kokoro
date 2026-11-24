@@ -24,9 +24,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -50,16 +47,12 @@ import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 @Timeout(30)
 class ProjectRevisionIntegrationTest {
-    @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @TempDir static Path storage;
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        SharedPostgres.register(registry, "project_revision");
         registry.add("app.floor-plan-storage-root", () -> storage.toString());
     }
     @Autowired MockMvc mvc;
@@ -203,15 +196,16 @@ class ProjectRevisionIntegrationTest {
     @Test
     void migrationFromV8PreservesDataAndDoesNotInventProposalVersion() throws Exception {
         String schema = "revision_legacy";
-        Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+        String url = SharedPostgres.jdbcUrl("project_revision");
+        Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                 .schemas(schema).defaultSchema(schema).target("8").load().migrate();
-        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (var connection = DriverManager.getConnection(url, SharedPostgres.username(), SharedPostgres.password())) {
             connection.setSchema(schema);
             try (var statement = connection.createStatement()) {
                 statement.executeUpdate("INSERT INTO projects(id,owner_id,name,room_type,width,depth,height,updated_at) VALUES ('old','local-user','이전','거실',6,6,2.4,now())");
                 statement.executeUpdate("INSERT INTO furniture_items(project_id,id,catalog_id,name,category,x,z,rotation,color,item_order) VALUES ('old','chair','chair-shell','의자','의자',3,3,25.25,'#000000',0)");
                 statement.executeUpdate("INSERT INTO layout_proposals(proposal_id,project_id,owner_id,base_updated_at,commands,created_at,expires_at) VALUES ('old-proposal','old','local-user',now(),'[]',now(),now()+interval '5 minutes')");
-                Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                         .schemas(schema).defaultSchema(schema).load().migrate();
                 try (var columns = connection.getMetaData().getColumns(null, schema, "projects", "revision")) {
                     assertTrue(columns.next(), "V9 must add the project revision column");
@@ -232,7 +226,7 @@ class ProjectRevisionIntegrationTest {
         String oldJob = upload(oldId);
         String newId = create();
         var executor = Executors.newSingleThreadExecutor();
-        try (var blocker = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (var blocker = DriverManager.getConnection(SharedPostgres.jdbcUrl("project_revision"), SharedPostgres.username(), SharedPostgres.password())) {
             blocker.setAutoCommit(false);
             try (var statement = blocker.prepareStatement("SELECT id FROM projects WHERE id=? FOR UPDATE")) {
                 statement.setString(1, oldId);

@@ -32,15 +32,33 @@ describe("holdStep", () => {
   }
 
   it("turns clockwise on right stick push and wraps angles into 0 to 359", () => {
-    const right = holdStep(startHold("sofa", [1, 1], [1, 1], 360), null, 1, 360, frame)
+    const right = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 360),
+      null,
+      1,
+      360,
+      frame
+    )
     expect(right.stepped).toBe(true)
     expect(right.rotate).toBe(15)
 
-    const left = holdStep(startHold("sofa", [1, 1], [1, 1], 0), null, -1, 0, frame)
+    const left = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 0),
+      null,
+      -1,
+      0,
+      frame
+    )
     expect(left.stepped).toBe(true)
     expect(left.rotate).toBe(345)
 
-    const wrapped = holdStep(startHold("sofa", [1, 1], [1, 1], 345), null, 1, 345, frame)
+    const wrapped = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 345),
+      null,
+      1,
+      345,
+      frame
+    )
     expect(wrapped.rotate).toBe(0)
   })
 

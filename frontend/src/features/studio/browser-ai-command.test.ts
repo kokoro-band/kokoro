@@ -224,6 +224,6 @@ it.each([
     expect(await isWebGpuAvailable()).toBe(false)
   } finally {
     if (previous) Object.defineProperty(navigator, "gpu", previous)
-    else delete (navigator as Navigator & { gpu?: unknown }).gpu
+    else Reflect.deleteProperty(navigator, "gpu")
   }
 })

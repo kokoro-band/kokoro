@@ -91,9 +91,7 @@ async function setup(furniture = sampleProject.furniture) {
 it("shows a SEED confirmation with target names and cancels without changing saved furniture", async () => {
   const app = await setup()
   const input = await app.send("방을 비워줘")
-  const dialog = document.querySelector(
-    '[role="dialog"]'
-  )
+  const dialog = document.querySelector('[role="dialog"][aria-modal="true"]')
   expect(dialog).not.toBeNull()
   expect(dialog!.textContent).toContain("배치 변경 확인")
   expect(dialog!.textContent).toContain(app.initial.furniture[0].name)
@@ -105,9 +103,7 @@ it("shows a SEED confirmation with target names and cancels without changing sav
 it("applies a local clear only when the confirmation button is clicked", async () => {
   const app = await setup()
   await app.send("방을 비워줘")
-  const dialog = document.querySelector(
-    '[role="dialog"]'
-  )
+  const dialog = document.querySelector('[role="dialog"][aria-modal="true"]')
   expect(dialog).not.toBeNull()
   await app.click("변경 적용", dialog!)
   expect(app.saved().furniture).toEqual([])
@@ -116,9 +112,7 @@ it("gives mobile confirmation sole modal ownership and restores the assistant on
   viewport.mobile = true
   const app = await setup()
   await app.send("방을 비워줘")
-  const dialog = document.querySelector(
-    '[role="dialog"]'
-  )
+  const dialog = document.querySelector('[role="dialog"][aria-modal="true"]')
   expect(dialog?.textContent).toContain("배치 변경 확인")
   expect(document.querySelector('.mobile-sheet[aria-modal="true"]')).toBeNull()
   expect(app.saved().furniture).toEqual(app.initial.furniture)
@@ -137,9 +131,7 @@ it("lists same-named candidates with rooms and coordinates and changes only the 
   const two = makeFurniture("chair-shell", 2, 2)
   const app = await setup([one, two])
   await app.send("의자를 창가로 옮겨줘")
-  const dialog = document.querySelector(
-    '[role="dialog"]'
-  )
+  const dialog = document.querySelector('[role="dialog"][aria-modal="true"]')
   expect(dialog).not.toBeNull()
   expect(dialog!.textContent).toContain("대상 가구 선택")
   expect(app.saved().furniture).toEqual([one, two])

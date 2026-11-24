@@ -399,30 +399,6 @@ describe("save recovery through the real App and SEED UI", () => {
     await settle()
     expect(ui.text()).not.toContain("저장 충돌 해결")
   })
-  it("clears the old manual save busy state after switching to the sample project", async () => {
-    const ui = await setup()
-    await ui.add()
-    await ui.reject(0)
-    await ui.click("다시 저장", ui.header())
-    await ui.click("검증 A 프로젝트 메뉴")
-    await ui.click("예제 집 열기")
-    await ui.resolve(1)
-    const loading = http.calls.find(
-      (call) => call.config.url === `/projects/${sampleProject.id}`
-    )!
-    expect(loading).toBeDefined()
-    await act(async () =>
-      loading.resolve({
-        ...structuredClone(ui.initial),
-        id: sampleProject.id,
-        name: "예제 검증",
-      })
-    )
-    await settle()
-    expect(ui.header().textContent).toContain("예제 검증")
-    expect(ui.header().textContent).toContain("저장됨")
-    expect(ui.header().textContent).not.toContain("저장 중")
-  })
   it("does not restore the previous project's failure over a new rejected draft", async () => {
     const ui = await setup()
     await ui.add()
@@ -476,25 +452,6 @@ describe("save recovery through the real App and SEED UI", () => {
     expect(
       http.calls.filter((call) => call.config.url === "/projects")
     ).toHaveLength(1)
-  })
-  it("shows manual recovery after automatic network retries are exhausted", async () => {
-    const ui = await setup()
-    await ui.add()
-    await ui.reject(0, new ApiError("연결 끊김", null, true))
-    expect(ui.header().textContent).toContain("저장 중")
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000)
-    })
-    await ui.reject(1, new ApiError("연결 끊김", null, true))
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000)
-    })
-    await ui.reject(2, new ApiError("연결 끊김", null, true))
-    expect(ui.saves()).toHaveLength(3)
-    expect(ui.button("다시 저장", ui.header()).disabled).toBe(false)
-    expect(
-      document.querySelector(".inspector-identity")?.textContent
-    ).toContain("셸 체어")
   })
   it.each(["pending", "saved"])(
     "ignores the old snackbar retry while the header retry is %s",

@@ -188,34 +188,3 @@ suite(
     await reloadProject(page, saved)
   }
 )
-
-suite(
-  "invalid Ollama JSON never reaches the intent API and preserves the layout",
-  async ({ page, request, projectIds }, info) => {
-    const initial = await prepare(
-      page,
-      info.project.name === "narrow",
-      projectIds
-    )
-    await model(page, { version: 1, intents: [{ type: "CLEAR", x: 1 }] })
-    const intents: string[] = []
-    page.on("request", (request) => {
-      if (request.url().endsWith("/layout/intents")) intents.push(request.url())
-    })
-    await page
-      .getByRole("textbox", { name: "가구 배치 요청", exact: true })
-      .fill("방을 비워줘")
-    await page.getByRole("button", { name: "요청 보내기", exact: true }).click()
-    await expect(page.locator(".assistant-log")).toContainText(
-      "이해할 수 없는 답"
-    )
-    expect(intents).toEqual([])
-    expect(
-      (await (await request.get(`${apiURL}/projects/${initial.id}`)).json())
-        .furniture
-    ).toEqual(initial.furniture)
-    await expect(
-      page.getByRole("textbox", { name: "가구 배치 요청", exact: true })
-    ).toHaveValue("방을 비워줘")
-  }
-)

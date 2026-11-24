@@ -11,6 +11,7 @@ import {
   hasOverlap,
   fitToArea,
   isConnected,
+  labelPoint,
   mergeRooms,
   moveRoom,
   nextRoomName,
@@ -72,9 +73,7 @@ describe("buildRoomModel", () => {
     expect(model.bounds).toEqual({ width: 4, depth: 3 })
     expect(model.outline).toHaveLength(4)
     expect(model.walls).toHaveLength(4)
-    expect(
-      model.walls.every((wall) => wall.thickness === 0.2)
-    ).toBe(true)
+    expect(model.walls.every((wall) => wall.thickness === 0.2)).toBe(true)
   })
 
   it("shares one interior wall between two touching rooms", () => {
@@ -85,9 +84,7 @@ describe("buildRoomModel", () => {
       ])
     )
 
-    const interior = model.walls.filter(
-      (wall) => wall.thickness === 0.12
-    )
+    const interior = model.walls.filter((wall) => wall.thickness === 0.12)
     expect(interior).toHaveLength(1)
     expect(interior[0].a).toEqual([4, 0])
     expect(interior[0].b).toEqual([4, 3])
@@ -330,9 +327,7 @@ describe("openings", () => {
       { id: "b", name: "안방", x: 4, z: 0, width: 3, depth: 3 },
     ])
   )
-  const interiorWall = model.walls.find(
-    (wall) => wall.thickness === 0.12
-  )!
+  const interiorWall = model.walls.find((wall) => wall.thickness === 0.12)!
 
   it("adds a door centred on the wall", () => {
     const next = addOpening(model, interiorWall.id, "door", 1.5)
@@ -411,9 +406,7 @@ describe("splitRoom", () => {
 
   it("builds a shared interior wall for the two halves", () => {
     const model = buildRoomModel(splitRoom(base, "room-1", "vertical", 4))
-    const interior = model.walls.filter(
-      (wall) => wall.thickness === 0.12
-    )
+    const interior = model.walls.filter((wall) => wall.thickness === 0.12)
 
     expect(interior).toHaveLength(1)
     expect(interior[0].a).toEqual([4, 0])
@@ -597,9 +590,7 @@ describe("guards", () => {
 
   it("keeps opening ids unique after one is removed", () => {
     const model = buildRoomModel(twoRooms)
-    const wall = model.walls.find(
-      (item) => item.thickness === 0.12
-    )!
+    const wall = model.walls.find((item) => item.thickness === 0.12)!
     const withTwo = addOpening(
       addOpening(model, wall.id, "door", 0.6),
       wall.id,
@@ -707,17 +698,13 @@ describe("roomsAcrossWall", () => {
   const model = buildRoomModel(draft)
 
   it("finds the rooms on both sides of a shared wall", () => {
-    const wall = model.walls.find(
-      (item) => item.thickness === 0.12
-    )!
+    const wall = model.walls.find((item) => item.thickness === 0.12)!
 
     expect(roomsAcrossWall(draft, wall)?.sort()).toEqual(["a", "b"])
   })
 
   it("returns nothing for an outside wall", () => {
-    const wall = model.walls.find(
-      (item) => item.thickness === 0.2
-    )!
+    const wall = model.walls.find((item) => item.thickness === 0.2)!
 
     expect(roomsAcrossWall(draft, wall)).toBeNull()
   })
@@ -767,9 +754,7 @@ describe("fitToArea", () => {
 
   it("keeps doors on their wall without stretching them", () => {
     const model = buildRoomModel(layout)
-    const wall = model.walls.find(
-      (item) => item.thickness === 0.12
-    )!
+    const wall = model.walls.find((item) => item.thickness === 0.12)!
     const withDoor = addOpening(model, wall.id, "door", 2)
     const result = fitToArea(layout, 40, withDoor.openings, model.walls)
     const rebuilt = buildRoomModel(result.draft, result.openings)

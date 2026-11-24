@@ -43,14 +43,14 @@ describe("room handles", () => {
     ["sw", { x: 0.8, z: 0, width: 3.2, depth: 4.8 }],
     ["w", { x: 0.8, z: 0, width: 3.2, depth: 4 }],
     ["nw", { x: 0.8, z: 0.8, width: 3.2, depth: 3.2 }],
-  ] as [ResizeHandle, { x: number; z: number; width: number; depth: number }][])(
-    "anchors the opposite edges for %s",
-    (handle, expected) => {
-      const next = resizeStructure(initial(), "a", handle, 0.84, 0.84).state
-        .draft.rooms[0]
-      expect(next).toMatchObject(expected)
-    }
-  )
+  ] as [
+    ResizeHandle,
+    { x: number; z: number; width: number; depth: number },
+  ][])("anchors the opposite edges for %s", (handle, expected) => {
+    const next = resizeStructure(initial(), "a", handle, 0.84, 0.84).state.draft
+      .rooms[0]
+    expect(next).toMatchObject(expected)
+  })
   it("clamps without flipping and rejects non-finite input", () => {
     const base = initial()
     expect(

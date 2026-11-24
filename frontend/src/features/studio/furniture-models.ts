@@ -35,10 +35,7 @@ function loadFurnitureModel(url: string) {
   return pending
 }
 
-function instantiateFurnitureModel(
-  template: THREE.Group,
-  item: CatalogItem
-) {
+function instantiateFurnitureModel(template: THREE.Group, item: CatalogItem) {
   const bounds = template.userData.bounds as THREE.Box3
   const size = bounds.getSize(new THREE.Vector3())
   const center = bounds.getCenter(new THREE.Vector3())

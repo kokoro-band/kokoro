@@ -12,7 +12,7 @@ import {
 } from "./helpers"
 
 suite(
-  "stale tab preserves its draft and explicitly reapplies against the latest server",
+  "stale tab preserves its draft and explicitly reapplies against the latest server @narrow",
   async ({ page, context, request, projectIds }, info) => {
     const initial = await createRoom(page, (id) => projectIds.push(id))
     const other = await context.newPage()

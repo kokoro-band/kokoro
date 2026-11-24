@@ -307,7 +307,12 @@ describe("StructureView real UI transactions", () => {
 
   it("commits a completed resize once and undoes the whole gesture", () => {
     const ui = setup()
-    ui.pointer(ui.svg.querySelector('[aria-label$=" e 크기 조절"]')!, "pointerdown", 4, 2)
+    ui.pointer(
+      ui.svg.querySelector('[aria-label$=" e 크기 조절"]')!,
+      "pointerdown",
+      4,
+      2
+    )
     ui.pointer(ui.svg, "pointermove", 5, 2)
     ui.pointer(ui.svg, "pointermove", 6, 2)
     ui.pointer(ui.svg, "pointerup", 6, 2)

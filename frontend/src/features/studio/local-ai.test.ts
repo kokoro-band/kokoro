@@ -147,10 +147,9 @@ describe("requestLocalLayoutIntent", () => {
   it("explains a missing model", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(
       async () =>
-        new Response(
-          JSON.stringify({ error: "model 'qwen3:4b' not found" }),
-          { status: 404 }
-        )
+        new Response(JSON.stringify({ error: "model 'qwen3:4b' not found" }), {
+          status: 404,
+        })
     )
 
     await expect(

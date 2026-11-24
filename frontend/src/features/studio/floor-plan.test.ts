@@ -213,9 +213,7 @@ describe("plan to draft end to end", () => {
 
 describe("toGrayscale", () => {
   it("turns colour pixels into brightness and keeps alpha", () => {
-    const data = new Uint8Array([
-      255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64,
-    ])
+    const data = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64])
     const { gray, alpha } = toGrayscale(data, 3, 1)
 
     expect(gray[1]).toBeGreaterThan(gray[0])

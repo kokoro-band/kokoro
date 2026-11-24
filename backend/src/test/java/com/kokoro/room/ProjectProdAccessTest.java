@@ -87,7 +87,7 @@ class ProjectProdAccessTest {
         mvc.perform(get("/api/furniture-catalog")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/furniture-catalog").with(user("alice")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(8));
+                .andExpect(jsonPath("$.items.length()").value(20));
     }
 
     private static RequestPostProcessor user(String subject) {

@@ -1,7 +1,15 @@
 import type { LocalLayoutIntent } from "./local-ai-types"
 
 export type ViewMode = "3d" | "2d" | "vr"
-export type Category = "전체" | "소파" | "테이블" | "의자" | "장식"
+export const furnitureCategories = [
+  "소파",
+  "테이블",
+  "의자",
+  "침대",
+  "수납",
+  "장식",
+] as const
+export type Category = "전체" | (typeof furnitureCategories)[number]
 
 export type Furniture = {
   id: string

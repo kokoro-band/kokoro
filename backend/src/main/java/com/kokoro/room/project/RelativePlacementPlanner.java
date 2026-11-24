@@ -51,6 +51,28 @@ public class RelativePlacementPlanner {
         return placed;
     }
 
+    /**
+     * Placement for new furniture without an anchor: the given spot (rotation 0) when the validator accepts it,
+     * otherwise the nearest accepted spot, preferring rotation 0.
+     */
+    public Placement placeNear(Dimensions dimensions, RoomModel room, List<FurnitureItem> layout,
+                               FurnitureItem template, double x, double z) {
+        List<FurnitureItem> attempt = new ArrayList<>(layout);
+        attempt.add(probe(template, "planned-near", x, z, 0));
+        try {
+            validator.validate(dimensions, room, attempt);
+            return new Placement(x, z, 0);
+        } catch (FurniturePlacementException taken) {
+            // Fall through to the nearest free spot.
+        }
+        List<Point> spot = List.of(new Point(x, z));
+        try {
+            return search(dimensions, room, layout, template, "planned-near", spot, Proximity.NEAR, new double[] {0});
+        } catch (LayoutIntentException upright) {
+            return search(dimensions, room, layout, template, "planned-near", spot, Proximity.NEAR, NEW_ROTATIONS);
+        }
+    }
+
     /** Moves an existing item; its rotation stays as it is because MOVE does not change it. */
     public Placement moveExisting(Dimensions dimensions, RoomModel room, List<FurnitureItem> existing,
                                   FurnitureItem target, AnchorKind anchor, Proximity proximity) {

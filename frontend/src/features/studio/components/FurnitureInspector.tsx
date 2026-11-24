@@ -1,25 +1,17 @@
 import { useState, type RefObject } from "react"
 import {
-  IconArrowRightLine,
   IconTrashcanLine,
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, Icon, PrefixIcon } from "@seed-design/react"
 import { Slider } from "seed-design/ui/slider"
 import { Callout } from "seed-design/ui/callout"
-import {
-  MenuContent,
-  MenuGroup,
-  MenuItem,
-  MenuRoot,
-  MenuTrigger,
-} from "seed-design/ui/menu"
-
 import { Type } from "@/components/kokoro/Type"
 import { catalog } from "@/features/studio/data"
 import { formatPrice } from "@/features/studio/format"
 import type { Furniture } from "@/features/studio/types"
 
+import { FurnitureRoomMenu } from "./FurnitureRoomMenu"
 import { FurnitureThumb } from "./FurnitureThumb"
 import { MeterField } from "./MeterField"
 
@@ -32,6 +24,7 @@ export function FurnitureInspector({
   onDelete,
   onClose,
   issue,
+  roomName,
   moveTargets = [],
   onMoveToRoom,
   menuContainer,
@@ -45,6 +38,7 @@ export function FurnitureInspector({
   onDelete: () => void
   onClose?: () => void
   issue?: string
+  roomName?: string
   /** 이 가구를 옮길 수 있는 다른 방들. */
   moveTargets?: { index: number; name: string }[]
   onMoveToRoom?: (index: number) => void
@@ -60,6 +54,7 @@ export function FurnitureInspector({
     <div className="inspector-form">
       <header className="inspector-identity">
         <FurnitureThumb
+          catalogId={selected.catalogId}
           category={selected.category}
           color={selected.color}
           size="large"
@@ -86,6 +81,24 @@ export function FurnitureInspector({
           </ActionButton>
         )}
       </header>
+
+      {roomName && (
+        <section className="inspector-room" aria-label="가구가 있는 방">
+          <div className="inspector-room-name">
+            <Type variant="caption">가구가 있는 방</Type>
+            <Type variant="heading" title={roomName} maxLines={1}>
+              {roomName}
+            </Type>
+          </div>
+          {moveTargets.length > 0 && onMoveToRoom && (
+            <FurnitureRoomMenu
+              targets={moveTargets}
+              onMove={onMoveToRoom}
+              menuContainer={menuContainer}
+            />
+          )}
+        </section>
+      )}
 
       {issue && (
         <div className="placement-issue-detail">
@@ -153,31 +166,6 @@ export function FurnitureInspector({
       </section>
 
       <footer className="inspector-footer">
-        {moveTargets.length > 0 && onMoveToRoom && (
-          <MenuRoot>
-            <MenuTrigger asChild>
-              <ActionButton
-                variant="neutralWeak"
-                size="medium"
-                className="inspector-move"
-              >
-                <PrefixIcon svg={<IconArrowRightLine />} />
-                다른 방으로 옮기기
-              </ActionButton>
-            </MenuTrigger>
-            <MenuContent positionerContainer={menuContainer}>
-              <MenuGroup>
-                {moveTargets.map((target) => (
-                  <MenuItem
-                    key={target.index}
-                    label={target.name}
-                    onClick={() => onMoveToRoom(target.index)}
-                  />
-                ))}
-              </MenuGroup>
-            </MenuContent>
-          </MenuRoot>
-        )}
         <ActionButton
           variant="ghost"
           size="medium"

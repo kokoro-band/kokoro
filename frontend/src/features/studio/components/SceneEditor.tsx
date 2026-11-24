@@ -11,10 +11,12 @@ import {
 import {
   IconArrowUturnLeftLine,
   IconArrowUturnRightLine,
+  IconChevronRightLine,
   IconCorner4InwardLine,
   IconCorner4OutwardLine,
   IconHandPointUpLine,
   IconHandWaveLine,
+  IconHouseLine,
   IconMapLine,
   IconSofaLine,
 } from "@karrotmarket/react-monochrome-icon"
@@ -91,6 +93,7 @@ export function SceneEditor({
   onFullscreenError,
   onSelect,
   onEnterRoom,
+  onShowHouse,
   viewForwardRef,
   onMove,
   onMoveEnd,
@@ -111,6 +114,7 @@ export function SceneEditor({
   onFullscreenError: () => void
   /** 집 전체에서 빈 바닥을 누르면 그 방으로 들어갑니다. */
   onEnterRoom?: (index: number) => void
+  onShowHouse: () => void
   /** 화면 위쪽이 평면도의 어느 방향인지 장면이 적어 둡니다. */
   viewForwardRef?: RefObject<Point2>
   onSelect: (id: string | null) => void
@@ -126,6 +130,7 @@ export function SceneEditor({
   ) => boolean
 }) {
   const panelRef = useRef<HTMLElement>(null)
+  const scopeRef = useRef<HTMLElement>(null)
   const xrEntryRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isMinimapOpen, setIsMinimapOpen] = useState(false)
@@ -234,7 +239,44 @@ export function SceneEditor({
 
   return (
     <section ref={panelRef} className="viewport" aria-label="배치 화면">
-      <div className="viewport-toolbar">
+      <div className="viewport-toolbar viewport-toolbar-arrange">
+        <nav
+          ref={scopeRef}
+          className="viewport-scope"
+          aria-label="공간 보기"
+          tabIndex={-1}
+        >
+          {focusRoom ? (
+            <>
+              <ActionButton
+                variant="ghost"
+                size="small"
+                onClick={() => {
+                  onShowHouse()
+                  scopeRef.current?.focus()
+                }}
+              >
+                집 전체
+              </ActionButton>
+              <Icon svg={<IconChevronRightLine />} size="x3" aria-hidden />
+              <Type
+                variant="label"
+                aria-current="location"
+                title={focusRoom.name}
+                maxLines={1}
+              >
+                {focusRoom.name}
+              </Type>
+            </>
+          ) : (
+            <>
+              <Icon svg={<IconHouseLine />} size="x4" aria-hidden />
+              <Type variant="label" aria-current="location">
+                집 전체
+              </Type>
+            </>
+          )}
+        </nav>
         <ToolbarChoice
           items={viewModes.map((item) =>
             item.value === "vr"

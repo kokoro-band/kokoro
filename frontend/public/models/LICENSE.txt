@@ -1,8 +1,9 @@
-Furniture models in this folder are from the Kenney Furniture Kit (2.0)
+The current GLBs, thumbnails and oak floor finish were created for Kokoro in Blender.
+The initial catalog used models from the Kenney Furniture Kit (2.0).
 https://kenney.nl/assets/furniture-kit
-License: Creative Commons Zero (CC0) — http://creativecommons.org/publicdomain/zero/1.0/
+Original kit license: Creative Commons Zero (CC0) — https://creativecommons.org/publicdomain/zero/1.0/
 
-Source file mapping:
+Initial catalog source mapping:
   sofa-cloud.glb   <- loungeSofa.glb
   sofa-moss.glb    <- loungeDesignSofa.glb
   table-oak.glb    <- table.glb

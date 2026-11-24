@@ -1,4 +1,4 @@
-import { catalog } from "./data"
+import { furnitureSize } from "./data"
 import type { Furniture, Point2, Project, Wall } from "./types"
 
 export type PlacementIssue = {
@@ -23,7 +23,7 @@ const cross = (a: Point2, b: Point2, c: Point2) =>
   (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 export function footprint(item: Furniture): Box | null {
-  const size = catalog.find((entry) => entry.id === item.catalogId)
+  const size = furnitureSize(item)
   if (!size || ![item.x, item.z, item.rotation].every(Number.isFinite))
     return null
   const angle = (item.rotation * Math.PI) / 180

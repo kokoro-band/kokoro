@@ -4,7 +4,7 @@ import { List, ListItem } from "seed-design/ui/list"
 import { ResultSection } from "seed-design/ui/result-section"
 
 import { Type } from "@/components/kokoro/Type"
-import { catalog } from "@/features/studio/data"
+import { furnitureSize } from "@/features/studio/data"
 import { formatPrice } from "@/features/studio/format"
 import {
   furniturePrice,
@@ -17,7 +17,7 @@ import { FurnitureThumb } from "./FurnitureThumb"
 
 /** 구매 내역에는 놓인 위치가 아니라 제품의 가로 × 깊이를 보여 줍니다. */
 function productSize(item: Furniture) {
-  const entry = catalog.find((candidate) => candidate.id === item.catalogId)
+  const entry = furnitureSize(item)
   return entry
     ? `${item.category} · ${entry.width} × ${entry.depth} m`
     : item.category

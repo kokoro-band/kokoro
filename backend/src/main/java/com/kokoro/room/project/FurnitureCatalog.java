@@ -39,7 +39,7 @@ public final class FurnitureCatalog {
             if (!id.matches("[a-z0-9]+(?:-[a-z0-9]+)*") || result.containsKey(id)) {
                 throw invalid("중복되거나 잘못된 가구 ID: " + id);
             }
-            if (!Set.of("소파", "테이블", "의자", "장식").contains(text(item, "category"))
+            if (!Set.of("소파", "테이블", "의자", "장식", "기타").contains(text(item, "category"))
                     || !text(item, "color").matches("#[0-9a-fA-F]{6}")
                     || !item.path("price").isIntegralNumber() || !item.path("price").canConvertToLong()
                     || item.path("price").longValue() < 0 || item.path("price").longValue() > 9007199254740991L

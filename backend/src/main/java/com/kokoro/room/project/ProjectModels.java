@@ -1,6 +1,7 @@
 package com.kokoro.room.project;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import tools.jackson.databind.JsonNode;
@@ -117,8 +118,28 @@ public final class ProjectModels {
             @NotNull Double x,
             @NotNull Double z,
             @NotNull Double rotation,
-            @NotBlank String color
-    ) {}
+            @NotBlank String color,
+            @JsonInclude(JsonInclude.Include.NON_NULL) FurnitureSize size
+    ) {
+        /** Catalog furniture takes its footprint from the catalog and carries no size. */
+        public FurnitureItem(String id, String catalogId, String name, String category,
+                             Double x, Double z, Double rotation, String color) {
+            this(id, catalogId, name, category, x, z, rotation, color, null);
+        }
+
+        public FurnitureItem moved(double x, double z) {
+            return new FurnitureItem(id, catalogId, name, category, x, z, rotation, color, size);
+        }
+
+        public FurnitureItem rotated(double rotation) {
+            return new FurnitureItem(id, catalogId, name, category, x, z, rotation, color, size);
+        }
+    }
+
+    /** Meters. Only furniture with {@link FurnitureSize#CATALOG_ID} has one. */
+    public record FurnitureSize(Double width, Double depth, Double height) {
+        public static final String CATALOG_ID = "custom-box";
+    }
 
     public record RenovationProject(
             String id,

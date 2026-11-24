@@ -1,4 +1,4 @@
-import { catalog } from "./data"
+import { catalog, furnitureSize } from "./data"
 import { findFreePlacement, constrainFurniturePose } from "./furniture-motion"
 import { assertFurnitureCount } from "./input-limits"
 import { containsPoint } from "./house-navigation"
@@ -50,7 +50,7 @@ function targetPositions(
     if (anchors.length !== 1)
       throw new Error("기준 가구를 하나로 정할 수 없어요. 배치는 유지했어요.")
     const anchor = anchors[0]
-    const anchorSize = catalog.find((entry) => entry.id === anchor.catalogId)
+    const anchorSize = furnitureSize(anchor)
     const targetSize = catalog.find((entry) => entry.id === intent.catalogId)
     if (!anchorSize || !targetSize)
       throw new Error("기준 가구의 규격을 확인할 수 없어요. 배치는 유지했어요.")

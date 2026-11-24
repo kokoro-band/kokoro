@@ -123,7 +123,7 @@ public class RelativePlacementPlanner {
 
     private static FurnitureItem probe(FurnitureItem template, String id, double x, double z, double rotation) {
         return new FurnitureItem(id, template.catalogId(), template.name(), template.category(), x, z, rotation,
-                template.color());
+                template.color(), template.size());
     }
 
     private static double round(double value) {

@@ -455,16 +455,14 @@ public class ProjectService {
                         next.remove(target);
                         actions.add(target.name() + " 삭제");
                     } else {
-                        next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
-                                target.category(), target.x(), target.z(), command.rotation().doubleValue(), target.color()));
+                        next.set(next.indexOf(target), target.rotated(command.rotation().doubleValue()));
                         actions.add(target.name() + " 회전");
                     }
                 }
                 case MOVE -> {
                     FurnitureItem target = next.stream().filter(item -> item.id().equals(command.furnitureId()))
                             .findFirst().orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "대상 가구를 찾을 수 없습니다."));
-                    next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
-                            target.category(), command.x(), command.z(), target.rotation(), target.color()));
+                    next.set(next.indexOf(target), target.moved(command.x(), command.z()));
                     actions.add(target.name() + " 이동");
                 }
             }
@@ -492,14 +490,12 @@ public class ProjectService {
             }
             case MOVE -> {
                 FurnitureItem target = command.target();
-                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
-                        target.category(), original.x(), original.z(), target.rotation(), target.color()));
+                next.set(next.indexOf(target), target.moved(original.x(), original.z()));
                 actions.add(target.name() + " 이동");
             }
             case ROTATE -> {
                 FurnitureItem target = command.target();
-                next.set(next.indexOf(target), new FurnitureItem(target.id(), target.catalogId(), target.name(),
-                        target.category(), target.x(), target.z(), original.rotation().doubleValue(), target.color()));
+                next.set(next.indexOf(target), target.rotated(original.rotation().doubleValue()));
                 actions.add(target.name() + " 회전");
             }
             case CLEAR -> { /* CLEAR only ever reaches the confirm flow. */ }

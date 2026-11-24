@@ -43,7 +43,7 @@ export function parseFurnitureCatalog(value: unknown): CatalogItem[] {
     }
     if (
       typeof item.category !== "string" ||
-      !["소파", "테이블", "의자", "장식"].includes(item.category) ||
+      !["소파", "테이블", "의자", "장식", "기타"].includes(item.category) ||
       typeof item.color !== "string" ||
       !/^#[0-9a-fA-F]{6}$/.test(item.color) ||
       typeof item.price !== "number" ||

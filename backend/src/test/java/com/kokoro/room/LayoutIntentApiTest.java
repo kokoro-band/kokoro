@@ -84,6 +84,23 @@ class LayoutIntentApiTest {
     }
 
     @Test
+    void movingAndRotatingCustomFurnitureKeepsItsSize() throws Exception {
+        String id = projectWithFurniture();
+        mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"furniture":[{"id":"fridge","catalogId":"custom-box","name":"냉장고","category":"기타","x":1.0,"z":1.0,"rotation":0,"color":"#F2F2F2",
+                          "size":{"width":0.5,"depth":0.56,"height":1.05}}]}
+                        """))
+                .andExpect(status().isOk());
+
+        JsonNode proposal = intents(id, "{\"type\":\"ROTATE\",\"targetQuery\":\"냉장고\",\"rotation\":90}", null, 200);
+        JsonNode confirmed = send(id, "/layout/commands/confirm", "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+        JsonNode fridge = confirmed.path("project").path("furniture").get(0);
+        assertThat(fridge.path("rotation").asDouble()).isEqualTo(90.0);
+        assertThat(fridge.path("size").path("height").asDouble()).isEqualTo(1.05);
+        assertThat(project(id).path("furniture").get(0).path("size").path("width").asDouble()).isEqualTo(0.5);
+    }
+
+    @Test
     void addUsesTheRegisteredFurnitureDefinition() throws Exception {
         String id = projectWithFurniture();
 

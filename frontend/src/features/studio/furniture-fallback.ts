@@ -21,6 +21,12 @@ export function addBox(
 
 export function makeFallbackModel(item: Furniture, catalogItem?: CatalogItem) {
   const group = new THREE.Group()
+  if (item.size) {
+    // 사진으로 잰 가구는 모양을 모르므로 잰 크기 그대로의 상자로 둡니다.
+    const { width, depth, height } = item.size
+    addBox(group, [width, height, depth], [0, height / 2, 0], item.color)
+    return group
+  }
   const width = catalogItem?.width ?? 0.6
   const depth = catalogItem?.depth ?? 0.6
 

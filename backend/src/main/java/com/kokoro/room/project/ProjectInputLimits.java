@@ -16,7 +16,9 @@ public final class ProjectInputLimits {
     public static final int MAX_FURNITURE_COUNT = 200;
     private static final double MAX_SAFE_COORDINATE = 9007199254740991d;
     private static final Set<String> RESERVED_IDS = Set.of("__proto__", "constructor", "prototype");
-    private static final Set<String> CATEGORIES = Set.of("소파", "테이블", "의자", "장식");
+    private static final Set<String> CATEGORIES = Set.of("소파", "테이블", "의자", "장식", "기타");
+    private static final double MIN_FURNITURE_SIDE = 0.05;
+    private static final double MAX_FURNITURE_SIDE = 5;
 
     public static void name(String value) {
         text(value, 1024, "프로젝트 이름은 공백이 아닌 값으로 입력하고 너무 긴 결합 문자는 줄여 주세요.");
@@ -53,13 +55,27 @@ public final class ProjectInputLimits {
             if (RESERVED_IDS.contains(item.id()) || RESERVED_IDS.contains(item.catalogId()))
                 throw new ResponseStatusException(BAD_REQUEST, "사용할 수 없는 가구 식별자입니다.");
             if (item.category() == null || !CATEGORIES.contains(item.category()))
-                throw new ResponseStatusException(BAD_REQUEST, "가구 종류는 소파 또는 테이블 또는 의자 또는 장식이어야 합니다.");
+                throw new ResponseStatusException(BAD_REQUEST, "가구 종류는 소파 또는 테이블 또는 의자 또는 장식 또는 기타여야 합니다.");
             if (!between(item.x(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE)
                     || !between(item.z(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE))
                 throw new ResponseStatusException(BAD_REQUEST, "가구 위치는 브라우저에서 처리할 수 있는 유한한 숫자여야 합니다.");
             if (!between(item.rotation(), -MAX_SAFE_COORDINATE, MAX_SAFE_COORDINATE))
                 throw new ResponseStatusException(BAD_REQUEST, "가구 회전은 브라우저에서 처리할 수 있는 유한한 숫자여야 합니다.");
+            size(item);
         }
+    }
+
+    /** custom-box 가구만 자기 크기를 가지며, 그 크기는 꼭 있어야 한다. */
+    private static void size(FurnitureItem item) {
+        boolean custom = FurnitureSize.CATALOG_ID.equals(item.catalogId());
+        if (custom && item.size() == null)
+            throw new ResponseStatusException(BAD_REQUEST, "직접 추가한 가구는 가로와 세로와 높이 크기가 필요합니다.");
+        if (!custom && item.size() != null)
+            throw new ResponseStatusException(BAD_REQUEST, "카탈로그 가구는 크기를 바꿀 수 없습니다: " + item.catalogId());
+        if (custom && !(between(item.size().width(), MIN_FURNITURE_SIDE, MAX_FURNITURE_SIDE)
+                && between(item.size().depth(), MIN_FURNITURE_SIDE, MAX_FURNITURE_SIDE)
+                && between(item.size().height(), MIN_FURNITURE_SIDE, MAX_FURNITURE_SIDE)))
+            throw new ResponseStatusException(BAD_REQUEST, "가구의 가로와 세로와 높이는 0.05~5m여야 합니다.");
     }
 
     private static boolean between(Double value, double min, double max) {

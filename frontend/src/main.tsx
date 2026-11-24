@@ -6,11 +6,14 @@ import { queryClient } from "@/lib/query-client"
 
 import "./index.css"
 import App from "./App.tsx"
+import { AuthGate } from "@/features/studio/components/AuthGate"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AuthGate>
+        <App />
+      </AuthGate>
     </QueryClientProvider>
   </StrictMode>
 )

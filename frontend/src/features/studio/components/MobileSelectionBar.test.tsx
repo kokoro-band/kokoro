@@ -133,7 +133,9 @@ describe("mobile furniture selection", () => {
     expect(ui.sheet()).not.toBeNull()
     await ui.click("올리브 화분 거실에 놓기")
     expect(ui.sheet()).toBeNull()
-    expect(ui.saved().furniture).toHaveLength(5)
+    expect(ui.saved().furniture).toHaveLength(
+      sampleProject.furniture.length + 1
+    )
     expect(ui.bar()!.textContent).toContain("올리브 화분")
   })
 

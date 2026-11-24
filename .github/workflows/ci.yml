@@ -20,6 +20,8 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
+      local_ai: ${{ steps.filter.outputs.local_ai }}
+      ollama: ${{ steps.filter.outputs.ollama }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -98,6 +100,8 @@ jobs:
           LOCAL_AI_E2E_RESULT: ${{ needs.local-ai-e2e.result }}
           NEEDS_FRONTEND: ${{ needs.changes.outputs.frontend }}
           NEEDS_BACKEND: ${{ needs.changes.outputs.backend }}
+          NEEDS_LOCAL_AI: ${{ needs.changes.outputs.local_ai }}
+          NEEDS_OLLAMA: ${{ needs.changes.outputs.ollama }}
         run: |
           node --input-type=module <<'JS'
           import { assertResults } from './.github/scripts/ci-changes.mjs'
@@ -110,12 +114,14 @@ jobs:
             localAiE2e: process.env.LOCAL_AI_E2E_RESULT,
             needsFrontend: process.env.NEEDS_FRONTEND,
             needsBackend: process.env.NEEDS_BACKEND,
+            needsLocalAi: process.env.NEEDS_LOCAL_AI,
+            needsOllama: process.env.NEEDS_OLLAMA,
           })
           JS
 
   local-ai-e2e:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.local_ai == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -177,7 +183,7 @@ jobs:
 
   ollama-e2e:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.ollama == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

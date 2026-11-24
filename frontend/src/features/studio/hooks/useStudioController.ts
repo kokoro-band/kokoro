@@ -770,23 +770,25 @@ export function useStudioController() {
     setSelectedId(null)
   }
 
+  /** 카탈로그 ID나 직접 만든 가구(사진으로 잰 가구)를 빈 자리에 놓습니다. */
   function addFurniture(
-    catalogId: string,
+    source: string | Furniture,
     position?: [number, number],
     focus?: RoomLabel | null
   ) {
     if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const step = project.furniture.length
-    const item = makeFurniture(
-      catalogId,
-      position
-        ? round(position[0])
-        : round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8)),
-      position
-        ? round(position[1])
-        : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
-    )
+    const x = position
+      ? round(position[0])
+      : round(roomBounds.width * 0.4 + ((step * 0.6) % 1.8))
+    const z = position
+      ? round(position[1])
+      : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
+    const item =
+      typeof source === "string"
+        ? makeFurniture(source, x, z)
+        : { ...source, x, z }
     // A new item never starts on other furniture or in a door's clearance.
     // A quarter turn is tried before giving up.
     const placed =

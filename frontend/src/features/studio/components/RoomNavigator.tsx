@@ -45,6 +45,7 @@ export function RoomNavigator({
   onTabChange,
   onCategoryChange,
   onAddFurniture,
+  onAddFromPhoto,
   onSelectFurniture,
   issues,
   onSelectIssue,
@@ -58,6 +59,8 @@ export function RoomNavigator({
   onTabChange: (tab: "furniture" | "placed") => void
   onCategoryChange: (category: Category) => void
   onAddFurniture: (catalogId: string) => void
+  /** 사진으로 크기를 재서 가구를 추가합니다. 없으면 버튼을 숨깁니다. */
+  onAddFromPhoto?: () => void
   onSelectFurniture: (id: string) => void
   issues: PlacementIssue[]
   onSelectIssue: (id: string) => void
@@ -214,6 +217,18 @@ export function RoomNavigator({
               />
             </TextField>
           </div>
+          {onAddFromPhoto && (
+            <div className="photo-add">
+              <ActionButton
+                variant="neutralWeak"
+                size="medium"
+                layout="withText"
+                onClick={onAddFromPhoto}
+              >
+                사진으로 추가
+              </ActionButton>
+            </div>
+          )}
           {visibleCatalog.length === 0 && (
             <div className="panel-empty">
               <Type variant="description" as="p" role="status">

@@ -15,10 +15,21 @@ import { SummaryView } from "./SummaryView"
 import { useStudioController } from "../hooks/useStudioController"
 import { sampleProject, catalog } from "../data"
 import { buildRoomModel } from "../room-builder"
+import { placementIssues } from "../placement-issues"
 import type { Furniture, Project } from "../types"
 
 // Only the WebGL scene boundary is replaced. UI, controller and persistence are real.
 vi.mock("./SceneEditor", () => ({ SceneEditor: () => <div>3D 경계</div> }))
+// 측정 서버(로컬 파이썬)만 고정값으로 바꿉니다.
+vi.mock("../photo-measure", async (original) => ({
+  ...(await original<typeof import("../photo-measure")>()),
+  measurePhoto: vi.fn(async () => ({
+    widthCm: 55.8,
+    depthCm: 51.5,
+    heightCm: 107.8,
+    floorFound: true,
+  })),
+}))
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
@@ -354,5 +365,57 @@ describe("moving furniture between rooms", () => {
     expect(ui.controller.current!.notice?.text).toBe(
       "침실에는 이 가구를 놓을 자리가 없어요."
     )
+  })
+})
+
+describe("사진으로 가구 추가", () => {
+  it("측정한 크기의 가구를 방 안 빈 자리에 놓고 저장한다", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:photo")
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
+    const ui = await setup()
+    await ui.click("사진으로 추가")
+    const dialog = document.querySelector('[role="dialog"]')!
+    const file = dialog.querySelector<HTMLInputElement>('input[type="file"]')!
+    Object.defineProperty(file, "files", {
+      value: [
+        new File([new Uint8Array([0xff, 0xd8])], "fridge.jpg", {
+          type: "image/jpeg",
+        }),
+      ],
+      configurable: true,
+    })
+    await act(async () =>
+      file.dispatchEvent(new Event("change", { bubbles: true }))
+    )
+    const image = dialog.querySelector("img")!
+    image.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 300, height: 400 }) as DOMRect
+    for (const [type, x, y] of [
+      ["pointerdown", 30, 100],
+      ["pointermove", 270, 400],
+      ["pointerup", 270, 400],
+    ] as const)
+      await act(async () =>
+        image.parentElement!.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            clientX: x,
+            clientY: y,
+            pointerId: 1,
+          })
+        )
+      )
+    await ui.click("크기 재기")
+    await ui.click("추가하기")
+
+    const placed = ui.saved().furniture
+    expect(placed).toHaveLength(1)
+    expect(placed[0]).toMatchObject({
+      catalogId: "custom-box",
+      category: "기타",
+      size: { width: 0.56, depth: 0.52, height: 1.08 },
+    })
+    expect(placementIssues(ui.saved())).toEqual([])
+    expect(ui.container.textContent).toContain("내 가구")
   })
 })

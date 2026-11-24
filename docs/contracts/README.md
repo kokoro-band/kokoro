@@ -14,7 +14,7 @@ Shared fixture: `fixtures/room-v2.json`.
 ## Furniture catalog and GLB scaling
 
 - Edit catalog entries only in `furniture-catalog.json`. The frontend bundles it; the backend syncs it on startup into `furniture_catalog` and `furniture_source_assets` (`GET /api/furniture-catalog`).
-- `dimensionKind` and `priceKind` are `example`. Keep `modelUrl` as `/models/<name>.glb` (the web loader prepends `VITE_BASE_PATH`). Models are Kenney Furniture Kit 2.0 (CC0).
+- `dimensionKind` and `priceKind` are `example`. Keep `modelUrl` as `/models/<name>.glb` (the web loader prepends `VITE_BASE_PATH`). Current GLB models and thumbnails are authored in Blender for Kokoro (floor at `Y = 0`, bottom-center origin, front facing `+Z`); `provenance.modelAsset` and `provenance.modelSha256` record the initial Kenney Furniture Kit 2.0 (CC0) catalog assets (`frontend/public/models/LICENSE.txt`).
 - **GLB scaling:** On load, align the floor to `Y = 0`, center X/Z at the origin, and scale X and Z independently to match catalog width and depth so rendered bounds match collision bounds. Scale Y by the smaller horizontal scale factor. Show a catalog-sized placeholder mesh while loading or on load failure.
 
 ## Manual vs AI placement validation

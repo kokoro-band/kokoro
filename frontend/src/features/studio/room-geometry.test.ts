@@ -2,6 +2,7 @@ import * as THREE from "three"
 import { describe, expect, it } from "vite-plus/test"
 
 import { animateDoors, buildRoomGroup, type DoorState } from "./room-geometry"
+import { sampleRoom } from "./sample-room"
 import type { RoomModel, ViewMode } from "./types"
 
 function roomWithDoor(a: [number, number], b: [number, number]): RoomModel {
@@ -68,5 +69,45 @@ describe("manual door swing direction", () => {
     expect(Math.abs(leafSide(roomWithDoor([0, 2], [4, 2]), "vr"))).toBeLessThan(
       1e-6
     )
+  })
+})
+
+describe("whole-house 3D presentation", () => {
+  const plan = { ...sampleRoom, rooms: [] }
+
+  it("lowers the exterior wall facing the opening camera and keeps the opposite wall tall", () => {
+    const room = buildRoomGroup(plan, "3d", undefined, { overview: true })
+    expect(new THREE.Box3().setFromObject(room).max.y).toBeCloseTo(
+      plan.wallHeight
+    )
+    const wallHeight = (id: string) =>
+      new THREE.Box3().setFromObject(room.getObjectByName(id)!).max.y
+    expect(wallHeight("ext-bottom")).toBeCloseTo(0.74)
+    expect(wallHeight("ext-top")).toBeCloseTo(sampleRoom.wallHeight)
+    const focused = buildRoomGroup(plan, "3d")
+    const focusedWall = focused.getObjectByName("ext-bottom")!
+    expect(new THREE.Box3().setFromObject(focusedWall).max.y).toBeCloseTo(0.74)
+    const vr = buildRoomGroup(plan, "vr")
+    const vrWall = vr.getObjectByName("ext-bottom")!
+    expect(new THREE.Box3().setFromObject(vrWall).max.y).toBeCloseTo(
+      sampleRoom.wallHeight
+    )
+  })
+
+  it("starts with a hidden 3D grid whose segments stay inside the floor outline", () => {
+    const room = buildRoomGroup(plan, "3d", undefined, { overview: true })
+    const grid = room.getObjectByName("placement-grid") as THREE.LineSegments
+    expect(grid.visible).toBe(false)
+    const positions = grid.geometry.getAttribute("position")
+    expect(positions.count).toBeGreaterThan(0)
+    for (let i = 0; i < positions.count; i += 2) {
+      const x = (positions.getX(i) + positions.getX(i + 1)) / 2 + 5.2
+      const z = (positions.getZ(i) + positions.getZ(i + 1)) / 2 + 3.2
+      expect(x > 7.9 && z > 3.4).toBe(false)
+      expect(x > 6.4 && z > 5).toBe(false)
+    }
+    expect(
+      buildRoomGroup(plan, "vr").getObjectByName("placement-grid")
+    ).toBeUndefined()
   })
 })

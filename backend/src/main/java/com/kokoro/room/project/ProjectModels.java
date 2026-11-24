@@ -50,7 +50,7 @@ public final class ProjectModels {
 
     /**
      * Room structure built by the user. Lengths are meters and floor coordinates start
-     * at the top-left corner of {@link RoomBounds}. See docs/contracts/room-model.md.
+     * at the top-left corner of {@link RoomBounds}. See docs/contracts/README.md.
      */
     public record RoomModel(
             @NotNull Integer version,

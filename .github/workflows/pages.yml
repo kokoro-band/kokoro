@@ -6,12 +6,12 @@ on:
       - main
     paths:
       - frontend/**
-      - docs/contracts/**
+      - docs/contracts/**/*.json
       - .github/workflows/pages.yml
   pull_request:
     paths:
       - frontend/**
-      - docs/contracts/**
+      - docs/contracts/**/*.json
       - .github/workflows/pages.yml
   workflow_dispatch:
 

@@ -1,9 +1,18 @@
-import { useCallback, useMemo, useRef, useState } from "react"
 import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import {
+  IconArrowClockwiseCircularLine,
   IconHouseLine,
   IconPlusLine,
   IconSlider2HorizontalLine,
   IconSparkle2Line,
+  IconTrashcanLine,
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, BottomSheet, Icon, PrefixIcon } from "@seed-design/react"
@@ -20,12 +29,18 @@ import {
 import { Type } from "@/components/kokoro/Type"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
 import type { useStudioController } from "@/features/studio/hooks/useStudioController"
-import { roomCenter } from "@/features/studio/house-navigation"
+import {
+  roomCenter,
+  roomForFurniture,
+} from "@/features/studio/house-navigation"
 import { shortcutText } from "@/features/studio/shortcuts"
 import { placementIssues } from "@/features/studio/placement-issues"
+import { nudgeDirection } from "@/features/studio/keyboard-nudge"
+import type { Furniture, Point2 } from "@/features/studio/types"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
+import { FurnitureThumb } from "./FurnitureThumb"
 import { HouseMap } from "./HouseMap"
 import { RoomNavigator } from "./RoomNavigator"
 import { SceneEditor } from "./SceneEditor"
@@ -33,18 +48,6 @@ import { SceneEditor } from "./SceneEditor"
 type Studio = ReturnType<typeof useStudioController>
 type InspectorTab = "selection" | "assistant"
 type MobileSheet = "navigator" | "selection" | "assistant" | null
-
-/** 평면도에서 화살표 키가 가리키는 방향. 세로는 아래로 갈수록 커집니다. */
-const nudgeDirections: Record<string, [x: number, z: number]> = {
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
-  ArrowLeft: [-1, 0],
-  ArrowRight: [1, 0],
-}
-
-function round1(value: number) {
-  return Math.round(value * 10) / 10
-}
 
 export function ArrangeView({
   studio,
@@ -70,14 +73,32 @@ export function ArrangeView({
   const selectFurniture = useCallback(
     (id: string | null) => {
       if (id) setInspectorTab("selection")
-      if (isMobile) setSheet(id ? "selection" : null)
+      // 모바일에서는 화면을 가리지 않도록 시트 대신 작은 도구 줄만 보여 줍니다.
+      if (isMobile) setSheet(null)
       selectStudioFurniture(id)
     },
     [isMobile, selectStudioFurniture]
   )
+  // Scene picks don't open the mobile sheet, so it won't cover a drag.
+  const selectSceneFurniture = useCallback(
+    (id: string | null) => {
+      if (id) setInspectorTab("selection")
+      selectStudioFurniture(id)
+    },
+    [selectStudioFurniture]
+  )
+  const viewForwardRef = useRef<Point2>([0, -1])
   const assistantInputRef = useRef<HTMLTextAreaElement>(null)
   const navigatorRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
+  // 모달 시트 밖의 메뉴는 보조기기에서 숨겨지므로 시트 안에 그립니다. 메뉴의
+  // 포털은 처음 붙을 때 한 번만 자리를 정하고, 부모의 ref는 자식 효과보다 늦게
+  // 붙으므로 시트 요소를 상태로 받은 뒤에야 메뉴를 그립니다.
+  const [sheetElement, setSheetElement] = useState<HTMLDivElement | null>(null)
+  const sheetMenuContainer = useMemo(
+    () => ({ current: sheetElement }),
+    [sheetElement]
+  )
   const dockPlaceRef = useRef<HTMLButtonElement>(null)
   const selected = studio.selected
   const issues = useMemo(
@@ -94,11 +115,63 @@ export function ArrangeView({
   const hasHouse = Boolean(houseRoom && rooms.length > 0)
   const hasSelection = hasHouse && Boolean(selected)
 
+  /** 방을 바꿔도 고른 가구가 새 화면에 보이면 선택을 그대로 둡니다. */
   const changeRoom = (index: number | null) => {
-    studio.selectFurniture(null)
+    const shown =
+      selected &&
+      (index === null || roomForFurniture(rooms, selected) === index)
+    if (!shown) studio.selectFurniture(null)
     onRoomChange(index)
     if (isMobile && index !== null) setSheet(null)
   }
+
+  /**
+   * 방은 보는 범위일 뿐이라 가구는 벽이 없는 옆방으로도 넘어갑니다. 옮긴 가구가
+   * 다른 방에 놓이면 그 방을 보여 주고, 어느 방도 아니면 집 전체를 보여 줍니다.
+   */
+  const follow = (item: Furniture | null | undefined) => {
+    if (!item || roomIndex === null) return
+    const index = roomForFurniture(rooms, item)
+    if (index !== roomIndex) onRoomChange(index < 0 ? null : index)
+  }
+  // 끌기와 키보드 이동은 손을 뗀 뒤에 따라갑니다. 옮기는 도중에 방을 바꾸면
+  // 장면을 새로 만들면서 끌기가 끊기기 때문입니다.
+  const [moveCommits, setMoveCommits] = useState(0)
+  const followedCommit = useRef(0)
+  const commitStudioPreviewRef = useRef(studio.commitPreview)
+  useLayoutEffect(() => {
+    commitStudioPreviewRef.current = studio.commitPreview
+  }, [studio.commitPreview])
+  const keyboardPendingRef = useRef(false)
+  const commitMove = useCallback(() => {
+    keyboardPendingRef.current = false
+    commitStudioPreviewRef.current()
+    setMoveCommits((count) => count + 1)
+  }, [])
+  const commitKeyboardMove = useCallback(() => {
+    if (keyboardPendingRef.current) commitMove()
+  }, [commitMove])
+  useEffect(() => {
+    window.addEventListener("blur", commitKeyboardMove)
+    return () => {
+      window.removeEventListener("blur", commitKeyboardMove)
+      commitKeyboardMove()
+    }
+  }, [commitKeyboardMove])
+  // 실행 취소와 다시 실행도 가구를 다른 방으로 되돌릴 수 있어 같이 따라갑니다.
+  const undo = () => {
+    studio.undo()
+    setMoveCommits((count) => count + 1)
+  }
+  const redo = () => {
+    studio.redo()
+    setMoveCommits((count) => count + 1)
+  }
+  useEffect(function followCommittedMove() {
+    if (followedCommit.current === moveCommits) return
+    followedCommit.current = moveCommits
+    follow(selected)
+  })
 
   /** 집 전체와 방들을 차례로 돕니다. */
   const stepRoom = (step: number) => {
@@ -108,28 +181,34 @@ export function ArrangeView({
   }
 
   const nudge = (event: KeyboardEvent, distance: number) => {
-    const direction = nudgeDirections[event.code]
+    // 3D 화면을 돌려 놓았으면 화면에서 보이는 방향대로 옮깁니다.
+    const direction = nudgeDirection(event.code, viewForwardRef.current)
     if (!selected || !direction) return
-    const x = round1(selected.x + direction[0] * distance)
-    const z = round1(selected.z + direction[1] * distance)
-    studio.previewSelected({ x, z }, room)
+    // 벽에 붙은 가구는 0.1 m 눈금 밖에 있으므로 지금 자리에서 그대로 더합니다.
+    if (
+      studio.previewSelected({
+        x: selected.x + direction[0] * distance,
+        z: selected.z + direction[1] * distance,
+      })
+    )
+      keyboardPendingRef.current = true
   }
 
   const rotate = (degrees: number) => {
     if (!selected) return
-    studio.updateSelected(
-      {
+    follow(
+      studio.updateSelected({
         rotation: (selected.rotation + degrees + 360) % 360,
-      },
-      room
+      })
     )
   }
 
-  /** 입력한 좌표가 방 밖이면 가장 가까운 안쪽 자리로 옮기고, 맞췄는지 알려 줍니다. */
+  /** 입력한 좌표가 벽이나 집 밖이면 가장 가까운 안쪽 자리로 옮기고, 맞췄는지 알려 줍니다. */
   const placeSelected = (update: { x?: number; z?: number }) => {
     if (!selected) return false
     const target = { x: update.x ?? selected.x, z: update.z ?? selected.z }
-    const placed = studio.updateSelected(target, room)
+    const placed = studio.updateSelected(target)
+    follow(placed)
     return (
       !!placed &&
       (Math.abs(placed.x - target.x) > 1e-5 ||
@@ -146,6 +225,17 @@ export function ArrangeView({
       sheetRef.current?.contains(active)
     )
       dockPlaceRef.current?.focus()
+  }
+
+  const selectedRoom = selected ? roomForFurniture(rooms, selected) : -1
+  const moveTargets = rooms.flatMap((entry, index) =>
+    index === selectedRoom ? [] : [{ index, name: entry.name }]
+  )
+  /** 옮긴 방으로 따라가되 선택은 그대로 둡니다. */
+  const moveToRoom = (index: number) => {
+    const target = rooms[index]
+    if (!target || !studio.moveSelectedToRoom(target)) return
+    if (roomIndex !== null) onRoomChange(index)
   }
 
   const deleteSelected = () => {
@@ -193,7 +283,7 @@ export function ArrangeView({
     enabled: hasSelection,
   })
   // 끌어서 옮길 때처럼 키를 떼면 한 번에 실행 취소 기록으로 남깁니다.
-  useShortcut("nudge", studio.commitPreview, { enabled: hasHouse, keyup: true })
+  useShortcut("nudge", commitKeyboardMove, { enabled: hasHouse, keyup: true })
   useShortcut("rotate", () => rotate(90), { enabled: hasSelection })
   useShortcut("rotateBack", () => rotate(-90), { enabled: hasSelection })
   useShortcut("deleteFurniture", deleteSelected, { enabled: hasSelection })
@@ -232,7 +322,8 @@ export function ArrangeView({
   const addFurniture = (catalogId: string) => {
     setInspectorTab("selection")
     studio.addFurniture(catalogId, room ? roomCenter(room) : undefined, room)
-    if (isMobile) setSheet("selection")
+    // 방금 놓은 가구를 화면에서 바로 보고 옮길 수 있게 시트를 닫습니다.
+    if (isMobile) setSheet(null)
   }
 
   const send = (text: string) => {
@@ -264,11 +355,13 @@ export function ArrangeView({
       selected={selected}
       issue={selectedIssue?.reason}
       bounds={studio.roomBounds}
-      roomName={room?.name ?? null}
       onPlace={placeSelected}
-      onPreview={(update) => studio.previewSelected(update, room)}
-      onCommitPreview={studio.commitPreview}
+      onPreview={(update) => studio.previewSelected(update)}
+      onCommitPreview={commitMove}
       onDelete={deleteSelected}
+      moveTargets={isMobile && !sheetElement ? [] : moveTargets}
+      onMoveToRoom={moveToRoom}
+      menuContainer={isMobile ? sheetMenuContainer : undefined}
       onClose={isMobile ? undefined : () => selectFurniture(null)}
     />
   ) : (
@@ -326,12 +419,16 @@ export function ArrangeView({
       canUndo={studio.canUndo}
       canRedo={studio.canRedo}
       onModeChange={studio.setMode}
-      onUndo={studio.undo}
-      onRedo={studio.redo}
+      onUndo={undo}
+      onRedo={redo}
       onFullscreenError={studio.reportFullscreenError}
-      onSelect={selectFurniture}
+      onSelect={selectSceneFurniture}
+      onEnterRoom={changeRoom}
+      viewForwardRef={viewForwardRef}
       onMove={studio.moveFurniture}
-      onMoveEnd={studio.commitPreview}
+      onMoveEnd={commitMove}
+      onConstrainPose={studio.constrainPose}
+      onPlace={studio.placeFurniture}
       minimap={
         <HouseMap
           room={houseRoom}
@@ -366,6 +463,58 @@ export function ArrangeView({
           />
         )}
         {scene}
+        {selected && sheet !== "selection" && (
+          <section className="selection-bar" aria-label="선택한 가구 빠른 도구">
+            <FurnitureThumb
+              category={selected.category}
+              color={selected.color}
+            />
+            <Type
+              variant="label"
+              as="p"
+              className="selection-bar-name"
+              maxLines={1}
+              title={selected.name}
+            >
+              {selected.name}
+            </Type>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              aria-label="90도 돌리기"
+              onClick={() => rotate(90)}
+            >
+              <Icon svg={<IconArrowClockwiseCircularLine />} size="x5" />
+            </ActionButton>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              color="fg.critical"
+              aria-label="가구 빼기"
+              onClick={deleteSelected}
+            >
+              <Icon svg={<IconTrashcanLine />} size="x5" />
+            </ActionButton>
+            <ActionButton
+              variant="neutralWeak"
+              size="small"
+              onClick={() => setSheet("selection")}
+            >
+              자세히
+            </ActionButton>
+            <ActionButton
+              variant="ghost"
+              size="small"
+              layout="iconOnly"
+              aria-label="선택 해제"
+              onClick={() => selectFurniture(null)}
+            >
+              <Icon svg={<IconXmarkLine />} size="x5" />
+            </ActionButton>
+          </section>
+        )}
         <SnackbarAvoidOverlap>
           <nav className="mobile-dock" aria-label="배치 도구">
             <ActionButton
@@ -409,7 +558,13 @@ export function ArrangeView({
         >
           <BottomSheet.Backdrop />
           <BottomSheet.Positioner>
-            <BottomSheet.Content ref={sheetRef} className="mobile-sheet">
+            <BottomSheet.Content
+              ref={(node) => {
+                sheetRef.current = node
+                setSheetElement(node)
+              }}
+              className="mobile-sheet"
+            >
               <BottomSheet.Header>
                 <BottomSheet.Title>{sheetTitle}</BottomSheet.Title>
                 <BottomSheet.CloseButton aria-label="닫기">

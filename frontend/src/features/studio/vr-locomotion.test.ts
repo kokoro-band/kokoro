@@ -1,6 +1,6 @@
 import * as THREE from "three"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
-import { createVrLocomotion } from "./vr-locomotion"
+import { createVrLocomotion, type VrHand } from "./vr-locomotion"
 
 const cleanups: (() => void)[] = []
 afterEach(() => {
@@ -33,8 +33,10 @@ function setup() {
     removeEventListener: events.removeEventListener.bind(events),
   }
   const walkable = vi.fn(() => true)
-  const selectStart = vi.fn(() => false)
+  const selectStart = vi.fn((_ray: THREE.Ray, _hand: VrHand) => false)
   const selectEnd = vi.fn(() => false)
+  const hold = vi.fn((_hand: VrHand, _deltaSeconds: number) => {})
+  const cancel = vi.fn()
   const options = {
     renderer: { xr } as unknown as THREE.WebGLRenderer,
     scene,
@@ -43,6 +45,8 @@ function setup() {
     isWalkable: walkable,
     onSelectStart: selectStart,
     onSelectEnd: selectEnd,
+    onHold: hold,
+    onCancel: cancel,
   }
   const locomotion = createVrLocomotion(options)
   let disposed = false
@@ -81,7 +85,28 @@ function setup() {
     walkable,
     selectStart,
     selectEnd,
+    hold,
+    cancel,
   }
+}
+
+type Source = {
+  handedness: string
+  gamepad: {
+    axes: number[]
+    hapticActuators: { pulse: ReturnType<typeof vi.fn> }[]
+  }
+}
+
+/** Connects a controller with its XR input source, as the browser does. */
+function connect(app: ReturnType<typeof setup>, index: number, axes: number[]) {
+  const source: Source = {
+    handedness: index === 0 ? "left" : "right",
+    gamepad: { axes, hapticActuators: [{ pulse: vi.fn() }] },
+  }
+  app.sources.push(source)
+  app.controllers[index].dispatchEvent({ type: "connected", data: source })
+  return source
 }
 
 describe("VR movement and input lifecycle", () => {
@@ -168,6 +193,7 @@ describe("VR movement and input lifecycle", () => {
     app.input(0, "selectstart")
     app.update()
     expect(app.markers[0].visible).toBe(false)
+    app.input(0, "select")
     app.input(0, "selectend")
     expect(app.selectEnd).toHaveBeenCalledTimes(1)
     expect(app.rig.position.toArray()).toEqual([2, 0, 3])
@@ -217,6 +243,7 @@ describe("VR movement and input lifecycle", () => {
       expect(app.markers[0].visible).toBe(true)
       expect(app.markers[1].visible).toBe(false)
       app.input(0, "selectstart")
+      app.input(0, "select")
       app.input(0, "selectend")
       expect(app.selectEnd).toHaveBeenCalledOnce()
     }
@@ -268,6 +295,135 @@ describe("VR movement and input lifecycle", () => {
     app.session(false)
     expect(app.camera.position.equals(position)).toBe(true)
     expect(app.camera.quaternion.angleTo(rotation)).toBeLessThan(1e-7)
+  })
+
+  it("grabs with the grip and releases without teleporting", () => {
+    const app = setup()
+    app.session(true)
+    app.selectStart.mockReturnValue(true)
+    app.input(0, "squeezestart")
+    expect(app.selectStart).toHaveBeenCalledOnce()
+    app.input(0, "squeeze")
+    app.input(0, "squeezeend")
+    expect(app.selectEnd).toHaveBeenCalledOnce()
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+  })
+
+  it("never teleports from the grip when nothing was grabbed", () => {
+    const app = setup()
+    app.session(true)
+    app.input(0, "squeezestart")
+    app.input(0, "squeezeend")
+    expect(app.selectEnd).not.toHaveBeenCalled()
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+  })
+
+  it("reports the held hand every frame and keeps its stick for the furniture", () => {
+    const app = setup()
+    app.session(true)
+    const source = connect(app, 1, [0, 0, 0.9, 0])
+    app.selectStart.mockReturnValue(true)
+    app.input(1, "selectstart")
+    app.update()
+    expect(app.hold).toHaveBeenCalledOnce()
+    const [hand, deltaSeconds] = app.hold.mock.calls[0]
+    expect(hand.stickX).toBeCloseTo(0.9)
+    expect(hand.ray.direction.length()).toBeCloseTo(1)
+    expect(deltaSeconds).toBeCloseTo(0.1)
+    // The right stick turns the furniture, not the player.
+    expect(app.rig.rotation.y).toBe(0)
+    app.input(1, "select")
+    app.input(1, "selectend")
+    app.update()
+    expect(app.hold).toHaveBeenCalledOnce()
+    // Still tilted after letting go: wait for the centre before turning.
+    expect(app.rig.rotation.y).toBe(0)
+    source.gamepad.axes[2] = 0
+    app.update()
+    source.gamepad.axes[2] = 0.9
+    app.update()
+    expect(app.rig.rotation.y).toBeCloseTo(-Math.PI / 6)
+  })
+
+  it("still walks with the other hand while holding", () => {
+    const app = setup()
+    app.session(true)
+    connect(app, 0, [0, 0, 0, -1])
+    connect(app, 1, [0, 0, 0, 0])
+    app.selectStart.mockReturnValue(true)
+    app.input(1, "selectstart")
+    app.update()
+    expect(app.rig.position.z).toBeLessThan(3)
+  })
+
+  it("lets only one hand hold at a time", () => {
+    const app = setup()
+    app.session(true)
+    app.selectStart.mockReturnValue(true)
+    app.input(0, "selectstart")
+    app.input(1, "squeezestart")
+    expect(app.selectStart).toHaveBeenCalledOnce()
+    app.input(1, "squeezeend")
+    expect(app.selectEnd).not.toHaveBeenCalled()
+  })
+
+  it("pulses the holding controller", () => {
+    const app = setup()
+    app.session(true)
+    const source = connect(app, 1, [0, 0, 0, 0])
+    app.selectStart.mockImplementation((_ray: THREE.Ray, hand: VrHand) => {
+      hand.pulse(0.5, 40)
+      return true
+    })
+    app.input(1, "selectstart")
+    expect(source.gamepad.hapticActuators[0].pulse).toHaveBeenCalledWith(
+      0.5,
+      40
+    )
+  })
+
+  it.each([
+    ["the session ends", (app: ReturnType<typeof setup>) => app.session(false)],
+    [
+      "the controller disconnects",
+      (app: ReturnType<typeof setup>) => app.input(0, "disconnected"),
+    ],
+  ])("cancels the held furniture when %s", (_, interrupt) => {
+    const app = setup()
+    app.session(true)
+    app.selectStart.mockReturnValue(true)
+    app.input(0, "squeezestart")
+    interrupt(app)
+    expect(app.cancel).toHaveBeenCalledOnce()
+    expect(app.selectEnd).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["selectstart", "selectend"],
+    ["squeezestart", "squeezeend"],
+  ])(
+    "cancels instead of placing when %s ends without completing",
+    (start, end) => {
+      // Browsers end a press without its select/squeeze event when the
+      // controller is lost mid-press; that is a cancel, not a placement.
+      const app = setup()
+      app.session(true)
+      app.selectStart.mockReturnValue(true)
+      app.input(0, start)
+      app.input(0, end)
+      expect(app.selectEnd).not.toHaveBeenCalled()
+      expect(app.cancel).toHaveBeenCalledOnce()
+      expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+    }
+  )
+
+  it("does not cancel when nothing is held", () => {
+    const app = setup()
+    app.session(true)
+    app.input(0, "selectstart")
+    app.session(false)
+    app.dispose()
+    expect(app.cancel).not.toHaveBeenCalled()
   })
 
   it("removes listeners and all owned controller visuals when disposed and remounted", () => {

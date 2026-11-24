@@ -162,3 +162,45 @@ it("keeps furniture unchanged for unsupported or missing targets", () => {
   expect(project.furniture).toEqual(sampleProject.furniture)
   expect(localStorage.length).toBe(0)
 })
+
+it("keeps browser AI changes inside the focused room", async () => {
+  const { buildRoomModel } = await import("./room-builder")
+  const { makeFurniture } = await import("./project-api")
+  const room = buildRoomModel({
+    rooms: [
+      { id: "a", name: "거실", x: 0, z: 0, width: 4.8, depth: 6.9 },
+      { id: "b", name: "침실", x: 4.8, z: 0, width: 4.8, depth: 6.9 },
+    ],
+    wallHeight: 2.4,
+  })
+  const sofa = makeFurniture("sofa-cloud", 2, 4)
+  const chair = makeFurniture("chair-shell", 3.5, 1.7)
+  const project = {
+    ...structuredClone(sampleProject),
+    dimensions: { width: 9.6, depth: 6.9, height: 2.4 },
+    room,
+    furniture: [sofa, chair],
+  }
+  const focus = room.rooms[1].polygon
+  const move = {
+    action: "MOVE" as const,
+    catalogId: "chair-shell",
+    placement: "CENTER" as const,
+    rotation: null,
+    anchorCatalogId: null,
+  }
+  expect(() => proposeBrowserIntent(project, move, focus)).toThrow("이 방에서")
+  const clear = { ...move, action: "CLEAR" as const, catalogId: null }
+  expect(() => proposeBrowserIntent(project, clear, focus)).toThrow(
+    "비울 가구가 없어요"
+  )
+  const mine = makeFurniture("chair-shell", 7, 3)
+  const proposal = proposeBrowserIntent(
+    { ...project, furniture: [sofa, chair, mine] },
+    clear,
+    focus
+  )
+  expect(proposal.proposedCommands).toEqual([
+    { type: "REMOVE", furnitureId: mine.id },
+  ])
+})

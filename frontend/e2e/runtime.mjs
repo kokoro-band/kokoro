@@ -1,16 +1,22 @@
+import { isAbsolute, resolve } from "node:path"
 import { createServer } from "node:net"
 import { statfs } from "node:fs/promises"
 
 /** @param {string[]} args */
 export function playwrightArguments(args = []) {
   const command = ["exec", "playwright", "test"]
-  if (args.length === 0) return command
-  if (
-    args.length !== 1 ||
-    !["--project=desktop", "--project=narrow"].includes(args[0])
-  )
-    throw new Error("Use no arguments, --project=desktop or --project=narrow")
-  return [...command, args[0]]
+  let project
+  let suite
+  for (const arg of args) {
+    if (["--project=desktop", "--project=narrow"].includes(arg) && !project)
+      project = arg
+    else if (arg === "--suite=uploads" && !suite) suite = "uploads.spec.ts"
+    else
+      throw new Error(
+        "Use no arguments, --project=desktop or --project=narrow, optionally --suite=uploads"
+      )
+  }
+  return [...command, ...(project ? [project] : []), ...(suite ? [suite] : [])]
 }
 
 // Do not pass Spring overrides, production credentials, NODE_OPTIONS or JAVA_TOOL_OPTIONS.
@@ -58,4 +64,18 @@ export async function waitUntil(
     await new Promise((resolve) => setTimeout(resolve, 150))
   }
   throw new Error("E2E service readiness timed out")
+}
+
+export function serverTestSetup(args, frontend, source = process.env) {
+  const ollama = args[0] === "--ollama"
+  const command = playwrightArguments(ollama ? args.slice(1) : args)
+  if (!ollama)
+    return { backend: resolve(frontend, "../backend"), args: command }
+  const backend = source.KOKORO_E2E_BACKEND ?? resolve(frontend, "../backend")
+  if (!isAbsolute(backend))
+    throw new Error("Ollama integration requires an absolute backend path")
+  return {
+    backend,
+    args: [...command, "--config=playwright.ollama.config.ts"],
+  }
 }

@@ -41,6 +41,8 @@ jobs:
       - run: vp check
       - run: vp test
       - run: vp run build
+      - name: 발표 자료 포함 확인
+        run: test -s dist/presentations/midterm/index.html
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request'
         with:

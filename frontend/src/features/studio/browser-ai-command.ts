@@ -1,8 +1,5 @@
 import { catalog } from "./data"
-import {
-  findFurniturePlacement,
-  constrainFurniturePose,
-} from "./furniture-motion"
+import { findFreePlacement, constrainFurniturePose } from "./furniture-motion"
 import { assertFurnitureCount } from "./input-limits"
 import { containsPoint } from "./house-navigation"
 import { placementIssues } from "./placement-issues"
@@ -138,7 +135,7 @@ function findSafePlacement(
 ) {
   const exists = project.furniture.some((entry) => entry.id === item.id)
   for (const [x, z] of positions) {
-    const candidate = findFurniturePlacement(project, { ...item, x, z }, room)
+    const candidate = findFreePlacement(project, { ...item, x, z }, room)
     if (!candidate) continue
     if (requireProximity && Math.hypot(candidate.x - x, candidate.z - z) > 0.75)
       continue
@@ -192,8 +189,20 @@ export function proposeBrowserIntent(
     throw new Error(
       "한 번에 한 가지 가구 변경을 요청해 주세요. 배치는 유지했어요."
     )
+  // 방을 보고 있을 때는 그 방의 가구만 바꿉니다.
+  const inFocus = (entry: Furniture) =>
+    !focus?.length || containsPoint(focus, entry.x, entry.z)
   if (intent.action === "CLEAR") {
-    if (!project.furniture.length) throw new Error("비울 가구가 없어요.")
+    const cleared = project.furniture.filter(inFocus)
+    if (!cleared.length) throw new Error("비울 가구가 없어요.")
+    if (focus?.length)
+      return proposeLocalCommand(
+        project,
+        { ...project, furniture: project.furniture.filter((e) => !inFocus(e)) },
+        cleared.map((entry) => ({ type: "REMOVE", furnitureId: entry.id })),
+        "이 방의 가구를 모두 비우는 제안을 확인해 주세요.",
+        ["이 방의 가구를 모두 비웠어요"]
+      )
     return proposeLocalCommand(
       project,
       { ...project, furniture: [] },
@@ -240,11 +249,13 @@ export function proposeBrowserIntent(
     )
   }
   const matches = project.furniture.filter(
-    (entry) => entry.catalogId === item.id
+    (entry) => entry.catalogId === item.id && inFocus(entry)
   )
   if (!matches.length)
     throw new Error(
-      "현재 배치에서 해당 가구를 찾지 못했어요. 배치는 유지했어요."
+      focus?.length
+        ? "이 방에서 해당 가구를 찾지 못했어요. 배치는 유지했어요."
+        : "현재 배치에서 해당 가구를 찾지 못했어요. 배치는 유지했어요."
     )
   if (furnitureId && !matches.some((entry) => entry.id === furnitureId))
     throw new Error(

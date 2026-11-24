@@ -2,12 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
+import { parseStoredProject } from "../project-validation"
 import { proposeBrowserIntent } from "../browser-ai-command"
+import { requestLocalLayoutIntent, type LocalLayoutIntent } from "../local-ai"
 import type { BrowserIntent } from "../browser-ai-intent"
 
 import { initialMessages, sampleProject } from "@/features/studio/data"
 import {
   isServerMode,
+  fetchFurnitureCatalog,
+  sendLayoutIntent,
   getProject,
   makeFurniture,
   readActiveProjectId,
@@ -33,10 +37,16 @@ import {
   WriteCancelledError,
   WriteSkippedError,
 } from "@/features/studio/project-write-queue"
-import { withObjectParticle } from "@/features/studio/format"
+import {
+  withDirectionParticle,
+  withObjectParticle,
+} from "@/features/studio/format"
+import { roomCenter } from "@/features/studio/house-navigation"
 import {
   constrainFurniturePose,
+  findFreePlacement,
   findFurniturePlacement,
+  turnBlocker,
 } from "@/features/studio/furniture-motion"
 import type {
   RoomModel,
@@ -74,6 +84,13 @@ export type ProjectConflict = {
 /** Wait this long without another notice before announcing an autosave. */
 const autosaveNoticeQuietMs = 45_000
 
+/** The example as opened directly and as reloaded from browser storage. */
+const untouchedSampleKeys = new Set(
+  [sampleProject, parseStoredProject(structuredClone(sampleProject))].map(
+    commandLayoutKey
+  )
+)
+
 const maxFloorPlanBytes = 15 * 1024 * 1024
 const supportedFloorPlanTypes = ["application/pdf", "image/png", "image/jpeg"]
 
@@ -87,6 +104,32 @@ function validateFloorPlan(file: File) {
 
 function round(value: number) {
   return Math.round(value * 10) / 10
+}
+
+// The current intent API identifies an ambiguous intent in its numbered reply.
+// Never guess an index for a multi-intent request if that format is absent.
+function localCandidateIndex(
+  intent: LocalLayoutIntent,
+  reply: string,
+  candidates: number
+) {
+  if (!candidates) return undefined
+  const match = /^(\d+)번째 명령/.exec(reply)
+  const index = match
+    ? Number(match[1]) - 1
+    : intent.intents.length === 1
+      ? 0
+      : -1
+  if (index < 0 || index >= intent.intents.length)
+    throw new Error("대상 명령을 확인할 수 없어요. 한 가구씩 요청해 주세요.")
+  return index
+}
+
+function isConfirmationPending(review: CommandReview | null) {
+  return Boolean(
+    review?.response.requiresConfirmation &&
+    (review.status === "applying" || review.status === "retry")
+  )
 }
 
 export function useStudioController() {
@@ -106,15 +149,16 @@ export function useStudioController() {
   const [category, setCategory] = useState<Category>("전체")
   const [leftTab, setLeftTab] = useState<"furniture" | "placed">("furniture")
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
-  const [assistantEngine, setAssistantEngine] = useState<"rules" | "webgpu">(
-    "rules"
-  )
+  const [assistantEngine, setAssistantEngine] = useState<
+    "rules" | "webgpu" | "ollama"
+  >("rules")
   const [browserAiStatus, setBrowserAiStatus] = useState("")
   const [input, setInput] = useState("")
   const [commandReview, setCommandReviewState] = useState<CommandReview | null>(
     null
   )
   const commandReviewRef = useRef<CommandReview | null>(null)
+  const localAiAbortRef = useRef<AbortController | null>(null)
   const commandOperationRef = useRef<symbol | null>(null)
   const setCommandReview = useCallback(function setCommandReview(
     next: CommandReview | null
@@ -122,6 +166,9 @@ export function useStudioController() {
     commandReviewRef.current = next
     setCommandReviewState(next)
   }, [])
+  const editingLocked = isConfirmationPending(commandReview)
+  useEffect(() => () => localAiAbortRef.current?.abort(), [])
+
   const [notice, setNoticeState] = useState<Notice | null>(() =>
     initial.recovery
       ? {
@@ -298,6 +345,8 @@ export function useStudioController() {
   /** Cancel queued writes and remember when the in-flight request finishes. */
   const closeQueue = useCallback(
     function closeQueue() {
+      localAiAbortRef.current?.abort()
+      localAiAbortRef.current = null
       return closingWritesRef.current.add(currentQueue())
     },
     [currentQueue]
@@ -328,6 +377,7 @@ export function useStudioController() {
       commandOperationRef.current = null
       setCommandReview(null)
       setBusy(null)
+      setBrowserAiStatus("")
       setSaveError(null)
       setConflict(null)
       recoveryOperationRef.current = null
@@ -520,6 +570,7 @@ export function useStudioController() {
   )
 
   function commitFurniture(next: Furniture[]) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (
       recoveryOperationRef.current &&
       conflictRef.current?.status === "applying"
@@ -538,11 +589,12 @@ export function useStudioController() {
     setSelectedId(id)
   }, [])
 
-  const previewFurniture = useCallback(function previewFurniture(
+  /** Shows a pose as an unsaved preview. `commitPreview` saves it as one edit. */
+  const showFurniturePose = useCallback(function showFurniturePose(
     id: string,
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
+    pose: (current: Furniture) => Furniture
   ) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     if (
       recoveryOperationRef.current &&
       conflictRef.current?.status === "applying"
@@ -550,12 +602,7 @@ export function useStudioController() {
       return false
     const current = projectRef.current.furniture.find((item) => item.id === id)
     if (!current) return false
-    const next = constrainFurniturePose(
-      projectRef.current,
-      current,
-      update,
-      focus
-    )
+    const next = pose(current)
     if (
       next.x === current.x &&
       next.z === current.z &&
@@ -575,20 +622,63 @@ export function useStudioController() {
     return true
   }, [])
 
-  const moveFurniture = useCallback(
-    function moveFurniture(
+  const previewFurniture = useCallback(
+    function previewFurniture(
       id: string,
-      x: number,
-      z: number,
-      focus?: RoomLabel | null
+      update: Partial<Furniture>,
+      magnetic = false
     ) {
-      return previewFurniture(id, { x, z }, focus)
+      return showFurniturePose(id, (current) =>
+        constrainFurniturePose(
+          projectRef.current,
+          current,
+          update,
+          undefined,
+          magnetic
+        )
+      )
+    },
+    [showFurniturePose]
+  )
+
+  const moveFurniture = useCallback(
+    function moveFurniture(id: string, x: number, z: number) {
+      return previewFurniture(id, { x, z }, true)
     },
     [previewFurniture]
   )
 
+  /**
+   * Wall-limits a pose without changing the project. A VR grab calls this
+   * every frame and moves only the 3D model, so React does not re-render.
+   */
+  const constrainPose = useCallback(function constrainPose(
+    item: Furniture,
+    update: Partial<Pick<Furniture, "x" | "z" | "rotation">>
+  ) {
+    return constrainFurniturePose(projectRef.current, item, update)
+  }, [])
+
+  /** Applies a released VR pose. It was wall-limited along the hand path, so
+   * a valid pose is kept exactly; an invalid one is swept like a drag. */
+  const placeFurniture = useCallback(
+    function placeFurniture(
+      id: string,
+      pose: Pick<Furniture, "x" | "z" | "rotation">
+    ) {
+      return showFurniturePose(id, (current) => {
+        const target = { ...current, ...pose }
+        return findFurniturePlacement(projectRef.current, target) === target
+          ? target
+          : constrainFurniturePose(projectRef.current, current, pose)
+      })
+    },
+    [showFurniturePose]
+  )
+
   const commitPreview = useCallback(
     function commitPreview() {
+      if (isConfirmationPending(commandReviewRef.current)) return
       const base = transientBaseRef.current
       transientBaseRef.current = null
       if (!base || base === projectRef.current.furniture) {
@@ -602,20 +692,34 @@ export function useStudioController() {
     [persistLayout, syncSaveState]
   )
 
-  function updateSelected(
-    update: Partial<Furniture>,
-    focus?: RoomLabel | null
-  ) {
+  function updateSelected(update: Partial<Furniture>) {
+    if (isConfirmationPending(commandReviewRef.current)) return null
     if (conflictRef.current?.status === "applying") return null
     const current = projectRef.current.furniture.find(
       (item) => item.id === selectedId
     )
     if (!current) return null
+    // A turn with no room is refused whole. Turning part-way or shifting the
+    // item to make room would both move it somewhere the user did not ask for.
+    const blocker =
+      update.rotation !== undefined && Number.isFinite(update.rotation)
+        ? turnBlocker(projectRef.current, current, update.rotation)
+        : null
+    if (blocker) {
+      setNotice(
+        blocker === "wall"
+          ? "벽에 닿아서 돌릴 수 없어요. 벽에서 조금 떼어 놓고 다시 돌려 주세요."
+          : `${blocker.name}에 닿아서 돌릴 수 없어요. 자리를 넓힌 뒤 다시 돌려 주세요.`,
+        "critical"
+      )
+      return current
+    }
     const next = constrainFurniturePose(
       projectRef.current,
       current,
       update,
-      focus
+      undefined,
+      false
     )
     if (
       next.x === current.x &&
@@ -631,7 +735,36 @@ export function useStudioController() {
     return next
   }
 
+  /** Keeps the item's identity and rotation and finds free floor in `room`. */
+  function moveSelectedToRoom(room: RoomLabel) {
+    if (conflictRef.current?.status === "applying") return null
+    const current = projectRef.current.furniture.find(
+      (item) => item.id === selectedId
+    )
+    if (!current) return null
+    const [x, z] = roomCenter(room)
+    const placed = findFreePlacement(
+      projectRef.current,
+      { ...current, x: round(x), z: round(z) },
+      room
+    )
+    if (!placed) {
+      setNotice(`${room.name}에는 이 가구를 놓을 자리가 없어요.`, "critical")
+      return null
+    }
+    commitFurniture(
+      projectRef.current.furniture.map((item) =>
+        item.id === current.id ? placed : item
+      )
+    )
+    setNotice(
+      `${withObjectParticle(current.name)} ${withDirectionParticle(room.name)} 옮겼어요.`
+    )
+    return placed
+  }
+
   function deleteSelected() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     commitFurniture(project.furniture.filter((item) => item.id !== selectedId))
     setSelectedId(null)
@@ -642,6 +775,7 @@ export function useStudioController() {
     position?: [number, number],
     focus?: RoomLabel | null
   ) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const step = project.furniture.length
     const item = makeFurniture(
@@ -653,9 +787,18 @@ export function useStudioController() {
         ? round(position[1])
         : round(roomBounds.depth * 0.45 + ((step * 0.4) % 1.2))
     )
-    const placed = findFurniturePlacement(projectRef.current, item, focus)
+    // A new item never starts on other furniture or in a door's clearance.
+    // A quarter turn is tried before giving up.
+    const placed =
+      findFreePlacement(projectRef.current, item, focus) ??
+      findFreePlacement(projectRef.current, { ...item, rotation: 90 }, focus)
     if (!placed) {
-      setNotice("이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.", "critical")
+      setNotice(
+        findFurniturePlacement(projectRef.current, item, focus)
+          ? "다른 가구나 문 앞을 피해서 놓을 자리가 없어요. 자리를 비운 뒤 다시 놓아 주세요."
+          : "이 가구를 벽과 겹치지 않게 놓을 공간이 없어요.",
+        "critical"
+      )
       return
     }
     commitFurniture([...projectRef.current.furniture, placed])
@@ -664,6 +807,7 @@ export function useStudioController() {
   }
 
   function undo() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const previous = past.at(-1)
     if (!previous) return
@@ -674,6 +818,7 @@ export function useStudioController() {
   }
 
   function redo() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current?.status === "applying") return
     const next = future[0]
     if (!next) return
@@ -684,6 +829,7 @@ export function useStudioController() {
   }
 
   async function handleSave() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current) {
       setConflict({ ...conflictRef.current, open: true })
       return
@@ -711,6 +857,7 @@ export function useStudioController() {
   }
 
   function restoreSaved(noticeId?: number) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (noticeId !== undefined && !isActiveSaveFailure(noticeId, "rejected"))
       return
     const queue = currentQueue()
@@ -763,6 +910,9 @@ export function useStudioController() {
     if (!review && commandReviewRef.current) return
     const queue = currentQueue()
     if (queue.closed) return
+    const engine = assistantEngine
+    const abort = new AbortController()
+    localAiAbortRef.current = abort
     const operation = Symbol("command")
     commandOperationRef.current = operation
     if (review) setCommandReview({ ...review, status: "applying", error: "" })
@@ -791,30 +941,63 @@ export function useStudioController() {
         )
           throw new CommandReviewExpiredError()
         let browserIntent: BrowserIntent | undefined = review?.browserIntent
+        let localIntent: LocalLayoutIntent | undefined = review?.localIntent
+        // A candidate review always has an index; see localCandidateIndex.
+        const selections =
+          localIntent && furnitureId
+            ? {
+                ...review!.intentSelections,
+                [review!.candidateIntentIndex!]: furnitureId,
+              }
+            : review?.intentSelections
         const response = confirming
           ? await executeProjectMutation(
               queryClient,
               confirmCommandMutationOptions(queryClient, saved.id),
               { project: saved, proposalId: review!.response.proposalId! }
             )
-          : !isServerMode && (browserIntent || assistantEngine === "webgpu")
+          : isServerMode && (localIntent || engine === "ollama")
             ? await (async () => {
-                const intent =
-                  browserIntent ??
-                  (await import("../browser-ai").then((module) =>
-                    module.generateBrowserIntent(saved, text, (status) => {
-                      if (isCurrent(queue)) setBrowserAiStatus(status)
-                    })
-                  ))
-                if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
-                browserIntent = intent
-                return proposeBrowserIntent(saved, intent, focus, furnitureId)
+                if (!localIntent) {
+                  if (isCurrent(queue))
+                    setBrowserAiStatus(
+                      "이 PC의 Ollama에서 요청을 해석하고 있어요."
+                    )
+                  const catalog = await fetchFurnitureCatalog(abort.signal)
+                  abort.signal.throwIfAborted()
+                  localIntent = await requestLocalLayoutIntent(text, {
+                    catalog,
+                    signal: abort.signal,
+                  })
+                }
+                abort.signal.throwIfAborted()
+                if (!isCurrent(queue)) throw new WriteCancelledError()
+                setBrowserAiStatus("서버가 배치 제안을 검증하고 있어요.")
+                return sendLayoutIntent(
+                  saved,
+                  localIntent,
+                  selections,
+                  abort.signal
+                )
               })()
-            : await executeProjectMutation(
-                queryClient,
-                sendCommandMutationOptions(queryClient, saved.id),
-                { project: saved, message: text, focus, furnitureId }
-              )
+            : !isServerMode && (browserIntent || engine === "webgpu")
+              ? await (async () => {
+                  const intent =
+                    browserIntent ??
+                    (await import("../browser-ai").then((module) =>
+                      module.generateBrowserIntent(saved, text, (status) => {
+                        if (isCurrent(queue)) setBrowserAiStatus(status)
+                      })
+                    ))
+                  if (!intent) throw new Error("AI 요청을 해석하지 못했어요.")
+                  browserIntent = intent
+                  return proposeBrowserIntent(saved, intent, focus, furnitureId)
+                })()
+              : await executeProjectMutation(
+                  queryClient,
+                  sendCommandMutationOptions(queryClient, saved.id),
+                  { project: saved, message: text, focus, furnitureId }
+                )
         if (
           commandLayoutKey({ ...saved, furniture: [] }) !==
           commandLayoutKey({ ...response.project, furniture: [] })
@@ -840,6 +1023,17 @@ export function useStudioController() {
               message: text,
               focus,
               ...(browserIntent ? { browserIntent } : {}),
+              ...(localIntent
+                ? {
+                    localIntent,
+                    intentSelections: selections,
+                    candidateIntentIndex: localCandidateIndex(
+                      localIntent,
+                      response.reply,
+                      response.candidates.length
+                    ),
+                  }
+                : {}),
               baseKey: commandLayoutKey(saved),
               status:
                 commandLayoutKey(saved) === commandLayoutKey(projectRef.current)
@@ -906,6 +1100,11 @@ export function useStudioController() {
         })
         return
       }
+      if (abort.signal.aborted) {
+        setInput((current) => current || text)
+        setNotice("모델 요청을 중단했어요. 배치는 그대로예요.")
+        return
+      }
       setInput((current) => current || text)
       setMessages((current) => [
         ...current,
@@ -919,6 +1118,7 @@ export function useStudioController() {
         },
       ])
     } finally {
+      if (localAiAbortRef.current === abort) localAiAbortRef.current = null
       if (commandOperationRef.current === operation) {
         commandOperationRef.current = null
         if (isCurrent(queue)) {
@@ -930,7 +1130,11 @@ export function useStudioController() {
   }
 
   function cancelCommandReview() {
-    if (commandOperationRef.current) return
+    if (
+      commandOperationRef.current ||
+      isConfirmationPending(commandReviewRef.current)
+    )
+      return
     setCommandReview(null)
   }
 
@@ -979,7 +1183,13 @@ export function useStudioController() {
 
   function requestCommandAgain() {
     const review = commandReviewRef.current
-    if (!review || commandOperationRef.current || busy) return
+    if (
+      !review ||
+      commandOperationRef.current ||
+      busy ||
+      isConfirmationPending(review)
+    )
+      return
     setCommandReview(null)
     void handleChat(review.message, review.focus)
   }
@@ -996,6 +1206,7 @@ export function useStudioController() {
   }
 
   async function handleUpload(file?: File) {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (conflictRef.current || recoveryOperationRef.current) return
     if (!file) return
     setNotice("")
@@ -1116,6 +1327,7 @@ export function useStudioController() {
   }
 
   async function handleCreate(name: string) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     const trimmedName = name.trim()
     if (!trimmedName) return false
     const inputError = projectNameError(trimmedName)
@@ -1158,6 +1370,7 @@ export function useStudioController() {
   }
 
   function openSampleProject() {
+    if (isConfirmationPending(commandReviewRef.current)) return
     if (!confirmLeave()) return
     if (isServerMode) {
       void loadServerProject(sampleProject.id)
@@ -1172,6 +1385,7 @@ export function useStudioController() {
   }
 
   async function applyRoom(room: RoomModel) {
+    if (isConfirmationPending(commandReviewRef.current)) return false
     if (conflictRef.current || recoveryOperationRef.current) {
       if (conflictRef.current?.status !== "applying")
         pendingRoomRef.current = room
@@ -1234,6 +1448,7 @@ export function useStudioController() {
 
   const rememberRoomDraft = useCallback(
     function rememberRoomDraft(room: RoomModel | null) {
+      if (isConfirmationPending(commandReviewRef.current)) return
       if (conflictRef.current?.status === "applying") return
       pendingRoomRef.current = room
       currentQueue()
@@ -1373,9 +1588,12 @@ export function useStudioController() {
     messages,
     assistantEngine,
     browserAiStatus,
+    editingLocked,
     setAssistantEngine,
-    stopBrowserAi: () =>
-      void import("../browser-ai").then((module) => module.stopBrowserAi()),
+    stopBrowserAi: () => {
+      if (assistantEngine === "ollama") localAiAbortRef.current?.abort()
+      else void import("../browser-ai").then((module) => module.stopBrowserAi())
+    },
     commandReview,
     cancelCommandReview,
     confirmCommandReview,
@@ -1401,11 +1619,21 @@ export function useStudioController() {
     },
     saveFailed: saveError !== null,
     saveRejected: saveError === "rejected",
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
+    canUndo: !editingLocked && past.length > 0,
+    canRedo: !editingLocked && future.length > 0,
     retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
     openSampleProject,
     exportProject,
+    // The local demo keeps one project, so opening another one overwrites it.
+    replacesSavedWork:
+      !isServerMode &&
+      (Boolean(project.room) || project.furniture.length > 0) &&
+      !(
+        untouchedSampleKeys.has(commandLayoutKey(project)) &&
+        // An uploaded plan keeps the example layout but is still the user's.
+        project.floorPlan.fileName === sampleProject.floorPlan.fileName &&
+        project.floorPlan.size === sampleProject.floorPlan.size
+      ),
     saveProject: () => void handleSave(),
     retryFailedSave,
     restoreSavedProject: restoreSaved,
@@ -1420,8 +1648,10 @@ export function useStudioController() {
       setNotice("전체 화면으로 바꾸지 못했어요.", "critical"),
     selectFurniture,
     moveFurniture,
-    previewSelected: (update: Partial<Furniture>, focus?: RoomLabel | null) => {
-      if (selectedId) return previewFurniture(selectedId, update, focus)
+    constrainPose,
+    placeFurniture,
+    previewSelected: (update: Partial<Furniture>) => {
+      if (selectedId) return previewFurniture(selectedId, update)
       return false
     },
     commitPreview,
@@ -1429,6 +1659,7 @@ export function useStudioController() {
     sendMessage: (text: string, focus?: Point2[]) =>
       void handleChat(text, focus),
     updateSelected,
+    moveSelectedToRoom,
     deleteSelected,
     dismissNotice,
     uploadFloorPlan: (file?: File) => void handleUpload(file),

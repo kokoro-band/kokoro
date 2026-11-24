@@ -1,19 +1,40 @@
 import * as THREE from "three"
 
+/** The controller that pressed or holds something, with its stick and haptics. */
+export type VrHand = {
+  ray: THREE.Ray
+  stickX: number
+  pulse: (intensity: number, milliseconds: number) => void
+}
+
 type Options = {
   renderer: THREE.WebGLRenderer
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
   spawn: THREE.Vector3
   isWalkable: (x: number, z: number) => boolean
-  onSelectStart: (ray: THREE.Ray) => boolean
-  onSelectEnd: (ray: THREE.Ray) => boolean
+  /** Trigger or grip pressed. Returning true holds the press instead of teleporting. */
+  onSelectStart: (ray: THREE.Ray, hand: VrHand) => boolean
+  onSelectEnd: (ray: THREE.Ray, hand: VrHand) => boolean
+  /** Every frame while a press is held. That hand's stick is not used for turning. */
+  onHold?: (hand: VrHand, deltaSeconds: number) => void
+  /** A held press ended without a release (session end or controller loss). */
+  onCancel?: () => void
+}
+
+type Button = "select" | "squeeze"
+type Haptics = {
+  hapticActuators?: readonly {
+    pulse?: (value: number, ms: number) => unknown
+  }[]
 }
 
 const snapTurnAngle = THREE.MathUtils.degToRad(30)
 const walkSpeed = 1.6
 const walkDeadZone = 0.15
 const rayLength = 6
+const rayColor = "#476B51"
+const holdColor = "#FF6F0F"
 const upAxis = new THREE.Vector3(0, 1, 0)
 const floorPlane = new THREE.Plane(upAxis, 0)
 
@@ -26,6 +47,8 @@ export function createVrLocomotion(options: Options) {
     isWalkable,
     onSelectStart,
     onSelectEnd,
+    onHold,
+    onCancel,
   } = options
 
   const rig = new THREE.Group()
@@ -42,11 +65,17 @@ export function createVrLocomotion(options: Options) {
     line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
     marker: THREE.Mesh
     holding: boolean
-    pressed: boolean
+    pressed: Button | null
+    completed: boolean
     connected: boolean
+    source: XRInputSource | null
     onStart: () => void
+    onSelect: () => void
     onEnd: () => void
-    onConnected: () => void
+    onSqueezeStart: () => void
+    onSqueeze: () => void
+    onSqueezeEnd: () => void
+    onConnected: (event: { data?: unknown }) => void
     onDisconnected: () => void
   }
   const controllers: ControllerState[] = []
@@ -79,6 +108,73 @@ export function createVrLocomotion(options: Options) {
     rig.rotation.y += angle
   }
 
+  function handOf(state: ControllerState): VrHand {
+    setRayFrom(state.controller)
+    const gamepad = state.source?.gamepad as (Gamepad & Haptics) | undefined
+    return {
+      ray: raycaster.ray.clone(),
+      stickX: gamepad?.axes[2] ?? 0,
+      pulse(intensity, milliseconds) {
+        // Haptics are optional and some runtimes reject the promise.
+        void Promise.resolve(
+          gamepad?.hapticActuators?.[0]?.pulse?.(intensity, milliseconds)
+        ).catch(() => undefined)
+      },
+    }
+  }
+
+  function setHolding(state: ControllerState, holding: boolean) {
+    state.holding = holding
+    state.line.material.color.set(holding ? holdColor : rayColor)
+  }
+
+  function press(state: ControllerState, button: Button) {
+    if (!renderer.xr.getSession() || !state.connected || state.pressed) return
+    // One hand carries at a time; the other hand must not teleport meanwhile.
+    if (controllers.some((other) => other.holding)) return
+    state.pressed = button
+    const hand = handOf(state)
+    setHolding(state, onSelectStart(hand.ray, hand))
+  }
+
+  /** The browser's select/squeeze event: the press finished, not cancelled. */
+  function complete(state: ControllerState, button: Button) {
+    if (state.pressed === button) state.completed = true
+  }
+
+  function release(state: ControllerState, button: Button) {
+    if (!renderer.xr.getSession() || !state.connected) return
+    if (state.pressed !== button) return
+    if (state.holding) {
+      // A press ends without select/squeeze when it is cancelled, for example
+      // when the controller is lost. Held furniture then goes back.
+      if (!state.completed) {
+        interrupt(state)
+        return
+      }
+      state.pressed = null
+      state.completed = false
+      const hand = handOf(state)
+      onSelectEnd(hand.ray, hand)
+      setHolding(state, false)
+      return
+    }
+    state.pressed = null
+    state.completed = false
+    if (button === "squeeze") return
+    const target = walkableFloorHit(state.controller)
+    if (target) teleportTo(target)
+  }
+
+  /** Drop a press without a release so the held furniture goes back. */
+  function interrupt(state: ControllerState) {
+    const held = state.holding
+    state.pressed = null
+    state.completed = false
+    setHolding(state, false)
+    if (held) onCancel?.()
+  }
+
   for (const index of [0, 1]) {
     const controller = renderer.xr.getController(index)
     const line = new THREE.Line(
@@ -86,7 +182,7 @@ export function createVrLocomotion(options: Options) {
         new THREE.Vector3(),
         new THREE.Vector3(0, 0, -rayLength),
       ]),
-      new THREE.LineBasicMaterial({ color: "#476B51" })
+      new THREE.LineBasicMaterial({ color: rayColor })
     )
     controller.add(line)
     rig.add(controller)
@@ -109,39 +205,33 @@ export function createVrLocomotion(options: Options) {
       line,
       marker,
       holding: false,
-      pressed: false,
+      pressed: null,
+      completed: false,
       connected: true,
-      onStart() {
-        if (!renderer.xr.getSession() || !state.connected) return
-        state.pressed = true
-        setRayFrom(controller)
-        state.holding = onSelectStart(raycaster.ray)
-      },
-      onEnd() {
-        if (!renderer.xr.getSession() || !state.connected || !state.pressed)
-          return
-        state.pressed = false
-        setRayFrom(controller)
-        if (state.holding) {
-          onSelectEnd(raycaster.ray)
-          state.holding = false
-          return
-        }
-        const target = walkableFloorHit(controller)
-        if (target) teleportTo(target)
-      },
-      onConnected() {
+      source: null,
+      onStart: () => press(state, "select"),
+      onSelect: () => complete(state, "select"),
+      onEnd: () => release(state, "select"),
+      onSqueezeStart: () => press(state, "squeeze"),
+      onSqueeze: () => complete(state, "squeeze"),
+      onSqueezeEnd: () => release(state, "squeeze"),
+      onConnected(event) {
         state.connected = true
+        if (event.data) state.source = event.data as XRInputSource
       },
       onDisconnected() {
         state.connected = false
-        state.holding = false
-        state.pressed = false
+        interrupt(state)
+        state.source = null
         state.marker.visible = false
       },
     }
     controller.addEventListener("selectstart", state.onStart)
+    controller.addEventListener("select", state.onSelect)
     controller.addEventListener("selectend", state.onEnd)
+    controller.addEventListener("squeezestart", state.onSqueezeStart)
+    controller.addEventListener("squeeze", state.onSqueeze)
+    controller.addEventListener("squeezeend", state.onSqueezeEnd)
     controller.addEventListener("connected", state.onConnected)
     controller.addEventListener("disconnected", state.onDisconnected)
     controllers.push(state)
@@ -155,8 +245,7 @@ export function createVrLocomotion(options: Options) {
   function resetInput() {
     turnArmed = true
     for (const state of controllers) {
-      state.holding = false
-      state.pressed = false
+      interrupt(state)
       state.marker.visible = false
     }
   }
@@ -216,17 +305,27 @@ export function createVrLocomotion(options: Options) {
     const deltaSeconds = Math.min(clock.getDelta(), 0.1)
     if (!session) return
 
+    let heldSource: XRInputSource | null = null
     for (const state of controllers) {
-      const target =
-        state.holding || !state.connected
-          ? null
-          : walkableFloorHit(state.controller)
+      if (state.holding) {
+        heldSource = state.source
+        state.marker.visible = false
+        onHold?.(handOf(state), deltaSeconds)
+        continue
+      }
+      const target = state.connected ? walkableFloorHit(state.controller) : null
       state.marker.visible = target !== null
       if (target) state.marker.position.set(target.x, 0.01, target.z)
     }
 
     for (const source of session.inputSources) {
       if (!source.gamepad) continue
+      if (source === heldSource) {
+        // The stick turns the held furniture. Releasing with the stick still
+        // tilted must not turn the player until it returns to the centre.
+        if (source.handedness === "right") turnArmed = false
+        continue
+      }
       const stickX = source.gamepad.axes[2] ?? 0
       const stickY = source.gamepad.axes[3] ?? 0
       if (source.handedness === "left") {
@@ -248,7 +347,11 @@ export function createVrLocomotion(options: Options) {
     resetRig()
     for (const state of controllers) {
       state.controller.removeEventListener("selectstart", state.onStart)
+      state.controller.removeEventListener("select", state.onSelect)
       state.controller.removeEventListener("selectend", state.onEnd)
+      state.controller.removeEventListener("squeezestart", state.onSqueezeStart)
+      state.controller.removeEventListener("squeeze", state.onSqueeze)
+      state.controller.removeEventListener("squeezeend", state.onSqueezeEnd)
       state.controller.removeEventListener("connected", state.onConnected)
       state.controller.removeEventListener("disconnected", state.onDisconnected)
       state.controller.remove(state.line)

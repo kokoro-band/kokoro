@@ -273,4 +273,26 @@ describe("storage recovery through the actual controller", () => {
     expect(request).not.toHaveBeenCalled()
     expect(values.get(activeKey)).toBe("../other-project")
   })
+
+  it("treats an example that carries the user's uploaded floor plan as saved work", async () => {
+    values.set(key, JSON.stringify(sampleProject))
+    expect((await setup()).get().replacesSavedWork).toBe(false)
+    cleanups.splice(0).forEach((cleanup) => cleanup())
+
+    // A local upload keeps the example geometry and records only the file.
+    values.set(
+      key,
+      JSON.stringify({
+        ...sampleProject,
+        floorPlan: {
+          ...sampleProject.floorPlan,
+          fileName: "my-home.png",
+          size: 1000,
+        },
+      })
+    )
+    const app = await setup()
+    expect(app.get().project.floorPlan.fileName).toBe("my-home.png")
+    expect(app.get().replacesSavedWork).toBe(true)
+  })
 })

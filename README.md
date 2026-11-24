@@ -34,6 +34,10 @@
 
 구조 화면의 이미지 분석은 수정할 수 있는 초안을 만듭니다. 프로젝트 메뉴에서 별도로 올리는 도면 파일은 로컬 데모에서 예제 방을 표시합니다. 서버 모드에서는 업로드 작업이 `READY`가 되어도 벽이나 문을 인식한 것은 아닙니다. PDF에서 공간을 자동 추출하지 않으며 상용 제품의 정확한 모델과 가격 및 재고도 제공하지 않습니다.
 
+## 중간 발표
+
+[HTML 중간 발표](https://kokoro-band.github.io/kokoro/presentations/midterm/)는 `main` 반영 후 Pages 배포가 성공하면 공개됩니다. 키보드 이동과 발표자 노트 및 PDF 인쇄를 지원합니다. 수정 방법과 로컬 확인은 [발표 안내](docs/midterm-presentation.md)에 있습니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -58,6 +62,8 @@ vp dev
 배치 화면의 **AI 배치**에서 `이 기기에서 AI 실행`을 선택하면 [Qwen3 0.6B ONNX](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)를 [Transformers.js](https://huggingface.co/docs/transformers.js)와 WebGPU로 브라우저에서 실행합니다. 처음 요청할 때 약 570MB의 모델 파일을 받으며 이후 요청의 추론은 기기에서 실행됩니다. WebGPU를 사용할 수 없으면 오류를 안내하고 기존 배치는 유지됩니다. 사용자는 `규칙 기반`을 선택해 계속 작업할 수 있습니다. AI가 제안한 변경은 확인 창에서 적용해야 저장됩니다. 이 기능은 로컬 데모에서만 제공하며 서버 모드는 기존 명령 API를 사용합니다.
 
 Spring 서버에 연결하려면 `frontend/.env.example`을 참고해 `VITE_API_MODE=server`를 설정합니다.
+
+서버 저장 모드의 **AI 배치**에서 `이 PC의 Ollama 사용`을 선택하면 `qwen3:4b`가 요청을 해석하고 Spring이 배치 제안을 검증합니다. 적용 전 확인하거나 취소할 수 있고 적용한 배치는 서버에 저장됩니다. 이 경로는 의도 API PR #168이 필요합니다. Ollama 설치와 브라우저 접근 설정 및 지원 범위는 [서버 연결 검증 안내](docs/qa/ollama-server-integration.md)를 참고합니다.
 
 ## 백엔드 실행
 

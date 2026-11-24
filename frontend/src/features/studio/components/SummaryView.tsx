@@ -4,15 +4,24 @@ import { List, ListItem } from "seed-design/ui/list"
 import { ResultSection } from "seed-design/ui/result-section"
 
 import { Type } from "@/components/kokoro/Type"
-import { formatMeters, formatPrice } from "@/features/studio/format"
+import { catalog } from "@/features/studio/data"
+import { formatPrice } from "@/features/studio/format"
 import {
   furniturePrice,
   projectTotal,
   roomForFurniture,
 } from "@/features/studio/house-navigation"
-import type { Project } from "@/features/studio/types"
+import type { Furniture, Project } from "@/features/studio/types"
 
 import { FurnitureThumb } from "./FurnitureThumb"
+
+/** 구매 내역에는 놓인 위치가 아니라 제품의 가로 × 깊이를 보여 줍니다. */
+function productSize(item: Furniture) {
+  const entry = catalog.find((candidate) => candidate.id === item.catalogId)
+  return entry
+    ? `${item.category} · ${entry.width} × ${entry.depth} m`
+    : item.category
+}
 
 export function SummaryView({
   project,
@@ -125,7 +134,7 @@ export function SummaryView({
                   <FurnitureThumb category={item.category} color={item.color} />
                 }
                 title={item.name}
-                detail={`${item.category} · ${formatMeters(item.x)} × ${formatMeters(item.z)}`}
+                detail={productSize(item)}
                 suffix={
                   <Type variant="label" numeric>
                     {formatPrice(furniturePrice(item))}

@@ -22,7 +22,7 @@ public class FurniturePlacementValidator {
     private static final double EPSILON = 1e-9;
     /**
      * ponytail: product heuristic, not a walking-clearance or building-code figure.
-     * Width in meters kept clear on each side of a door opening, in front of the door.
+     * Depth in meters kept clear directly in front of a door, within the opening width.
      */
     private static final double DOOR_CLEARANCE = 0.8;
     private final java.util.function.Function<String, FurnitureCatalog.Size> sizeOf;
@@ -140,7 +140,7 @@ public class FurniturePlacementValidator {
         );
     }
 
-    /** Rectangle covering the door span plus DOOR_CLEARANCE on each side, extending into the room. */
+    /** Rectangle covering the door span, extending DOOR_CLEARANCE into the room. */
     private OrientedBox doorClearanceBox(Opening opening, RoomModel room, List<Point> outline) {
         Wall wall = room.walls().stream().filter(w -> w.id().equals(opening.wallId())).findFirst()
                 .orElseThrow(() -> invalid("문의 벽을 찾을 수 없습니다: " + opening.wallId()));
@@ -163,7 +163,7 @@ public class FurniturePlacementValidator {
                 midX + normal.x() * DOOR_CLEARANCE / 2,
                 midZ + normal.z() * DOOR_CLEARANCE / 2,
                 axisX, normal,
-                span / 2 + DOOR_CLEARANCE,
+                span / 2,
                 DOOR_CLEARANCE / 2
         );
     }

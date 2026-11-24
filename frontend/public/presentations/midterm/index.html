@@ -1,0 +1,2144 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="코코로 종합설계 중간 발표. 공간 편집과 가구 배치 및 자연어 요청의 구현 결과와 평가 및 다음 계획을 소개합니다."
+    />
+    <title>코코로 | 종합설계 중간 발표</title>
+    <!-- Paper theme reference: make-slide, Copyright (c) 2026 kuneosu, MIT.
+         License and asset sources: ./NOTICE.md. No external JavaScript is required. -->
+    <style>
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-103-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+b4, U+20a9, U+20ac, U+2190, U+24d8, U+2502, U+2514, U+2592,
+          U+25c7-25c8, U+2663, U+3060, U+3064, U+3081, U+3088, U+30a3, U+30a6,
+          U+30aa, U+30b5, U+30c7, U+30ca-30cb, U+30d0, U+30e3, U+30e5, U+339e,
+          U+4e09, U+4eac, U+4f5c, U+5167-5168, U+516c, U+51fa, U+5408, U+540d,
+          U+591a, U+5b57, U+6211, U+65b9, U+660e, U+6642, U+6700, U+6b63,
+          U+6e2f, U+7063, U+7532, U+793e, U+81ea, U+8272, U+82b1, U+897f,
+          U+8eca, U+91ce, U+ac38, U+ad76, U+ae84, U+aecc, U+b07d, U+b0b1,
+          U+b215, U+b2a0, U+b310, U+b3d7, U+b52a, U+b618, U+b775, U+b797,
+          U+bcd5, U+bd59, U+be80, U+bea8, U+bed1, U+bee4-bee5, U+c060, U+c2ef,
+          U+c329, U+c3dc, U+c597, U+c5bd, U+c5e5, U+c69c, U+c9d6, U+ca29,
+          U+ca5c, U+ca84, U+cc39, U+cc3b, U+ce89, U+cee5, U+cf65, U+cf85,
+          U+d058, U+d145, U+d22d, U+d325, U+d37d, U+d3ad, U+d769, U+ff0c;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-107-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+b0, U+e9, U+2193, U+2462, U+260e, U+261e, U+300e-300f, U+3044,
+          U+30a4, U+30fb-30fc, U+314d, U+5973, U+6545, U+6708, U+7537, U+ac89,
+          U+ac9c, U+acc1, U+ad04, U+ad75, U+ad7d, U+ae45, U+ae61, U+af42,
+          U+b0ab, U+b0af, U+b0b3, U+b12c, U+b194, U+b1a8, U+b220, U+b258,
+          U+b284, U+b2ff, U+b315, U+b371, U+b3d4-b3d5, U+b460, U+b527, U+b534,
+          U+b810, U+b818, U+b98e, U+ba55, U+bbac, U+bc0b, U+bc40, U+bca1,
+          U+bccd, U+bd93, U+be54, U+be5a, U+bf08, U+bf50, U+bf55, U+bfdc,
+          U+c0c0, U+c0d0, U+c0f4, U+c100, U+c11e, U+c170, U+c20d, U+c274,
+          U+c290, U+c308, U+c369, U+c539, U+c587, U+c5ff, U+c6ec, U+c70c,
+          U+c7ad, U+c7c8, U+c83c, U+c881, U+cb48, U+cc60, U+ce69, U+ce6b,
+          U+ce75, U+cf04, U+cf08, U+cf55, U+cf70, U+cffc, U+d0b7, U+d1a8,
+          U+d2c8, U+d384, U+d47c, U+d48b, U+d5dd, U+d5e8, U+d720, U+d759, U+f981;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-108-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+e0, U+e2, U+395, U+3b7, U+3ba, U+2460-2461, U+25a0, U+3010-3011,
+          U+306e, U+30f3, U+314a, U+314c, U+5927, U+65b0, U+7e41, U+97d3,
+          U+9ad4, U+ad49, U+ae0b, U+ae0d, U+ae43, U+ae5d, U+aecf, U+af3c,
+          U+af64, U+afd4, U+b080, U+b084, U+b0c5, U+b10c, U+b1e8, U+b2ac,
+          U+b36e, U+b451, U+b515, U+b540, U+b561, U+b6ab, U+b6b1, U+b72c,
+          U+b730, U+b744, U+b800, U+b8ec, U+b8f0, U+b904, U+b968, U+b96d,
+          U+b987, U+b9d9, U+bb36, U+bb49, U+bc2d, U+bc43, U+bcf6, U+bd89,
+          U+be57, U+be61, U+bed4, U+c090, U+c130, U+c148, U+c19c, U+c2f9,
+          U+c36c, U+c37c, U+c384, U+c3df, U+c575, U+c584, U+c660, U+c719,
+          U+c816, U+ca4d, U+ca54, U+cabc, U+cb49, U+cc14, U+cff5, U+d004,
+          U+d038, U+d0b4, U+d0d3, U+d0e0, U+d0ed, U+d131, U+d1b0, U+d31f,
+          U+d33d, U+d3a0, U+d3ab, U+d514, U+d584, U+d6a1, U+d6cc, U+d749,
+          U+d760, U+d799;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-109-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+24, U+60, U+3b9, U+3bb, U+3bd, U+2191, U+2606, U+300c-300d, U+3131,
+          U+3134, U+3139, U+3141-3142, U+3148, U+3161, U+3163, U+321c, U+4eba,
+          U+5317, U+ac31, U+ac77, U+ac9f, U+acb9, U+acf0-acf1, U+acfd, U+ad73,
+          U+af3d, U+b00c, U+b04a, U+b057, U+b0c4, U+b188, U+b1cc, U+b214,
+          U+b2db, U+b2ee, U+b304, U+b4ed, U+b518, U+b5bc, U+b625, U+b69c-b69d,
+          U+b7ac, U+b801, U+b86c, U+b959, U+b95c, U+b985, U+ba48, U+bb58,
+          U+bc0c, U+bc38, U+bc85, U+bc9a, U+bf40, U+c068, U+c0bd, U+c0cc,
+          U+c12f, U+c149, U+c1e0, U+c22b, U+c22d, U+c250, U+c2fc, U+c300,
+          U+c313, U+c370, U+c3d8, U+c557, U+c580, U+c5e3, U+c62e, U+c634,
+          U+c6f0, U+c74d, U+c783, U+c78e, U+c796, U+c7bc, U+c92c, U+ca4c,
+          U+cc1c, U+cc54, U+cc59, U+ce04, U+cf30, U+cfc4, U+d140, U+d321,
+          U+d38c, U+d399, U+d54f, U+d587, U+d5d0, U+d6e8, U+d770;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-110-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+d7, U+ea, U+fc, U+2192, U+25bc, U+3000, U+3137, U+3145, U+315c,
+          U+7f8e, U+ac13, U+ac71, U+ac90, U+acb8, U+ace7, U+ad7f, U+ae50,
+          U+aef4, U+af34, U+afbc, U+b048, U+b09a, U+b0ad, U+b0bc, U+b113,
+          U+b125, U+b141, U+b20c, U+b2d9, U+b2ed, U+b367, U+b369, U+b374,
+          U+b3cb, U+b4ec, U+b611, U+b760, U+b81b, U+b834, U+b8b0, U+b8e1,
+          U+b989, U+b9d1, U+b9e1, U+b9fa, U+ba4d, U+ba78, U+bb35, U+bb54,
+          U+bbf9, U+bc11, U+bcb3, U+bd05, U+bd95, U+bdd4, U+be10, U+bed0,
+          U+bf51, U+c0d8, U+c232, U+c2b7, U+c2eb, U+c378, U+c500, U+c52c,
+          U+c549, U+c568, U+c598, U+c5c9, U+c61b, U+c639, U+c67c, U+c717,
+          U+c78a, U+c80a, U+c90c-c90d, U+c950, U+c9e7, U+cbe4, U+cca9, U+cce4,
+          U+cdb0, U+ce78, U+ce94, U+ce98, U+cf8c, U+d018, U+d034, U+d0f1,
+          U+d1b1, U+d280, U+d2f8, U+d338, U+d380, U+d3b4, U+d610, U+d69f,
+          U+d6fc, U+d758;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-111-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+e7, U+2022, U+203b, U+25c0, U+2605, U+2661, U+3147, U+318d, U+672c,
+          U+8a9e, U+acaa, U+acbc, U+ad1c, U+ae4a, U+ae5c, U+b044, U+b054,
+          U+b0c8-b0c9, U+b2a6, U+b2d0, U+b35c, U+b364, U+b428, U+b454, U+b465,
+          U+b4b7, U+b4e3, U+b51c, U+b5a1, U+b784, U+b790, U+b7ab, U+b7f4,
+          U+b82c, U+b835, U+b8e9, U+b8f8, U+b9d8, U+b9f9, U+ba5c, U+ba64,
+          U+babd, U+bb18, U+bb3b, U+bbff, U+bc0d, U+bc45, U+bc97, U+bcbc,
+          U+be45, U+be75, U+be7c, U+bfcc, U+c0b6, U+c0f7, U+c14b, U+c2b4,
+          U+c30d, U+c4f8, U+c5bb, U+c5d1, U+c5e0, U+c5ee, U+c5fd, U+c606,
+          U+c6c5, U+c6e0, U+c708, U+c81d, U+c820, U+c824, U+c878, U+c918,
+          U+c96c, U+c9e4, U+c9f1, U+cc2e, U+cd09, U+cea1, U+cef5, U+cef7,
+          U+cf64, U+cf69, U+cfe8, U+d035, U+d0ac, U+d230, U+d234, U+d2f4,
+          U+d31d, U+d575, U+d578, U+d608, U+d614, U+d718, U+d751, U+d761,
+          U+d78c, U+d790;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-112-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+2665, U+3160, U+4e2d, U+6587, U+65e5, U+ac12, U+ac14, U+ac16,
+          U+ac81, U+ad34, U+ade0, U+ae54, U+aebc, U+af2c, U+afc0, U+afc8,
+          U+b04c, U+b08c, U+b099, U+b0a9, U+b0ac, U+b0ae, U+b0b8, U+b123,
+          U+b179, U+b2e5, U+b2f7, U+b4c0, U+b531, U+b538, U+b545, U+b550,
+          U+b5a8, U+b6f0, U+b728, U+b73b, U+b7ad, U+b7ed, U+b809, U+b864,
+          U+b86d, U+b871, U+b9bf, U+b9f5, U+ba40, U+ba4b, U+ba58, U+ba87,
+          U+baac, U+bbc0, U+bc16, U+bc34, U+bd07, U+bd99, U+be59, U+bfd0,
+          U+c058, U+c0e4, U+c0f5, U+c12d, U+c139, U+c228, U+c529, U+c5c7,
+          U+c635, U+c637, U+c735, U+c77d, U+c787, U+c789, U+c8c4, U+c989,
+          U+c98c, U+c9d0, U+c9d3, U+cc0c, U+cc99, U+cd0c, U+cd2c, U+cd98,
+          U+cda4, U+ce59, U+ce60, U+ce6d, U+cea0, U+d0d0-d0d1, U+d0d5, U+d14d,
+          U+d1a4, U+d29c, U+d2f1, U+d301, U+d39c, U+d3bc, U+d4e8, U+d540,
+          U+d5ec, U+d640, U+d750;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-113-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+5e, U+25b2, U+25b6, U+314e, U+ac24, U+ace1, U+ace4, U+ae68, U+af2d,
+          U+b0d0, U+b0e5, U+b150, U+b155, U+b193, U+b2c9, U+b2dd, U+b3c8,
+          U+b3fc, U+b410, U+b458, U+b4dd, U+b5a0, U+b5a4, U+b5bb, U+b7b5,
+          U+b838, U+b840, U+b86f, U+b8f9, U+b960, U+b9e5, U+bab8, U+bb50,
+          U+bc1d, U+bc24-bc25, U+bca8, U+bcbd, U+bd04, U+bd10, U+bd24, U+be48,
+          U+be5b, U+be68, U+c05c, U+c12c, U+c140, U+c15c, U+c168, U+c194,
+          U+c219, U+c27d, U+c2a8, U+c2f1, U+c2f8, U+c368, U+c554-c555, U+c559,
+          U+c564, U+c5d8, U+c5fc, U+c625, U+c65c, U+c6b1, U+c728, U+c794,
+          U+c84c, U+c88c, U+c8e0, U+c8fd, U+c998, U+c9dd, U+cc0d, U+cc30,
+          U+ceec, U+cf13, U+cf1c, U+cf5c, U+d050, U+d07c, U+d0a8, U+d134,
+          U+d138, U+d154, U+d1f4, U+d2bc, U+d329, U+d32c, U+d3d0, U+d3f4,
+          U+d3fc, U+d56b, U+d5cc, U+d600-d601, U+d639, U+d6c8, U+d754, U+d765;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-114-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+3c-3d, U+2026, U+24d2, U+314b, U+ac11, U+acf3, U+ad74, U+ad81,
+          U+adf9, U+ae34, U+af43, U+afb8, U+b05d, U+b07c, U+b110, U+b118,
+          U+b17c, U+b180, U+b18d, U+b192, U+b2cc, U+b355, U+b378, U+b4a4,
+          U+b4ef, U+b78d, U+b799, U+b7a9, U+b7fd, U+b807, U+b80c, U+b839,
+          U+b9b4, U+b9db, U+ba3c, U+bab0, U+bba4, U+bc94, U+be4c, U+c154,
+          U+c1c4, U+c26c, U+c2ac, U+c2ed, U+c4f4, U+c55e, U+c561, U+c571,
+          U+c5b5, U+c5c4, U+c654-c655, U+c695, U+c6e8, U+c6f9, U+c724, U+c751,
+          U+c775, U+c7a0, U+c7c1, U+c874, U+c880, U+c9d5, U+c9f8, U+cabd,
+          U+cc29, U+cc2c, U+cca8, U+ccab, U+ccd0, U+ce21, U+ce35, U+ce7c,
+          U+ce90, U+cee8, U+cef4, U+cfe0, U+d070, U+d0b9, U+d0c1, U+d0c4,
+          U+d0c8, U+d15c, U+d1a1, U+d2c0, U+d300, U+d314, U+d3ed, U+d478,
+          U+d480, U+d48d, U+d508, U+d53d, U+d5e4, U+d611, U+d61c, U+d68d,
+          U+d6a8, U+d798;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-115-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+23, U+25, U+5f, U+a9, U+ac08, U+ac78, U+aca8, U+acac, U+ace8,
+          U+ad70, U+adc0, U+addc, U+b137, U+b140, U+b208, U+b290, U+b2f5,
+          U+b3c5, U+b3cc, U+b420, U+b429, U+b529, U+b530, U+b77d, U+b79c,
+          U+b7a8, U+b7c9, U+b7f0, U+b7fc, U+b828, U+b860, U+b9ad, U+b9c1,
+          U+b9c9, U+b9dd-b9de, U+b9e8, U+ba38-ba39, U+babb, U+bc00, U+bc8c,
+          U+bca0, U+bca4, U+bcd1, U+bcfc, U+bd09, U+bdf0, U+be60, U+c0ad,
+          U+c0b4, U+c0bc, U+c190, U+c1fc, U+c220, U+c288, U+c2b9, U+c2f6,
+          U+c528, U+c545, U+c558, U+c5bc, U+c5d4, U+c600, U+c644, U+c6c0,
+          U+c6c3, U+c721, U+c798, U+c7a1, U+c811, U+c838, U+c871, U+c904,
+          U+c990, U+c9dc, U+cc38, U+cc44, U+cca0, U+cd1d, U+cd95, U+cda9,
+          U+ce5c, U+cf00, U+cf58, U+d150, U+d22c, U+d305, U+d328, U+d37c,
+          U+d3f0, U+d551, U+d5a5, U+d5c8, U+d5d8, U+d63c, U+d64d, U+d669,
+          U+d734, U+d76c;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-116-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+26, U+2b, U+3e, U+40, U+7e, U+ac01, U+ac19, U+ac1d, U+aca0, U+aca9,
+          U+acb0, U+ad8c, U+ae09, U+ae38, U+ae40, U+aed8, U+b09c, U+b0a0,
+          U+b108, U+b204, U+b298, U+b2d8, U+b2eb-b2ec, U+b2f4, U+b313, U+b358,
+          U+b450, U+b4e0, U+b54c, U+b610, U+b780, U+b78c, U+b791, U+b8e8,
+          U+b958, U+b974, U+b984, U+b9b0, U+b9bc-b9bd, U+b9ce, U+ba70, U+bbfc,
+          U+bc0f, U+bc15, U+bc1b, U+bc31, U+bc95, U+bcc0, U+bcc4, U+bd81,
+          U+bd88, U+c0c8, U+c11d, U+c13c, U+c158, U+c18d, U+c1a1, U+c21c,
+          U+c4f0, U+c54a, U+c560, U+c5b8, U+c5c8, U+c5f4, U+c628, U+c62c,
+          U+c678, U+c6cc, U+c808, U+c810, U+c885, U+c88b, U+c900, U+c988,
+          U+c99d, U+c9c8, U+cc3d-cc3e, U+cc45, U+cd08, U+ce20, U+cee4, U+d074,
+          U+d0a4, U+d0dd, U+d2b9, U+d3b8, U+d3c9, U+d488, U+d544, U+d559,
+          U+d56d, U+d588, U+d615, U+d648, U+d655, U+d658, U+d65c;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-117-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+d, U+48, U+7c, U+ac10, U+ac15, U+ac74, U+ac80, U+ac83, U+acc4,
+          U+ad11, U+ad50, U+ad6d, U+adfc, U+ae00, U+ae08, U+ae4c, U+b0a8,
+          U+b124, U+b144, U+b178, U+b274, U+b2a5, U+b2e8, U+b2f9, U+b354,
+          U+b370, U+b418, U+b41c, U+b4f1, U+b514, U+b798, U+b808, U+b824-b825,
+          U+b8cc, U+b978, U+b9d0, U+b9e4, U+baa9, U+bb3c, U+bc18, U+bc1c,
+          U+bc30, U+bc84, U+bcf5, U+bcf8, U+bd84, U+be0c, U+be14, U+c0b0,
+          U+c0c9, U+c0dd, U+c124, U+c2dd, U+c2e4, U+c2ec, U+c54c, U+c57c-c57d,
+          U+c591, U+c5c5-c5c6, U+c5ed, U+c608, U+c640, U+c6b8, U+c6d4, U+c784,
+          U+c7ac, U+c800-c801, U+c9c1, U+c9d1, U+cc28, U+cc98, U+cc9c, U+ccad,
+          U+cd5c, U+cd94, U+cd9c, U+cde8, U+ce68, U+cf54, U+d0dc, U+d14c,
+          U+d1a0, U+d1b5, U+d2f0, U+d30c, U+d310, U+d398, U+d45c, U+d50c,
+          U+d53c, U+d560, U+d568, U+d589, U+d604, U+d6c4, U+d788;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-118-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+39, U+49, U+4d-4e, U+a0, U+ac04, U+ac1c, U+ac70, U+ac8c, U+acbd,
+          U+acf5, U+acfc, U+ad00, U+ad6c, U+adf8, U+b098, U+b0b4, U+b294,
+          U+b2c8, U+b300, U+b3c4, U+b3d9, U+b4dc, U+b4e4, U+b77c, U+b7ec,
+          U+b85d, U+b97c, U+b9c8, U+b9cc, U+ba54, U+ba74, U+ba85, U+baa8,
+          U+bb34, U+bb38, U+bbf8, U+bc14, U+bc29, U+bc88, U+bcf4, U+bd80,
+          U+be44, U+c0c1, U+c11c, U+c120, U+c131, U+c138, U+c18c, U+c218,
+          U+c2b5, U+c2e0, U+c544, U+c548, U+c5b4, U+c5d0, U+c5ec, U+c5f0,
+          U+c601, U+c624, U+c694, U+c6a9, U+c6b0, U+c6b4, U+c6d0, U+c704,
+          U+c720, U+c73c, U+c740, U+c744, U+c74c, U+c758, U+c77c, U+c785,
+          U+c788, U+c790-c791, U+c7a5, U+c804, U+c815, U+c81c, U+c870, U+c8fc,
+          U+c911, U+c9c4, U+ccb4, U+ce58, U+ce74, U+d06c, U+d0c0, U+d130,
+          U+d2b8, U+d3ec, U+d504, U+d55c, U+d569, U+d574, U+d638, U+d654, U+d68c;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-119-600-normal.woff2") format("woff2");
+        unicode-range:
+          U+20-22, U+27-2a, U+2c-38, U+3a-3b, U+3f, U+41-47, U+4a-4c, U+4f-5d,
+          U+61-7b, U+7d, U+a1, U+ab, U+ae, U+b7, U+bb, U+bf, U+2013-2014,
+          U+201c-201d, U+2122, U+ac00, U+ace0, U+ae30, U+b2e4, U+b85c, U+b9ac,
+          U+c0ac, U+c2a4, U+c2dc, U+c774, U+c778, U+c9c0, U+d558;
+      }
+      @font-face {
+        font-family: "Paper Serif";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 600;
+        src: url("./assets/noto-serif-kr-latin-600-normal.woff2")
+          format("woff2");
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+          U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Paper Sans";
+        src: url("./assets/sans.woff2") format("woff2");
+        font-weight: 400 700;
+        font-display: swap;
+      }
+      :root {
+        --paper: #f5f0e8;
+        --surface: #faf6ef;
+        --ink: #3d3929;
+        --muted: #6b6152;
+        --accent: #b85c38;
+        --deep: #6b4c3b;
+        --line: #d4cbb8;
+        --serif:
+          "Paper Serif", "Noto Serif KR", "AppleMyungjo", "Batang", serif;
+        --sans: "Paper Sans", "Pretendard Variable", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        scrollbar-color: var(--line) var(--paper);
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      a {
+        color: var(--deep);
+        text-underline-offset: 0.24em;
+      }
+      a:hover {
+        color: var(--accent);
+      }
+      ::selection {
+        background: var(--line);
+        color: var(--ink);
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 5px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 16px;
+        z-index: 30;
+        padding: 12px;
+        background: var(--surface);
+        transform: translateY(-150%);
+      }
+      .skip-link:focus {
+        transform: none;
+      }
+      .masthead {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 82px;
+        margin: 0 5.5vw;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        z-index: 3;
+      }
+      .wordmark {
+        font-family: var(--serif);
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        text-decoration: none;
+      }
+      .masthead-meta {
+        display: flex;
+        gap: 24px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .slide {
+        min-height: 100svh;
+        padding: 108px 5.5vw 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .sheet {
+        width: 100%;
+        max-width: 1440px;
+        margin: 0 auto;
+      }
+      h1,
+      h2,
+      h3,
+      p,
+      figure {
+        margin: 0;
+      }
+      h1,
+      h2 {
+        font-family: var(--serif);
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: -0.04em;
+        text-wrap: balance;
+        word-break: keep-all;
+      }
+      h1 {
+        font-size: clamp(44px, 5.1vw, 78px);
+      }
+      h2 {
+        font-size: clamp(34px, 3.2vw, 52px);
+        max-width: 26ch;
+      }
+      h3 {
+        font-size: clamp(20px, 1.7vw, 28px);
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      p,
+      li,
+      td {
+        font-size: clamp(17px, 1.35vw, 22px);
+        line-height: 1.75;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+      }
+      .lead {
+        color: var(--muted);
+        font-size: clamp(18px, 1.5vw, 24px);
+        line-height: 1.8;
+        margin-top: 24px;
+        max-width: 48ch;
+      }
+      .deck-title {
+        margin-top: 20px;
+        font-size: 16px;
+        color: var(--muted);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1.15fr;
+        align-items: center;
+        gap: 6vw;
+      }
+      .cover {
+        grid-template-columns: 1fr 1fr;
+        gap: 5vw;
+      }
+      .cover h1 {
+        max-width: none;
+        font-size: clamp(44px, 4.8vw, 72px);
+      }
+      .cover .lead {
+        max-width: 25ch;
+      }
+      .cover-image {
+        width: 100%;
+        max-height: 61svh;
+        object-fit: contain;
+        border-radius: 2px;
+      }
+      .cover-footer {
+        margin-top: 38px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.8;
+      }
+      .accent {
+        color: var(--accent);
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        margin-top: 36px;
+        padding-top: 24px;
+      }
+      .reading {
+        max-width: 920px;
+      }
+      .statement {
+        font-family: var(--serif);
+        font-size: clamp(26px, 2.5vw, 40px);
+        line-height: 1.7;
+        max-width: 34ch;
+        margin: 36px 0;
+      }
+      .rows {
+        margin-top: 32px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 0.68fr 1.32fr;
+        gap: 30px;
+        border-top: 1px solid var(--line);
+        padding: 20px 0;
+      }
+      .row:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+      .row p {
+        color: var(--muted);
+      }
+      .sequence {
+        list-style: none;
+        padding: 0;
+        margin: 42px 0 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .sequence li {
+        border-top: 1px solid var(--line);
+        padding: 24px 24px 0 0;
+        position: relative;
+      }
+      .sequence .step {
+        font-family: var(--serif);
+        color: var(--accent);
+        font-size: 36px;
+        display: block;
+        margin-bottom: 18px;
+      }
+      .sequence p {
+        font-size: 18px;
+        color: var(--muted);
+        margin-top: 10px;
+        max-width: 18ch;
+      }
+      .sequence li + li {
+        padding-left: 28px;
+        border-left: 1px solid var(--line);
+      }
+      .scene-caption {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+        margin-top: 14px;
+      }
+      .screenshot {
+        width: 100%;
+        height: auto;
+        max-height: calc(100svh - 270px);
+        object-fit: contain;
+        display: block;
+        border: 1px solid var(--line);
+      }
+      .media-sheet {
+        display: grid;
+        grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.5fr);
+        gap: 4vw;
+        align-items: center;
+      }
+      .media-sheet h2 {
+        font-size: clamp(32px, 2.8vw, 46px);
+      }
+      .plain-list {
+        margin: 28px 0 0;
+        padding-left: 1.1em;
+      }
+      .plain-list li {
+        padding-left: 0.3em;
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 18px;
+      }
+      .note-line {
+        margin-top: 28px;
+        font-size: 16px;
+        line-height: 1.75;
+        color: var(--deep);
+      }
+      .request {
+        font-family: var(--serif);
+        font-size: clamp(22px, 1.9vw, 30px);
+        line-height: 1.7;
+        margin-top: 24px;
+        color: var(--deep);
+      }
+      .architecture {
+        display: grid;
+        grid-template-columns: 1.2fr 0.7fr 1.15fr 0.7fr 1fr;
+        gap: 16px;
+        align-items: center;
+        margin: 46px 0 32px;
+      }
+      .architecture section {
+        padding: 26px 0;
+        border-top: 1px solid var(--ink);
+        border-bottom: 1px solid var(--line);
+        min-height: 205px;
+      }
+      .architecture section p {
+        font-size: 18px;
+        margin-top: 16px;
+        color: var(--muted);
+      }
+      .connection {
+        font-size: 14px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.8;
+      }
+      .connection span {
+        display: block;
+        font-size: 26px;
+        color: var(--accent);
+      }
+      .bottom-note {
+        font-size: 16px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+        padding-top: 20px;
+        line-height: 1.75;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 32px;
+        text-align: left;
+      }
+      th {
+        font-size: 14px;
+        color: var(--muted);
+        font-weight: 500;
+        padding: 14px 20px 14px 0;
+        border-bottom: 1px solid var(--ink);
+      }
+      td {
+        padding: 16px 20px 16px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        font-size: 18px;
+      }
+      td:first-child {
+        font-weight: 600;
+      }
+      td.numeric,
+      th.numeric {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .evaluation {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 6vw;
+        margin-top: 38px;
+        align-items: start;
+      }
+      .evaluation table {
+        margin-top: 0;
+      }
+      .bar-track {
+        width: 100%;
+        height: 8px;
+        background: var(--line);
+        margin-top: 12px;
+      }
+      .bar-fill {
+        height: 100%;
+        background: var(--deep);
+      }
+      .bar-fill.model {
+        background: var(--accent);
+      }
+      .result {
+        font-family: var(--serif);
+        font-size: 30px;
+        line-height: 1.6;
+        margin-bottom: 18px;
+      }
+      .result-copy {
+        font-size: 18px;
+        color: var(--muted);
+      }
+      .small {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .closing h2 {
+        font-size: clamp(40px, 4.2vw, 68px);
+        max-width: 24ch;
+      }
+      .closing-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px;
+        margin-top: 36px;
+        font-size: 17px;
+      }
+      .sources {
+        list-style: none;
+        padding: 0;
+        margin: 28px 0 0;
+      }
+      .sources li {
+        padding: 13px 0;
+        border-top: 1px solid var(--line);
+        font-size: 17px;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .sources small {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .controls {
+        position: fixed;
+        z-index: 5;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 18px 5.5vw;
+        min-height: 72px;
+        background: var(--paper);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        border-top: 1px solid var(--line);
+      }
+      .controls button,
+      .notes button,
+      .outline button {
+        background: none;
+        border: 0;
+        padding: 8px 4px;
+        min-height: 36px;
+        font-size: 13px;
+      }
+      .controls button:hover,
+      .notes button:hover {
+        color: var(--accent);
+      }
+      .controls button:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .control-utility {
+        display: flex;
+        gap: 16px;
+      }
+      .control-navigation {
+        display: flex;
+        gap: 22px;
+        margin-left: auto;
+        align-items: center;
+      }
+      .counter {
+        font-size: 13px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        min-width: 70px;
+        text-align: center;
+      }
+      .keyboard-hint {
+        color: var(--muted);
+        font-size: 12px;
+        margin-right: 10px;
+      }
+      .progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        z-index: 6;
+      }
+      .progress span {
+        width: 100%;
+        height: 100%;
+        background: var(--accent);
+        display: block;
+        transform-origin: left;
+        transition: transform 0.2s ease;
+      }
+      .notes {
+        position: fixed;
+        z-index: 10;
+        bottom: 90px;
+        right: 5.5vw;
+        width: min(520px, 89vw);
+        max-height: 60svh;
+        overflow-y: auto;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        padding: 24px;
+        box-shadow: 0 12px 32px #3d39291a;
+      }
+      .notes header,
+      .outline header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 18px;
+      }
+      .notes h2,
+      .outline h2 {
+        font: 600 22px var(--serif);
+      }
+      .notes p {
+        font-size: 17px;
+        line-height: 1.85;
+        white-space: pre-line;
+      }
+      .notes .small {
+        display: block;
+        margin-bottom: 14px;
+      }
+      .outline {
+        width: min(1060px, 92vw);
+        max-height: 85svh;
+        background: var(--paper);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        padding: 30px;
+      }
+      .outline::backdrop {
+        background: #3d392966;
+      }
+      .outline-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0 26px;
+      }
+      .outline-grid button {
+        text-align: left;
+        padding: 20px 0;
+        border-top: 1px solid var(--line);
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        font-size: 16px;
+        line-height: 1.7;
+      }
+      .outline-grid button[aria-current="step"] {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .outline-grid span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .message {
+        position: fixed;
+        bottom: 85px;
+        left: 5.5vw;
+        max-width: 50ch;
+        background: var(--surface);
+        padding: 16px;
+        border: 1px solid var(--line);
+        z-index: 20;
+        font-size: 15px;
+      }
+      @media (max-width: 960px) {
+        .slide {
+          padding-top: 110px;
+        }
+        .split,
+        .cover,
+        .media-sheet {
+          grid-template-columns: 1fr;
+          gap: 30px;
+        }
+        .cover {
+          grid-template-columns: 1fr 0.85fr;
+          gap: 30px;
+        }
+        .cover h1 {
+          font-size: 44px;
+        }
+        .cover-image {
+          max-height: 46svh;
+        }
+        .media-sheet .sheet-copy {
+          max-width: 720px;
+        }
+        .media-sheet h2 {
+          max-width: 24ch;
+        }
+        .media-sheet .lead {
+          margin-top: 16px;
+        }
+        .media-sheet .plain-list {
+          display: flex;
+          flex-wrap: wrap;
+          column-gap: 28px;
+          margin-top: 12px;
+        }
+        .media-sheet figure {
+          max-width: 800px;
+        }
+        .architecture {
+          grid-template-columns: 1fr 0.45fr 1fr 0.45fr 1fr;
+          gap: 10px;
+        }
+        .architecture section p {
+          font-size: 15px;
+        }
+        .keyboard-hint {
+          display: none;
+        }
+      }
+      @media (max-width: 600px) {
+        .masthead {
+          height: 66px;
+        }
+        .masthead-meta {
+          gap: 0;
+          font-size: 11px;
+        }
+        .masthead-meta span:last-child {
+          display: none;
+        }
+        .wordmark {
+          font-size: 23px;
+        }
+        .slide {
+          padding: 96px 6vw 118px;
+          justify-content: flex-start;
+        }
+        .cover,
+        .split {
+          grid-template-columns: 1fr;
+        }
+        .cover h1 {
+          max-width: 12ch;
+          font-size: 43px;
+        }
+        .cover .lead {
+          max-width: 30ch;
+          font-size: 18px;
+        }
+        .cover-image {
+          max-height: none;
+          width: 100%;
+          height: auto;
+        }
+        .screenshot {
+          max-height: none;
+        }
+        .cover-footer {
+          margin-top: 26px;
+          font-size: 12px;
+        }
+        h2 {
+          font-size: 32px;
+        }
+        .lead {
+          font-size: 18px;
+          margin-top: 18px;
+        }
+        .statement {
+          font-size: 28px;
+          margin: 26px 0;
+        }
+        .row {
+          grid-template-columns: 1fr;
+          gap: 8px;
+          padding: 20px 0;
+        }
+        .row p,
+        td {
+          font-size: 16px;
+        }
+        .sequence {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 32px 0;
+        }
+        .sequence li {
+          padding-top: 15px;
+        }
+        .sequence li + li {
+          padding-left: 16px;
+        }
+        .sequence li:nth-child(3) {
+          padding-left: 0;
+          border-left: 0;
+        }
+        .sequence p {
+          font-size: 16px;
+        }
+        .sequence .step {
+          font-size: 28px;
+          margin-bottom: 8px;
+        }
+        .architecture {
+          grid-template-columns: 1fr;
+          gap: 12px;
+          margin-top: 28px;
+        }
+        .architecture section {
+          min-height: 0;
+          padding: 18px 0;
+        }
+        .architecture section p {
+          margin-top: 8px;
+          font-size: 17px;
+        }
+        .connection {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .connection span {
+          transform: rotate(90deg);
+        }
+        .evaluation {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+        th {
+          font-size: 12px;
+        }
+        td,
+        th {
+          padding-right: 12px;
+        }
+        .table-status {
+          table-layout: fixed;
+        }
+        .table-status th:nth-child(1) {
+          width: 20%;
+        }
+        .table-status th:nth-child(2) {
+          width: 37%;
+        }
+        .table-status th:nth-child(3) {
+          width: 43%;
+        }
+        .controls {
+          padding: 12px 5vw;
+          flex-wrap: wrap;
+          gap: 4px;
+          min-height: 84px;
+        }
+        .control-utility {
+          width: 100%;
+          justify-content: space-between;
+        }
+        .control-utility button {
+          min-height: 26px;
+          padding: 0;
+          font-size: 12px;
+        }
+        .control-navigation {
+          width: 100%;
+          justify-content: space-between;
+          gap: 14px;
+        }
+        .control-navigation button {
+          min-height: 30px;
+        }
+        .outline-grid {
+          grid-template-columns: 1fr;
+        }
+        .outline {
+          padding: 22px;
+        }
+        .sources li {
+          display: block;
+        }
+        .sources small {
+          display: block;
+          margin-top: 6px;
+        }
+        .notes {
+          bottom: 110px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        @page {
+          size: A4 landscape;
+          margin: 0;
+        }
+        html,
+        body {
+          background: var(--paper);
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+        .masthead,
+        .controls,
+        .progress,
+        .notes,
+        .outline,
+        .message,
+        .skip-link,
+        .sr-only {
+          display: none !important;
+        }
+        .slide,
+        .slide[hidden] {
+          display: flex !important;
+          width: 297mm;
+          height: 210mm;
+          min-height: 210mm;
+          padding: 16mm 18mm;
+          break-after: page;
+          break-inside: avoid;
+          justify-content: center;
+        }
+        .slide:last-child {
+          break-after: auto;
+        }
+        h1 {
+          font-size: 43pt;
+        }
+        h2 {
+          font-size: 30pt;
+        }
+        h3 {
+          font-size: 17pt;
+        }
+        p,
+        li,
+        td {
+          font-size: 13pt;
+        }
+        .lead {
+          font-size: 15pt;
+        }
+        .small,
+        .scene-caption {
+          font-size: 9pt;
+        }
+        .cover {
+          grid-template-columns: 1fr 1fr;
+        }
+        .media-sheet {
+          grid-template-columns: 0.75fr 1.5fr;
+        }
+        .cover-image {
+          max-height: 150mm;
+        }
+        .screenshot {
+          max-height: 140mm;
+          object-fit: contain;
+        }
+        .plain-list li,
+        .result-copy,
+        .architecture section p {
+          font-size: 12pt;
+        }
+        .architecture {
+          grid-template-columns: 1.2fr 0.7fr 1.15fr 0.7fr 1fr;
+        }
+        .architecture section {
+          min-height: 40mm;
+        }
+        .evaluation {
+          grid-template-columns: 1.1fr 0.9fr;
+        }
+        .sequence {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .sequence p {
+          font-size: 12pt;
+        }
+        .sequence .step {
+          font-size: 24pt;
+        }
+        .sources li {
+          font-size: 12pt;
+          padding: 10px 0;
+        }
+        a {
+          color: inherit;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#slide-content">발표 내용으로 이동</a>
+    <header class="masthead">
+      <a class="wordmark" href="#1" aria-label="코코로 첫 장">kokoro</a>
+      <div class="masthead-meta">
+        <span>종합설계 프로젝트 중간 발표</span
+        ><span>2026.10 / 인하대학교</span>
+      </div>
+    </header>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+    <main id="slide-content" tabindex="-1" aria-label="코코로 중간 발표">
+      <section
+        class="slide"
+        data-title="우리 집을 미리 꾸며보는 공간"
+        data-duration="20초"
+        data-notes="코코로는 집 구조를 만들고 가구를 배치한 뒤 같은 공간을 2D와 3D와 웹 VR에서 확인하는 리모델링 스튜디오입니다. 오늘은 사용자 흐름과 구현 결과 및 평가와 남은 과제를 소개합니다."
+      >
+        <div class="sheet split cover">
+          <div>
+            <h1>
+              우리 집을<br />미리 꾸며보는<br /><span class="accent">공간</span>
+            </h1>
+            <p class="lead">
+              직접 고친 집 구조에 가구를 놓고<br />같은 배치를 2D와 3D와 웹
+              VR로.
+            </p>
+            <p class="deck-title">코코로 리모델링 스튜디오</p>
+            <div class="cover-footer">
+              민섭 / 영진 / 현민 / 만욱<br />2026년 10월 중간 구현 결과
+            </div>
+          </div>
+          <figure>
+            <img
+              class="cover-image"
+              src="./assets/room.webp"
+              alt="코코로에서 거실과 침실 및 복도로 구성한 집을 3D로 보는 화면"
+              width="672"
+              height="604"
+            />
+            <figcaption class="scene-caption">
+              현재 UI의 예제 공간. 실제 도면 실측 결과는 아닙니다.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="도면만으로는 알기 어려운 것"
+        data-duration="45초"
+        data-notes="이사를 앞두고 소파와 테이블을 고르는 사용자를 생각했습니다. 평면도와 상품 치수만으로는 가구를 놓고 남는 공간이나 실제 시점의 답답함을 판단하기 어렵습니다. 전문 3D 도구를 먼저 배우지 않고 내 집에서 배치를 바꿔 보는 경험을 목표로 합니다. 사용자 조사를 통해 효과를 측정한 결과로 소개하지는 않습니다."
+      >
+        <div class="sheet reading">
+          <h2>도면만으로는<br />알기 어려운 것</h2>
+          <p class="statement">
+            “이 소파를 놓아도<br />거실을 편하게 지날 수 있을까?”
+          </p>
+          <div class="rows">
+            <div class="row">
+              <h3>크기</h3>
+              <p>가구 치수와 집 구조를 함께 비교해야 합니다.</p>
+            </div>
+            <div class="row">
+              <h3>공간감</h3>
+              <p>평면 배치가 실제 시점에서는 다르게 느껴집니다.</p>
+            </div>
+            <div class="row">
+              <h3>조작 부담</h3>
+              <p>배치를 바꿔 보려고 전문 3D 도구부터 익히기는 어렵습니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="한 집을 끝까지 편집하는 흐름"
+        data-duration="35초"
+        data-notes="같은 성수동 단독주택 프로젝트를 끝까지 사용합니다. 이미지를 참고하거나 면적을 입력해 구조를 만든 뒤 방과 문을 고칩니다. 거실에 가구를 놓고 자연어로 수정을 요청합니다. 결과를 직접 확인한 뒤 저장하고 다시 열어 같은 상태가 남는지 확인합니다. 뒤의 화면도 이 사용자 흐름에 맞춰 설명합니다."
+      >
+        <div class="sheet">
+          <h2>한 집을 끝까지<br />편집하는 흐름</h2>
+          <p class="lead">이사를 앞둔 사용자가 거실을 꾸미는 하나의 사례로.</p>
+          <ol class="sequence">
+            <li>
+              <span class="step">01</span>
+              <h3>구조 만들기</h3>
+              <p>이미지 초안이나 면적 입력에서 시작</p>
+            </li>
+            <li>
+              <span class="step">02</span>
+              <h3>가구 놓기</h3>
+              <p>소파와 테이블을 추가하고 직접 수정</p>
+            </li>
+            <li>
+              <span class="step">03</span>
+              <h3>요청 확인하기</h3>
+              <p>“소파 옆에 화분을 놓아줘”</p>
+            </li>
+            <li>
+              <span class="step">04</span>
+              <h3>저장하고 다시 보기</h3>
+              <p>같은 배치를 여러 시점에서 확인</p>
+            </li>
+          </ol>
+          <p class="bottom-note" style="margin-top: 44px">
+            2D와 3D와 웹 VR은 별도 프로젝트가 아닌 같은 공간 데이터를
+            사용합니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="초안을 내 집에 맞게 고칩니다"
+        data-duration="50초"
+        data-notes="구조 화면에서는 방을 나누고 합치거나 크기와 모양을 바꿀 수 있습니다. 문과 창 위치도 수정합니다. 이미지 분석은 편집 가능한 초안을 만드는 기능이며 정확한 실제 치수를 자동 측정했다는 뜻은 아닙니다. 사용자가 보정한 구조를 배치 화면에 반영합니다. 별도의 도면 업로드 작업 상태와 이 이미지 초안 기능을 구분해서 설명합니다."
+      >
+        <div class="sheet media-sheet">
+          <div class="sheet-copy">
+            <h2>초안을<br />내 집에 맞게<br />고칩니다</h2>
+            <p class="lead">방과 문과 창을 직접 보정하는 구조 편집.</p>
+            <ul class="plain-list">
+              <li>방 나누기와 합치기</li>
+              <li>크기와 모양 수정</li>
+              <li>문과 창 배치</li>
+            </ul>
+            <p class="note-line">
+              이미지 분석 결과는 수정 가능한 초안입니다. 실제 치수는 사용자가
+              확인합니다.
+            </p>
+          </div>
+          <figure>
+            <img
+              class="screenshot"
+              src="./assets/structure.webp"
+              alt="여러 방으로 나눈 평면도와 방의 가로 및 세로를 수정하는 구조 편집 화면"
+              width="1280"
+              height="800"
+            />
+            <figcaption class="scene-caption">
+              원본 발표 자료의 구조 편집 화면.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="놓고 옮기고 같은 배치로 확인"
+        data-duration="50초 + 선택 시 시연 60초"
+        data-notes="가구를 추가하고 이동하거나 회전하고 삭제할 수 있습니다. 집 전체에서 방 하나로 들어가 편집하고 같은 배치를 2D와 3D로 확인합니다. 실행 취소와 저장도 하나의 작업 흐름에 포함합니다. 여유가 있으면 데모를 새 탭에서 열어 가구 하나를 옮기고 시점을 바꾼 뒤 다시 발표로 돌아옵니다. 실제 헤드셋 조작의 확인 범위는 뒤에서 따로 설명합니다."
+      >
+        <div class="sheet media-sheet">
+          <div class="sheet-copy">
+            <h2>놓고 옮기고<br />같은 배치로<br />확인</h2>
+            <p class="lead">집 전체와 방 하나를 오가며 가구를 편집합니다.</p>
+            <ul class="plain-list">
+              <li>추가와 이동과 회전과 삭제</li>
+              <li>2D와 3D 전환</li>
+              <li>실행 취소와 자동 저장</li>
+            </ul>
+            <p class="note-line">
+              <a href="../../" target="_blank" rel="noopener"
+                >코코로 웹 데모 열기</a
+              ><br /><span class="small"
+                >공개 데모는 브라우저 저장 방식입니다.</span
+              >
+            </p>
+          </div>
+          <figure>
+            <img
+              class="screenshot"
+              src="./assets/arrange.webp"
+              alt="가구 카탈로그와 3D 거실 및 선택한 가구의 위치와 방향을 수정하는 배치 화면"
+              width="1280"
+              height="800"
+            />
+            <figcaption class="scene-caption">
+              예제 가구와 예제 가격을 사용합니다. 실제 판매 상품 정보는
+              아닙니다.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="요청을 확인하고 적용합니다"
+        data-duration="60초"
+        data-notes="자연어 요청을 바로 저장하지 않고 해석과 검증과 확인을 거쳐 적용합니다. 모델은 정해진 배치 요청 형식으로 변환하고 시스템은 카탈로그와 공간 및 대상을 확인합니다. 사용자가 적용하거나 취소할 수 있습니다. 화면은 원본 자료의 규칙 기반 데모입니다. 브라우저 WebGPU 모델과 이 PC의 Ollama 경로는 실행 환경과 연결 방식이 다르므로 같은 모델로 설명하지 않습니다."
+      >
+        <div class="sheet media-sheet">
+          <div class="sheet-copy">
+            <h2>요청을 확인하고<br />적용합니다</h2>
+            <p class="request">“소파 옆에<br />화분을 놓아줘”</p>
+            <ul class="plain-list">
+              <li>요청을 정해진 형식으로 해석</li>
+              <li>가구와 대상과 위치 검증</li>
+              <li>사용자가 확인한 뒤 적용</li>
+            </ul>
+            <p class="note-line">
+              잘못된 요청이나 취소 때문에 기존 배치가 바로 바뀌지 않도록 합니다.
+            </p>
+          </div>
+          <figure>
+            <img
+              class="screenshot"
+              src="./assets/assistant.webp"
+              alt="AI 배치 영역에서 소파 옆에 화분을 놓아 달라는 요청을 입력한 화면"
+              width="1280"
+              height="800"
+            />
+            <figcaption class="scene-caption">
+              화면은 규칙 기반 데모. 로컬 모델의 평가 결과는 별도로 설명합니다.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="화면은 함께 보고 저장은 구분합니다"
+        data-duration="50초"
+        data-notes="React와 TypeScript가 사용자 화면을 구성하고 Three.js와 WebXR이 공간을 렌더링합니다. 서버 모드는 Spring API가 입력과 소유권을 검사하고 PostgreSQL에 저장합니다. 로컬 데모는 브라우저 저장소만 사용하므로 공개 Pages 데모에 Spring과 DB가 배포되어 있다고 설명하지 않습니다. WebXR은 별도 앱 없이 브라우저에서 VR 장치를 사용하는 웹 표준입니다."
+      >
+        <div class="sheet">
+          <h2>화면은 함께 보고<br />저장은 구분합니다</h2>
+          <p class="lead">2D와 3D와 웹 VR에 같은 구조와 가구를 전달합니다.</p>
+          <div
+            class="architecture"
+            aria-label="사용자 화면에서 프로젝트 API를 거쳐 PostgreSQL에 저장하는 서버 모드 구조"
+          >
+            <section>
+              <h3>사용자 화면</h3>
+              <p>
+                React / TypeScript<br />Three.js / WebXR<br />구조와 가구 편집
+              </p>
+            </section>
+            <div class="connection">
+              서버 모드<span aria-hidden="true">→</span>HTTP 요청
+            </div>
+            <section>
+              <h3>프로젝트 API</h3>
+              <p>
+                Java 17 / Spring Boot<br />입력과 소유권 검증<br />조회와 저장
+              </p>
+            </section>
+            <div class="connection">
+              검증 후<span aria-hidden="true">→</span>데이터 저장
+            </div>
+            <section>
+              <h3>저장소</h3>
+              <p>
+                PostgreSQL<br />프로젝트와 배치 보관<br />Flyway로 DB 구조 관리
+              </p>
+            </section>
+          </div>
+          <p class="bottom-note">
+            <strong>로컬 데모</strong>는 브라우저에 저장합니다.
+            <strong>서버 모드</strong>는 Spring과 PostgreSQL을 사용합니다.<br />WebXR은
+            브라우저에서 VR 장치를 사용하는 웹 표준입니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="최신 배치를 오래된 저장으로 덮지 않도록"
+        data-duration="50초"
+        data-notes="편집 도구는 화면뿐 아니라 저장 결과도 신뢰할 수 있어야 합니다. 서버는 프로젝트 revision을 검사해 오래된 상태로 보내진 저장을 409로 거절합니다. 변경은 하나의 트랜잭션으로 처리하며 실패하면 일부만 저장하지 않습니다. 접근은 프로젝트 소유자에게 제한합니다. 이 내용은 원본 자료의 서버 구현 범위이며 공개 로컬 데모의 기능과 구분합니다."
+      >
+        <div class="sheet reading">
+          <h2>최신 배치를<br />오래된 저장으로<br />덮지 않도록</h2>
+          <div class="rows">
+            <div class="row">
+              <h3>다른 시점의 저장</h3>
+              <p>
+                프로젝트 버전인 <code>revision</code>을 비교하고 오래된 요청은
+                <code>409</code>로 거절합니다.
+              </p>
+            </div>
+            <div class="row">
+              <h3>처리 중 실패</h3>
+              <p>
+                한 번의 변경을 함께 저장하고 실패한 요청은 기존 상태를
+                유지합니다.
+              </p>
+            </div>
+            <div class="row">
+              <h3>다른 사용자의 접근</h3>
+              <p>
+                인증과 프로젝트 소유권을 검사하고 소유자에게만 조회와 변경을
+                허용합니다.
+              </p>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 20px">
+            서버 모드의 구현 범위. 공개 데모의 브라우저 저장과 구분합니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="모델을 붙인 뒤 같은 문장으로 비교"
+        data-duration="65초"
+        data-notes="PR #212의 2026년 10월 31일 측정 결과입니다. 개발용 70개와 평가용 30개를 나누고 같은 평가용 문장으로 비교했습니다. 전체 일치율은 규칙 처리기 20개와 모델 19개입니다. 실행 가능한 명령만 보면 모델은 22개 중 19개가 맞았지만 거절해야 할 요청을 잘 거절하지 못했습니다. 확인 없이 실행한 경우 0건은 제안의 의미가 모두 옳다는 뜻은 아닙니다. PR은 검토 중이고 채택은 팀 결정으로 남아 있습니다."
+      >
+        <div class="sheet">
+          <h2>모델을 붙인 뒤<br />같은 문장으로 비교</h2>
+          <p class="lead">
+            평가용 30개에서 배치 요청의 의미와 순서가 일치하는지 확인했습니다.
+          </p>
+          <div class="evaluation">
+            <div>
+              <table>
+                <caption class="sr-only">
+                  같은 평가용 30개 명령의 일치율
+                </caption>
+                <thead>
+                  <tr>
+                    <th>처리 방식</th>
+                    <th class="numeric">일치</th>
+                    <th class="numeric">일치율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      규칙 처리기
+                      <div class="bar-track" aria-hidden="true">
+                        <div class="bar-fill" style="width: 66.7%"></div>
+                      </div>
+                    </td>
+                    <td class="numeric">20 / 30</td>
+                    <td class="numeric">66.7%</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      qwen3:4b
+                      <div class="bar-track" aria-hidden="true">
+                        <div class="bar-fill model" style="width: 63.3%"></div>
+                      </div>
+                    </td>
+                    <td class="numeric">19 / 30</td>
+                    <td class="numeric">63.3%</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="small" style="margin-top: 20px">
+                Apple M5 / RAM 16GB / Ollama 0.40.13 / Q4_K_M<br />2026.10.31
+                측정 /
+                <a
+                  href="https://github.com/kokoro-band/kokoro/pull/212"
+                  target="_blank"
+                  rel="noopener"
+                  >PR #212 검토 중인 결과</a
+                >
+              </p>
+            </div>
+            <div>
+              <p class="result">
+                실행 가능한 요청은 해석하지만<br /><span class="accent"
+                  >거절해야 할 요청에 약했습니다.</span
+                >
+              </p>
+              <p class="result-copy">
+                실행 가능한 명령만 보면 22개 중 19개 일치.<br />평가용 30개에서
+                확인 없이 실행한 경우는 0건.
+              </p>
+              <p class="note-line">
+                응답 형식에 거절을 표현할 방법을 추가한 뒤 같은 기준으로 다시
+                평가합니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="구현과 실제 환경 검증을 나눕니다"
+        data-duration="50초"
+        data-notes="현재는 핵심 편집 흐름을 구현했고 실제 환경에서의 정확도와 품질을 검증하는 단계입니다. 구조 편집과 이미지 초안이 실제 도면 자동 인식을 완성했다는 뜻은 아닙니다. 가구의 가격과 치수는 예제이며 실제 상품 정보가 아닙니다. 자연어는 복합 요청과 거절을 보완해야 합니다. 웹 VR 진입과 컨트롤러 코드 구현도 실제 헤드셋 검증을 대신하지 않습니다."
+      >
+        <div class="sheet">
+          <h2>구현과 실제 환경 검증을<br />나눕니다</h2>
+          <table class="table-status">
+            <caption class="sr-only">
+              영역별 현재 구현과 남은 검증
+            </caption>
+            <thead>
+              <tr>
+                <th>영역</th>
+                <th>현재 범위</th>
+                <th>남은 검증과 보완</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>공간</td>
+                <td>구조 편집과 이미지 초안</td>
+                <td>다양한 도면의 정확도와 PDF 인식</td>
+              </tr>
+              <tr>
+                <td>가구</td>
+                <td>예제 모델 배치와 조작</td>
+                <td>종류 확대와 벽 및 문 주변 배치</td>
+              </tr>
+              <tr>
+                <td>자연어</td>
+                <td>규칙 처리와 선택형 모델</td>
+                <td>복합 요청과 거절 응답 및 연동</td>
+              </tr>
+              <tr>
+                <td>웹 VR</td>
+                <td>진입과 컨트롤러 조작 코드</td>
+                <td>실제 헤드셋과 브라우저 조합</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="bottom-note" style="margin-top: 24px">
+            실제 상품의 정확한 모델과 판매 가격 및 시공 가능성 판단은 현재 제공
+            범위에 포함하지 않습니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="남은 작업을 확인 가능한 결과로"
+        data-duration="45초"
+        data-notes="남은 4주는 원본 자료의 가정이며 실제 최종 발표 일정에 맞춰 조정해야 합니다. 첫째 편집한 구조와 가구가 저장 후 다시 열어도 같은지 확인합니다. 둘째 명령 응답에 거절을 추가하고 같은 평가를 반복합니다. 셋째 가구 종류를 확대하고 헤드셋에서 실제 조작을 기록합니다. 마지막으로 하나의 프로젝트로 전체 시연을 마칩니다. 단순히 작업이 끝났다는 표시보다 사용자가 확인할 수 있는 결과를 완료 기준으로 삼습니다."
+      >
+        <div class="sheet">
+          <h2>남은 작업을<br />확인 가능한 결과로</h2>
+          <p class="lead">중간 발표 이후 4주를 가정한 계획입니다.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>시점</th>
+                <th>집중할 작업</th>
+                <th>완료를 판단할 결과</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1주</td>
+                <td>편집과 저장 안정화</td>
+                <td>수정 후 다시 열어도 같은 상태</td>
+              </tr>
+              <tr>
+                <td>2주</td>
+                <td>자연어 거절과 API 통합</td>
+                <td>같은 평가에서 개선 여부 확인</td>
+              </tr>
+              <tr>
+                <td>3주</td>
+                <td>가구 확대와 헤드셋 검증</td>
+                <td>추가 가구 배치와 실기기 조작 기록</td>
+              </tr>
+              <tr>
+                <td>4주</td>
+                <td>전체 흐름과 최종 시연</td>
+                <td>한 프로젝트로 처음부터 끝까지 시연</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small" style="margin-top: 20px">
+            확정 일정은 아닙니다. 실제 발표일과 팀의 담당 작업에 맞춰
+            조정합니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-title="편집한 공간을 다시 열고 직접 확인할 때까지"
+        data-duration="20초"
+        data-notes="코코로는 공간 편집과 가구 배치의 기본 흐름을 만들었습니다. 남은 목표는 사용자가 편집한 공간을 신뢰할 수 있게 저장하고 자연어 제안을 확인하며 실제 장치에서도 같은 배치를 확인하도록 하는 것입니다. 질문을 받습니다. 서버와 팀 역할 및 근거 링크는 다음 부록에 있습니다."
+      >
+        <div class="sheet closing">
+          <h2>편집한 공간을 다시 열고<br />직접 확인할 때까지</h2>
+          <p class="lead">
+            구조와 배치의 기본 흐름을 구현했습니다.<br />다음 단계는 정확도와
+            안정성 그리고 실제 환경 검증입니다.
+          </p>
+          <div class="closing-links">
+            <a href="../../" target="_blank" rel="noopener">웹 데모</a
+            ><a
+              href="https://github.com/kokoro-band/kokoro"
+              target="_blank"
+              rel="noopener"
+              >GitHub 저장소</a
+            ><button
+              type="button"
+              data-action="appendix"
+              style="
+                border: 0;
+                border-bottom: 1px solid currentColor;
+                background: none;
+                font: inherit;
+                padding: 0;
+              "
+            >
+              부록과 근거 보기
+            </button>
+          </div>
+          <p class="cover-footer">
+            코코로 리모델링 스튜디오<br />질문을 받겠습니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-appendix
+        data-title="부록: 서버의 파일과 요청 처리"
+        data-duration="질문 응답용"
+        data-notes="업로드 검사는 도면 자동 인식과 다릅니다. 서버는 PDF와 PNG와 JPG의 형식과 파일 시그니처 및 15MiB 용량을 검사합니다. 비동기 작업 ID를 반환하고 상태를 조회합니다. 재시작 시 미완료 작업을 FAILED로 정리하고 원본 파일 삭제 실패를 기록해 다시 시도합니다. 구현 세부 사항은 현재 코드와 원본 발표의 백엔드 설명을 기준으로 확인합니다."
+      >
+        <div class="sheet">
+          <h2>서버의 파일과 요청 처리</h2>
+          <div class="rows">
+            <div class="row">
+              <h3>업로드</h3>
+              <p>
+                PDF와 PNG와 JPG의 형식과 파일 내용 및 15MiB 용량 제한을
+                검사합니다.
+              </p>
+            </div>
+            <div class="row">
+              <h3>비동기 작업</h3>
+              <p>
+                작업 ID와 상태를 반환합니다. 재시작 후 미완료 작업은 실패로
+                정리하고 재업로드할 수 있습니다.
+              </p>
+            </div>
+            <div class="row">
+              <h3>삭제</h3>
+              <p>
+                원본 파일 삭제에 실패하면 기록하고 주기적으로 다시 시도합니다.
+              </p>
+            </div>
+          </div>
+          <p class="note-line">
+            서버의 작업 상태 시연은 벽과 문을 자동 인식한 결과가 아닙니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-appendix
+        data-title="부록: 팀 역할과 다음 초점"
+        data-duration="질문 응답용"
+        data-notes="팀 역할은 원본 발표와 프로젝트 규칙의 주요 영역입니다. 실제 작업 담당과 일정은 팀에서 조정합니다. 민섭은 3D와 WebXR 및 가구 자산을, 영진은 웹 프론트엔드를, 현민은 Spring 백엔드를, 만욱은 PM과 웹 프론트엔드를 담당합니다. 다음 초점은 발표용 가안입니다."
+      >
+        <div class="sheet">
+          <h2>팀 역할과 다음 초점</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>팀원</th>
+                <th>주요 영역</th>
+                <th>다음 초점</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>민섭</td>
+                <td>3D 장면과 WebXR 및 가구 자산</td>
+                <td>모델 품질과 헤드셋 확인</td>
+              </tr>
+              <tr>
+                <td>영진</td>
+                <td>웹 프론트엔드</td>
+                <td>구조와 배치 편집 안정화</td>
+              </tr>
+              <tr>
+                <td>현민</td>
+                <td>Spring 백엔드</td>
+                <td>저장과 검증 및 API 통합</td>
+              </tr>
+              <tr>
+                <td>만욱</td>
+                <td>PM과 웹 프론트엔드</td>
+                <td>통합 시나리오와 사용성 확인</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small" style="margin-top: 24px">
+            다음 초점은 발표용 가안입니다. 실제 담당 작업에 맞춰 조정합니다.
+          </p>
+        </div>
+      </section>
+      <section
+        class="slide"
+        hidden
+        data-appendix
+        data-title="부록: 자료와 실행 환경"
+        data-duration="질문 응답용"
+        data-notes="발표의 화면과 제품 설명은 팀의 원본 Google Slides와 저장소 문서에 근거합니다. AI 수치는 PR #212의 동일 평가 30개 결과이며 검토 중임을 유지합니다. Paper 테마의 색과 타이포그래피는 make-slide 레퍼런스를 참고했고 MIT 라이선스를 함께 제공합니다. 폰트와 이미지 출처도 NOTICE.md에 기록했습니다."
+      >
+        <div class="sheet">
+          <h2>자료와 실행 환경</h2>
+          <ul class="sources">
+            <li>
+              <a
+                href="https://docs.google.com/presentation/d/1Yb8RBymKM0rg3581-LFexU-kZIiNnZithLikmiGamrI/edit"
+                target="_blank"
+                rel="noopener"
+                >팀의 원본 중간 발표</a
+              ><small>제품 화면과 구현 설명</small>
+            </li>
+            <li>
+              <a
+                href="https://github.com/kokoro-band/kokoro/blob/main/PRODUCT.md"
+                target="_blank"
+                rel="noopener"
+                >코코로 제품 정의</a
+              ><small>현재 범위와 예정 기능</small>
+            </li>
+            <li>
+              <a
+                href="https://github.com/kokoro-band/kokoro/pull/212"
+                target="_blank"
+                rel="noopener"
+                >qwen3:4b 평가 PR #212</a
+              ><small>2026.10.31 / 평가용 30개 / 검토 중</small>
+            </li>
+            <li>
+              <a
+                href="https://make-slide.vercel.app/themes/paper/reference.html"
+                target="_blank"
+                rel="noopener"
+                >make-slide Paper 레퍼런스</a
+              ><small>테마 참고 / MIT / kuneosu</small>
+            </li>
+            <li>
+              <a href="./NOTICE.md" target="_blank" rel="noopener"
+                >이미지와 폰트 및 라이선스</a
+              ><small>팀 발표 화면 / Noto / make-slide</small>
+            </li>
+          </ul>
+          <p class="bottom-note" style="margin-top: 24px">
+            브라우저 AI는 WebGPU 경로를 사용합니다. 이 PC의 Ollama와 실행 환경이
+            다릅니다.<br />공개 Pages 데모에는 Spring과 PostgreSQL 및 Ollama가
+            포함되지 않습니다.
+          </p>
+        </div>
+      </section>
+    </main>
+    <nav class="controls" aria-label="발표 도구">
+      <div class="control-utility">
+        <button type="button" id="outline-toggle" aria-haspopup="dialog">
+          목차 <span aria-hidden="true">O</span></button
+        ><button
+          type="button"
+          id="notes-toggle"
+          aria-expanded="false"
+          aria-controls="notes"
+        >
+          발표자 노트 <span aria-hidden="true">S</span></button
+        ><button type="button" id="fullscreen-toggle">
+          전체 화면 <span aria-hidden="true">F</span></button
+        ><button type="button" id="print">인쇄 / PDF</button>
+      </div>
+      <div class="control-navigation">
+        <span class="keyboard-hint">방향키 또는 Space로 이동</span
+        ><button type="button" id="previous" aria-label="이전 슬라이드">
+          이전</button
+        ><span class="counter" id="counter" aria-hidden="true"></span
+        ><button type="button" id="next" aria-label="다음 슬라이드">
+          다음
+        </button>
+      </div>
+    </nav>
+    <aside class="notes" id="notes" aria-labelledby="notes-title" hidden>
+      <header>
+        <h2 id="notes-title">발표자 노트</h2>
+        <button type="button" id="notes-close" aria-label="발표자 노트 닫기">
+          닫기
+        </button>
+      </header>
+      <span class="small" id="notes-position"></span>
+      <p id="notes-text"></p>
+    </aside>
+    <dialog class="outline" id="outline" aria-labelledby="outline-title">
+      <header>
+        <h2 id="outline-title">발표 목차</h2>
+        <button type="button" id="outline-close">닫기</button>
+      </header>
+      <div class="outline-grid" id="outline-grid"></div>
+    </dialog>
+    <p class="sr-only" role="status" aria-live="polite" id="announcement"></p>
+    <p class="message" role="alert" id="message" hidden></p>
+    <noscript
+      ><style>
+        .slide[hidden] {
+          display: flex !important;
+        }
+        .controls {
+          display: none;
+        }
+      </style>
+      <p class="message">
+        JavaScript가 꺼져 있어 전체 자료를 이어서 표시합니다.
+      </p></noscript
+    >
+    <script>
+      ;(() => {
+        "use strict"
+        const slides = [...document.querySelectorAll(".slide")]
+        const mainCount = slides.filter(
+          (slide) => !slide.hasAttribute("data-appendix")
+        ).length
+        const byId = (id) => document.getElementById(id)
+        const outline = byId("outline")
+        const notes = byId("notes")
+        let current = 0
+        let touch = null
+        const label = (index) =>
+          index < mainCount
+            ? `${String(index + 1).padStart(2, "0")} / ${mainCount}`
+            : `부록 ${index - mainCount + 1} / ${slides.length - mainCount}`
+        function render() {
+          slides.forEach((slide, index) => {
+            slide.hidden = index !== current
+          })
+          byId("counter").textContent = label(current)
+          byId("progress").style.transform =
+            `scaleX(${Math.min((current + 1) / mainCount, 1)})`
+          byId("previous").disabled = current === 0
+          byId("next").disabled = current === slides.length - 1
+          byId("notes-position").textContent =
+            `${label(current)} / ${slides[current].dataset.duration}`
+          byId("notes-text").textContent = slides[current].dataset.notes
+          byId("announcement").textContent =
+            `${label(current)}. ${slides[current].dataset.title}`
+          document.title = `${slides[current].dataset.title} | 코코로 중간 발표`
+          ;[...byId("outline-grid").children].forEach((button, index) => {
+            if (index === current) button.setAttribute("aria-current", "step")
+            else button.removeAttribute("aria-current")
+          })
+        }
+        function go(index, updateHistory = true) {
+          const next = Math.max(0, Math.min(index, slides.length - 1))
+          const active = document.activeElement
+          const contentHadFocus = slides[current].contains(active)
+          current = next
+          render()
+          if (updateHistory && location.hash !== `#${current + 1}`)
+            history.pushState(null, "", `#${current + 1}`)
+          window.scrollTo({ top: 0, behavior: "instant" })
+          if (contentHadFocus)
+            byId("slide-content").focus({ preventScroll: true })
+        }
+        function readHash() {
+          const value = /^#\d+$/.test(location.hash)
+            ? Number(location.hash.slice(1)) - 1
+            : 0
+          go(value, false)
+          if (location.hash !== `#${current + 1}`)
+            history.replaceState(null, "", `#${current + 1}`)
+        }
+        slides.forEach((slide, index) => {
+          slide.setAttribute("role", "group")
+          slide.setAttribute("aria-roledescription", "슬라이드")
+          slide.setAttribute(
+            "aria-label",
+            `${label(index)}. ${slide.dataset.title}`
+          )
+          const button = document.createElement("button")
+          button.type = "button"
+          const number = document.createElement("span")
+          number.textContent =
+            index < mainCount
+              ? String(index + 1).padStart(2, "0")
+              : `부록 ${index - mainCount + 1}`
+          button.append(
+            number,
+            document.createTextNode(slide.dataset.title.replace(/^부록: /, ""))
+          )
+          button.addEventListener("click", () => {
+            go(index)
+            outline.close()
+          })
+          byId("outline-grid").append(button)
+        })
+        function toggleNotes() {
+          notes.hidden = !notes.hidden
+          byId("notes-toggle").setAttribute(
+            "aria-expanded",
+            String(!notes.hidden)
+          )
+        }
+        async function fullscreen() {
+          try {
+            if (document.fullscreenElement) await document.exitFullscreen()
+            else await document.documentElement.requestFullscreen()
+            byId("message").hidden = true
+          } catch {
+            byId("message").textContent =
+              "전체 화면을 열지 못했습니다. 브라우저의 전체 화면 메뉴를 사용해 주세요."
+            byId("message").hidden = false
+          }
+        }
+        document
+          .querySelector(".skip-link")
+          .addEventListener("click", (event) => {
+            event.preventDefault()
+            byId("slide-content").focus()
+          })
+        byId("previous").addEventListener("click", () => go(current - 1))
+        byId("next").addEventListener("click", () => go(current + 1))
+        byId("notes-toggle").addEventListener("click", toggleNotes)
+        byId("notes-close").addEventListener("click", () => {
+          toggleNotes()
+          byId("notes-toggle").focus()
+        })
+        byId("outline-toggle").addEventListener("click", () => {
+          if (!outline.open) outline.showModal()
+        })
+        byId("outline-close").addEventListener("click", () => outline.close())
+        byId("fullscreen-toggle").addEventListener("click", fullscreen)
+        byId("print").addEventListener("click", () => window.print())
+        document
+          .querySelector('[data-action="appendix"]')
+          .addEventListener("click", () => go(mainCount))
+        document.addEventListener("fullscreenchange", () => {
+          byId("fullscreen-toggle").textContent = document.fullscreenElement
+            ? "전체 화면 종료 F"
+            : "전체 화면 F"
+        })
+        document.addEventListener("keydown", (event) => {
+          if (
+            event.defaultPrevented ||
+            event.isComposing ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.altKey ||
+            event.repeat
+          )
+            return
+          if (
+            event.target instanceof Element &&
+            event.target.closest(
+              'input, textarea, select, [contenteditable="true"]'
+            )
+          )
+            return
+          if (outline.open) return
+          if (event.key === "Escape" && !notes.hidden) {
+            toggleNotes()
+            byId("notes-toggle").focus()
+            return
+          }
+          const key = event.key.toLowerCase()
+          if (["arrowright", "arrowdown", "pagedown"].includes(key)) {
+            event.preventDefault()
+            go(current + 1)
+          } else if (["arrowleft", "arrowup", "pageup"].includes(key)) {
+            event.preventDefault()
+            go(current - 1)
+          } else if (
+            key === " " &&
+            !(
+              event.target instanceof Element &&
+              event.target.closest("button, a")
+            )
+          ) {
+            event.preventDefault()
+            go(current + (event.shiftKey ? -1 : 1))
+          } else if (key === "home") {
+            event.preventDefault()
+            go(0)
+          } else if (key === "end") {
+            event.preventDefault()
+            go(slides.length - 1)
+          } else if (key === "s") {
+            event.preventDefault()
+            toggleNotes()
+          } else if (key === "o") {
+            event.preventDefault()
+            outline.showModal()
+          } else if (key === "f") {
+            event.preventDefault()
+            fullscreen()
+          }
+        })
+        document.querySelector("main").addEventListener(
+          "touchstart",
+          (event) => {
+            if (
+              event.target.closest("a, button") ||
+              event.touches.length !== 1
+            ) {
+              touch = null
+              return
+            }
+            touch = { x: event.touches[0].clientX, y: event.touches[0].clientY }
+          },
+          { passive: true }
+        )
+        document.querySelector("main").addEventListener(
+          "touchend",
+          (event) => {
+            if (!touch || event.changedTouches.length !== 1) return
+            const dx = touch.x - event.changedTouches[0].clientX
+            const dy = touch.y - event.changedTouches[0].clientY
+            touch = null
+            if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.5)
+              go(current + (dx > 0 ? 1 : -1))
+          },
+          { passive: true }
+        )
+        document.querySelector("main").addEventListener(
+          "touchcancel",
+          () => {
+            touch = null
+          },
+          { passive: true }
+        )
+        window.addEventListener("hashchange", readHash)
+        window.addEventListener("popstate", readHash)
+        readHash()
+      })()
+    </script>
+  </body>
+</html>

@@ -35,6 +35,13 @@ public class ApiExceptionHandler {
         if (exception.openingId() != null) problem.setProperty("openingId", exception.openingId());
         return problem;
     }
+    @ExceptionHandler(com.kokoro.room.project.LayoutIntentException.class)
+    public ProblemDetail layoutIntent(com.kokoro.room.project.LayoutIntentException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), exception.getMessage());
+        problem.setProperty("code", exception.code());
+        return problem;
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handle(ResponseStatusException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

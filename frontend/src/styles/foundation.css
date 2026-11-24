@@ -100,6 +100,7 @@ select {
 }
 
 .command-review-body,
+.replace-project-body,
 .command-review-candidates {
   display: flex;
   flex-direction: column;
@@ -284,6 +285,14 @@ select {
   height: var(--seed-dimension-x5);
   margin: 0 var(--seed-dimension-x1);
   background: var(--line);
+}
+
+/*
+ * SEED 목록의 보조 글 기본색은 fg.neutralSubtle이라 흰 패널 위에서 대비가 약 3.4:1입니다.
+ * 방 상태와 가격처럼 읽어야 하는 정보이므로 caption 역할과 같은 fg.neutralMuted를 씁니다.
+ */
+.seed-list-item__detail:not(:disabled, [disabled], [data-disabled]) {
+  color: var(--seed-color-fg-neutral-muted);
 }
 
 .result-asset {

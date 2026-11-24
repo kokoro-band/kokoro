@@ -7,10 +7,13 @@ import {
   projectNameError,
 } from "./input-limits"
 import { withObjectParticle } from "./format"
+import { parseFurnitureCatalog } from "./furniture-catalog"
+import { findFreePlacement } from "./furniture-motion"
 import { containsPoint } from "./house-navigation"
 import { labelPoint } from "./room-builder"
 import { sampleRoom } from "./sample-room"
 import type {
+  CatalogItem,
   CommandResponse,
   Furniture,
   LayoutCommand,
@@ -18,6 +21,7 @@ import type {
   Project,
   RoomModel,
 } from "./types"
+import type { LocalLayoutIntent } from "./local-ai"
 import { commandLayoutKey, CommandReviewExpiredError } from "./command-review"
 import {
   assertFurnitureWrite,
@@ -292,8 +296,17 @@ export async function sendCommand(
       focus?.length && !containsPoint(focus, x, z) ? labelPoint(focus) : [x, z]
     return [Math.round(safeX * 10) / 10, Math.round(safeZ * 10) / 10]
   }
+  // 방을 보고 있을 때는 그 방의 가구만 바꾸고 다른 방 가구는 그대로 둡니다.
+  const inFocus = (item: Furniture) =>
+    !focus?.length || containsPoint(focus, item.x, item.z)
   let furniture = [...project.furniture]
   const actions: string[] = []
+  const missing: string[] = []
+  const blocked: string[] = []
+  const focusRoom = focus?.length ? { name: "", polygon: focus } : null
+  /** Same free-floor search as the catalog; null when nothing fits. */
+  const place = (item: Furniture) =>
+    findFreePlacement({ ...project, furniture }, item, focusRoom)
   const targets = [
     { word: "소파", id: "sofa-cloud", spot: at(0.27, 0.68) },
     { word: "테이블", id: "table-oak", spot: at(0.55, 0.5) },
@@ -307,18 +320,149 @@ export async function sendCommand(
     normalized.includes("삭제") ||
     normalized.includes("지워") ||
     normalized.includes("빼줘")
+  const aliases: Record<string, string[]> = {
+    화분: ["화분", "식물"],
+    테이블: ["테이블", "책상"],
+  }
+  const wordsFor = (word: string) => aliases[word] ?? [word]
+  // "소파 옆에 화분"의 소파는 기준 가구라서 새로 놓거나 바꾸지 않습니다.
+  const anchorTarget = targets.find((target) =>
+    wordsFor(target.word).some(
+      (word) =>
+        normalized.includes(`${word}옆`) || normalized.includes(`${word}의옆`)
+    )
+  )
   const matchesTarget = (word: string) =>
-    normalized.includes(word) ||
-    (word === "화분" && normalized.includes("식물")) ||
-    (word === "테이블" && normalized.includes("책상"))
-  if (moving || rotating || removing) {
-    const matches = project.furniture.filter((item) =>
-      targets.some(
-        (target) =>
-          matchesTarget(target.word) &&
-          item.category ===
-            catalog.find((entry) => entry.id === target.id)?.category
+    word !== anchorTarget?.word &&
+    wordsFor(word).some((alias) => normalized.includes(alias))
+  const categoryOf = (catalogId: string) =>
+    catalog.find((entry) => entry.id === catalogId)?.category
+  const anchors = anchorTarget
+    ? project.furniture.filter(
+        (item) => inFocus(item) && item.category === categoryOf(anchorTarget.id)
       )
+    : []
+  if (anchorTarget && !removing && anchors.length !== 1)
+    return {
+      ...emptyCommandResponse(project),
+      reply: anchors.length
+        ? `기준이 될 ${withObjectParticle(anchorTarget.word)} 하나로 정할 수 없어요. 배치는 유지했어요.`
+        : `기준이 될 ${withObjectParticle(anchorTarget.word)} ${focus?.length ? "이 방에서 " : ""}찾지 못했어요. 배치는 유지했어요.`,
+    }
+  /** Free spot touching one side of the anchor, or null when none is near. */
+  const besideAnchor = (item: Furniture) => {
+    const anchor = anchors[0]
+    const a = catalog.find((entry) => entry.id === anchor.catalogId)
+    const b = catalog.find((entry) => entry.id === item.catalogId)
+    if (!a || !b) return null
+    const turned = Math.round(anchor.rotation / 90) % 2 === 1
+    const dx = ((turned ? a.depth : a.width) + b.width) / 2 + 0.1
+    const dz = ((turned ? a.width : a.depth) + b.depth) / 2 + 0.1
+    const spots: Point2[] = [
+      [anchor.x + dx, anchor.z],
+      [anchor.x - dx, anchor.z],
+      [anchor.x, anchor.z + dz],
+      [anchor.x, anchor.z - dz],
+    ]
+    // "옆"은 같은 방 안입니다. 벽 너머 옆방으로 밀려나면 안 됩니다.
+    const room =
+      focusRoom ??
+      project.room?.rooms.find((entry) =>
+        containsPoint(entry.polygon, anchor.x, anchor.z)
+      )
+    for (const [x, z] of spots) {
+      const placed = findFreePlacement(
+        { ...project, furniture },
+        { ...item, x, z },
+        room
+      )
+      if (placed && Math.hypot(placed.x - x, placed.z - z) <= 0.75)
+        return placed
+    }
+    return null
+  }
+  // "창가"는 방 크기의 비율이 아니라 도면에 있는 실제 창 앞자리입니다.
+  const byWindow = !anchorTarget && normalized.includes("창가")
+  const windowless: string[] = []
+  const windowBlocked: string[] = []
+  /**
+   * Free spot just inside a real window, nearest to `from` first. Looks in the
+   * focused room, or in the whole house when no room is focused.
+   */
+  const besideWindow = (item: Furniture, from: Point2, label: string) => {
+    const size = catalog.find((entry) => entry.id === item.catalogId)
+    const reach = Math.max(size?.width ?? 0.6, size?.depth ?? 0.6) / 2 + 0.1
+    const spots = (project.room?.openings ?? []).flatMap((opening) => {
+      const wall = project.room?.walls.find(
+        (entry) => entry.id === opening.wallId
+      )
+      if (opening.type !== "window" || !wall) return []
+      const length = Math.hypot(wall.b[0] - wall.a[0], wall.b[1] - wall.a[1])
+      if (!length) return []
+      const along: Point2 = [
+        (wall.b[0] - wall.a[0]) / length,
+        (wall.b[1] - wall.a[1]) / length,
+      ]
+      const offset = wall.thickness / 2 + reach
+      // The middle of the window first, then towards either end of it.
+      return [0.5, 0.25, 0.75].flatMap((ratio) => {
+        const distance = opening.from + (opening.to - opening.from) * ratio
+        const x = wall.a[0] + along[0] * distance
+        const z = wall.a[1] + along[1] * distance
+        return [-1, 1].flatMap((side): Point2[] => {
+          const spot: Point2 = [
+            x - along[1] * offset * side,
+            z + along[0] * offset * side,
+          ]
+          const inside = focus?.length
+            ? containsPoint(focus, ...spot)
+            : !project.room?.outline.length ||
+              containsPoint(project.room.outline, ...spot)
+          return inside ? [spot] : []
+        })
+      })
+    })
+    if (!spots.length) {
+      windowless.push(label)
+      return null
+    }
+    spots.sort(
+      (a, b) =>
+        Math.hypot(a[0] - from[0], a[1] - from[1]) -
+        Math.hypot(b[0] - from[0], b[1] - from[1])
+    )
+    for (const [x, z] of spots) {
+      // Stay in the window's own room; do not slide through a wall.
+      const room =
+        focusRoom ??
+        project.room?.rooms.find((entry) => containsPoint(entry.polygon, x, z))
+      const placed = findFreePlacement(
+        { ...project, furniture },
+        { ...item, x, z },
+        room
+      )
+      if (placed && Math.hypot(placed.x - x, placed.z - z) <= 0.75)
+        return placed
+    }
+    windowBlocked.push(label)
+    return null
+  }
+  /** Null means the request cannot be met; the caller keeps the layout. */
+  const position = (item: Furniture, from: Point2, label: string) => {
+    if (byWindow) return besideWindow(item, from, label)
+    const placed = anchorTarget ? besideAnchor(item) : place(item)
+    if (!placed) blocked.push(label)
+    return placed
+  }
+  if (moving || rotating || removing) {
+    const matches = project.furniture.filter(
+      (item) =>
+        inFocus(item) &&
+        targets.some(
+          (target) =>
+            matchesTarget(target.word) &&
+            item.category === categoryOf(target.id)
+        )
     )
     if (!furnitureId && matches.length > 1)
       return {
@@ -332,21 +476,29 @@ export async function sendCommand(
     if (furnitureId && !matches.some((item) => item.id === furnitureId))
       throw new Error("대상 가구가 바뀌었어요. 다시 요청해 주세요.")
   }
-  if (normalized.includes("비워") || normalized.includes("전부삭제")) {
-    furniture = []
-    actions.push("가구를 모두 비웠어요")
+  const clearing =
+    normalized.includes("비워") || normalized.includes("전부삭제")
+  if (clearing) {
+    furniture = furniture.filter((item) => !inFocus(item))
+    actions.push(
+      focus?.length ? "이 방의 가구를 모두 비웠어요" : "가구를 모두 비웠어요"
+    )
   } else {
     for (const target of targets) {
       const matches = matchesTarget(target.word)
       if (!matches) continue
-      const [x, z] = normalized.includes("창가") ? at(0.72, 0.24) : target.spot
+      const [x, z] = target.spot
       const existing = furniture.find(
         (item) =>
           (!furnitureId || item.id === furnitureId) &&
+          inFocus(item) &&
           item.category ===
             catalog.find((entry) => entry.id === target.id)?.category
       )
-      if ((moving || rotating) && !existing) continue
+      if ((moving || rotating || removing) && !existing) {
+        if (focus?.length) missing.push(target.word)
+        continue
+      }
       if (removing) {
         if (existing) {
           furniture = furniture.filter((item) => item.id !== existing.id)
@@ -355,37 +507,76 @@ export async function sendCommand(
         continue
       }
       if (existing && (moving || rotating)) {
+        const target = rotating
+          ? {
+              ...existing,
+              rotation:
+                ((Number(normalized.match(/(-?\d+)도/)?.[1] ?? 90) % 360) +
+                  360) %
+                360,
+            }
+          : { ...existing, x, z }
+        const placed = rotating
+          ? place(target)
+          : position(target, [existing.x, existing.z], existing.name)
+        if (!rotating && !placed) continue
+        // A turn keeps its spot; it must not quietly slide somewhere else.
+        if (
+          !placed ||
+          (rotating && (placed.x !== existing.x || placed.z !== existing.z))
+        ) {
+          blocked.push(target.name)
+          continue
+        }
         furniture = furniture.map((item) =>
-          item.id === existing.id
-            ? rotating
-              ? {
-                  ...item,
-                  rotation:
-                    ((Number(normalized.match(/(-?\d+)도/)?.[1] ?? 90) % 360) +
-                      360) %
-                    360,
-                }
-              : { ...item, x, z }
-            : item
+          item.id === existing.id ? placed : item
         )
         actions.push(
           `${existing.name} ${rotating ? "방향을" : "위치를"} 조정했어요`
         )
       } else {
-        furniture.push(makeFurniture(target.id, x, z))
+        const placed = position(
+          makeFurniture(target.id, x, z),
+          [x, z],
+          target.word
+        )
+        if (!placed) continue
+        furniture.push(placed)
         actions.push(`${withObjectParticle(target.word)} 놓았어요`)
       }
     }
     if (normalized.includes("미니멀") && actions.length === 0) {
-      furniture = [
+      furniture = furniture.filter((item) => !inFocus(item))
+      const preset = [
         makeFurniture("sofa-cloud", ...at(0.28, 0.68)),
         makeFurniture("table-oak", ...at(0.55, 0.5)),
         makeFurniture("plant-olive", ...at(0.84, 0.76)),
       ]
-      actions.push("소파와 테이블과 식물로 간결한 배치를 만들었어요")
+      for (const item of preset) {
+        const placed = place(item)
+        if (placed) furniture.push(placed)
+        else blocked.push(item.name)
+      }
+      if (blocked.length < preset.length)
+        actions.push("소파와 테이블과 식물로 간결한 배치를 만들었어요")
     }
   }
   assertFurnitureCount(furniture.length)
+  const blockedNote = [
+    ...(blocked.length
+      ? [
+          `이 공간에는 ${blocked.map(withObjectParticle).join(", ")} 놓을 자리가 없어요`,
+        ]
+      : []),
+    ...(windowBlocked.length
+      ? [
+          `창가에는 ${windowBlocked.map(withObjectParticle).join(", ")} 놓을 자리가 없어요`,
+        ]
+      : []),
+    ...(windowless.length
+      ? [focus?.length ? "이 방에는 창이 없어요" : "도면에 창이 없어요"]
+      : []),
+  ]
   const commands: LayoutCommand[] = [
     ...project.furniture
       .filter((item) => !furniture.some((next) => next.id === item.id))
@@ -411,15 +602,19 @@ export async function sendCommand(
         rotation: item.rotation,
       })),
   ]
-  if (normalized.includes("비워") || normalized.includes("전부삭제"))
+  if (clearing && !focus?.length)
     commands.splice(0, commands.length, { type: "CLEAR" })
   const result: CommandResponse = {
     ...emptyCommandResponse(project),
     reply: actions.length
-      ? `${actions.join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
-      : removing
-        ? "삭제할 가구를 찾지 못했어요. 현재 가구 이름을 확인해 주세요."
-        : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
+      ? `${[...actions, ...blockedNote].join(". ")}. 가구를 끌어서 옮기거나 선택한 가구에서 위치를 바꿔 보세요.`
+      : blockedNote.length
+        ? `${blockedNote.join(". ")}. 배치는 유지했어요.`
+        : missing.length
+          ? `이 방에서 ${missing.map(withObjectParticle).join(", ")} 찾지 못했어요. 다른 방의 가구는 그 방에서 바꿔 주세요.`
+          : removing
+            ? "삭제할 가구를 찾지 못했어요. 현재 가구 이름을 확인해 주세요."
+            : "소파, 테이블, 의자, 화분, 램프를 놓을 수 있어요. ‘창가에 의자를 옮겨줘’처럼 말해 보세요.",
     project: { ...project, furniture },
     commands,
     appliedActions: actions,
@@ -505,6 +700,31 @@ const localProposals = new Map<
   }
 >()
 
+/** Server coordinates and persistence are resolved only by the proposal/confirm API. */
+export async function sendLayoutIntent(
+  project: Project,
+  intent: LocalLayoutIntent,
+  selections?: Record<string, string>,
+  signal?: AbortSignal
+): Promise<CommandResponse> {
+  const response = await request<CommandResponse>({
+    url: `${projectPath(project.id)}/layout/intents`,
+    signal,
+    method: "POST",
+    data: {
+      intent,
+      ...(selections ? { selections } : {}),
+      expectedRevision: requireProjectRevision(project),
+    },
+  })
+  validateCommandResponse(response, project)
+  if (!response.requiresConfirmation && !response.candidates?.length)
+    throw new Error("확인할 제안이 올바르지 않아요. 배치는 그대로예요.")
+  if (commandLayoutKey(response.project) !== commandLayoutKey(project))
+    throw new Error("제안 응답의 배치가 달라 적용하지 않았어요.")
+  return response
+}
+
 export async function confirmCommand(
   project: Project,
   proposalId: string
@@ -537,4 +757,13 @@ export async function confirmCommand(
     proposalId,
     expiresAt: new Date(proposal.expires).toISOString(),
   }
+}
+
+export async function fetchFurnitureCatalog(
+  signal?: AbortSignal
+): Promise<CatalogItem[]> {
+  if (!isServerMode) return catalog
+  return parseFurnitureCatalog(
+    await request<unknown>({ url: "/furniture-catalog", signal })
+  )
 }

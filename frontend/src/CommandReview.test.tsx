@@ -132,7 +132,7 @@ it("gives mobile confirmation sole modal ownership and restores the assistant on
   })
   expect(app.saved().furniture).toEqual(app.initial.furniture)
 })
-it("lists same-named candidates with coordinates and changes only the selected one", async () => {
+it("lists same-named candidates with rooms and coordinates and changes only the selected one", async () => {
   const one = makeFurniture("chair-shell", 1, 1)
   const two = makeFurniture("chair-shell", 2, 2)
   const app = await setup([one, two])
@@ -143,7 +143,7 @@ it("lists same-named candidates with coordinates and changes only the selected o
   expect(dialog).not.toBeNull()
   expect(dialog!.textContent).toContain("대상 가구 선택")
   expect(app.saved().furniture).toEqual([one, two])
-  await app.click("2. 셸 체어 (2, 2 m)", dialog!)
+  await app.click("2. 계단 · 셸 체어 (2, 2 m)", dialog!)
   expect(app.saved().furniture[0]).toEqual(one)
   expect(app.saved().furniture[1]).not.toEqual(two)
 })

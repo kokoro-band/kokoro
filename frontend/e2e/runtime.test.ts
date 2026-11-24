@@ -6,6 +6,7 @@ import process from "node:process"
 import {
   isolatedEnvironment,
   playwrightArguments,
+  serverTestSetup,
   requireDiskSpace,
   unusedPort,
   waitUntil,
@@ -69,6 +70,19 @@ describe("isolated E2E runtime", () => {
     }
   )
   it.each([
+    ["--suite=uploads"],
+    ["--project=desktop", "--suite=uploads"],
+    ["--suite=uploads", "--project=desktop"],
+  ])("selects the upload suite with validated arguments %j", (...args) => {
+    expect(playwrightArguments(args)).toEqual([
+      "exec",
+      "playwright",
+      "test",
+      ...(args.includes("--project=desktop") ? ["--project=desktop"] : []),
+      "uploads.spec.ts",
+    ])
+  })
+  it.each([
     ["--project=mobile"],
     ["--project="],
     ["--project=desktop", "--project=narrow"],
@@ -79,10 +93,51 @@ describe("isolated E2E runtime", () => {
     ["--project", "desktop"],
     ["--"],
     [" "],
+    ["--suite=missing"],
+    ["--suite=uploads", "--suite=uploads"],
+    ["--suite=../outside"],
   ])("rejects unsupported or ambiguous arguments %j", (...args) => {
     expect(() => playwrightArguments(args)).toThrow(
       "--project=desktop or --project=narrow"
     )
+  })
+  it("keeps regular server tests on the current backend", () => {
+    expect(
+      serverTestSetup([], "/repo/frontend", { KOKORO_E2E_BACKEND: "/other" })
+    ).toEqual({
+      backend: "/repo/backend",
+      args: ["exec", "playwright", "test"],
+    })
+  })
+  it("uses the current backend for Ollama and allows an absolute override", () => {
+    expect(
+      serverTestSetup(["--ollama", "--project=narrow"], "/repo/frontend", {
+        KOKORO_E2E_BACKEND: "/dependency/backend",
+      })
+    ).toEqual({
+      backend: "/dependency/backend",
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--project=narrow",
+        "--config=playwright.ollama.config.ts",
+      ],
+    })
+    expect(serverTestSetup(["--ollama"], "/repo/frontend", {})).toEqual({
+      backend: "/repo/backend",
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--config=playwright.ollama.config.ts",
+      ],
+    })
+    expect(() =>
+      serverTestSetup(["--ollama"], "/repo/frontend", {
+        KOKORO_E2E_BACKEND: "../backend",
+      })
+    ).toThrow("absolute backend path")
   })
   it("refuses low disk space before any builds", async () => {
     vi.mocked(statfs).mockResolvedValue({ bavail: 100, bsize: 4096 } as Awaited<

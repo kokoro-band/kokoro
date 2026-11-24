@@ -29,7 +29,7 @@ export function checkPlanImageSize(width: number, height: number): Size {
 }
 
 // Header inspection only. The browser remains responsible for pixel decoding.
-// Format references and intentional limits are documented in docs/contracts/api.md.
+// Format references and intentional limits are documented in docs/contracts/README.md.
 export function inspectPlanImage(
   bytes: Uint8Array,
   name: string,

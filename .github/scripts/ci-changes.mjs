@@ -7,16 +7,10 @@ export function changedAreas(paths) {
   let backend = false
   for (const path of paths) {
     if (
-      path.startsWith("docs/contracts/") ||
+      (path.startsWith("docs/contracts/") && !path.endsWith(".md")) ||
       path.startsWith(".github/workflows/") ||
       path.startsWith(".github/scripts/") ||
-      [
-        "flake.nix",
-        "flake.lock",
-        ".envrc",
-        ".tool-versions",
-        "AGENTS.md",
-      ].includes(path)
+      ["flake.nix", "flake.lock", ".envrc", ".tool-versions"].includes(path)
     ) {
       frontend = true
       backend = true

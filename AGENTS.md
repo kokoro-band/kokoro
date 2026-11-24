@@ -1,96 +1,66 @@
-# 코코로 작업 규칙
+# Kokoro Agent Guide
 
-## 제품 경계
+Kokoro is a room remodeling platform where users build floor plans, place furniture, and view the same layout in 2D, 3D, and WebXR VR.
 
-코코로는 도면을 바탕으로 가구를 배치하고 2D와 3D와 웹 VR에서 같은 결과를 확인하는 리모델링 플랫폼이다.
+- `frontend/`: React, TypeScript, Vite+, Three.js (2D, 3D, WebXR)
+- `backend/`: Java 17, Spring Boot API, PostgreSQL (Flyway)
+- `docs/contracts/`: Single source of truth for JSON schemas, furniture catalog, and test fixtures shared by web and server
 
-- `frontend/`는 React와 Three.js로 2D와 3D와 WebXR을 모두 제공한다.
-- `backend/`는 Java 17과 Spring Boot API를 제공한다.
-- VR을 위한 별도 앱이나 Unity 클라이언트를 추가하지 않는다.
-- 현재 구현과 예정 기능은 `README.md`와 `PRODUCT.md`를 기준으로 구분한다.
+Treat these instructions as good defaults, not hard rules. The developer's request and intent take precedence. Fight scope creep and skip unnecessary abstractions or ceremony.
 
-## 팀 역할
+## Traps to avoid
 
-| 팀원 | 주요 영역 |
-|---|---|
-| 민섭 | 3D 장면과 WebXR와 가구 자산 |
-| 영진 | 웹 프론트엔드 |
-| 현민 | Spring 백엔드 |
-| 만욱 | PM과 웹 프론트엔드 |
+- **Shared JSON contracts.** `docs/contracts/*.json` and `fixtures/*.json` are read directly by the frontend build and backend resources/tests. Edit only the JSON source and verify both sides when a contract changes.
+- **SEED snippets and recipe CSS.** Do not edit CLI-generated files under `frontend/seed-design/ui/`. When adding a new SEED component, import its recipe CSS in `frontend/src/index.css` or its styles will be missing.
+- **Flyway migrations.** Never edit an already-applied `backend/src/main/resources/db/migration/V*.sql` file. Add a new versioned migration instead.
+- **Concurrent Playwright E2E runs.** Do not run two E2E suites at the same time in the same checkout; they share `playwright-report/` and `test-results/`.
 
-역할은 소유권을 표시하는 안내이며 이슈에 담당자를 미리 지정하는 규칙이 아니다. 작업을 시작하는 사람이 해당 이슈를 자기에게 할당한다.
+## Running and verifying
 
-## GitHub Issues 운영
+The frontend uses Vite+ (`vp`). Built-in commands run as `vp <name>`, `package.json` scripts run as `vp run <name>`, and dependencies use `vp install`, `vp add`, and `vp remove`. On Nix, `nix develop` provides `vp`, Node, and JDK 17.
 
-1. 코드를 바꾸기 전에 이슈를 확인한다. 적합한 이슈가 없으면 기능이나 버그 템플릿으로 만든다.
-2. 이슈는 기본적으로 비할당 상태로 두고 착수할 때만 자기 자신에게 할당한다.
-3. 하나의 PR은 하나의 이슈를 완료하는 범위로 작게 유지한다.
-4. 이슈에는 필요한 `area:*`와 `type:*`과 `priority:*` 라벨을 붙인다.
-5. 완료 조건은 구현 항목이 아니라 사용자나 API에서 확인할 수 있는 결과로 적는다.
-
-## 라벨 선택
-
-- `frontend/**` 변경은 `area:frontend`를 사용한다.
-- `RoomScene`과 WebXR과 3D 모델 변경은 `area:3d-vr`를 함께 사용한다.
-- `backend/**` 변경은 `area:backend`를 사용한다.
-- `PRODUCT.md`와 `DESIGN.md` 변경은 `area:product`를 사용한다.
-- 문서 변경은 `area:docs`를 사용한다.
-- GitHub Actions와 환경 설정과 빌드 도구 변경은 `area:infra`를 사용한다.
-
-PR의 `area:*` 라벨은 변경 경로에 따라 자동으로 붙는다. 이슈는 생성할 때 직접 선택한다.
-
-## 브랜치와 PR
-
-- 사람이 만드는 브랜치는 `<type>/<issue-number>-<short-name>` 형식을 권장한다.
-- Codex가 만드는 브랜치는 `codex/` 접두사를 사용한다.
-- PR 제목은 `feat: 가구 배치 저장 추가`처럼 짧게 적는다.
-- PR 본문에는 변경과 추가된 기능과 수정된 버그와 버그 원인과 검증만 적는다.
-- 해당하지 않는 항목은 `없음`으로 표시하고 상세 구현 내역은 이슈와 코드에 남긴다.
-- PR 본문은 일반적인 화면에서 스크롤 없이 읽히는 분량을 목표로 한다.
-
-## 검증
-
-### 테스트 우선 개발
-
-새 기능과 버그 수정은 프론트와 백엔드 모두 TDD로 진행합니다. TDD는 기대하는 동작의 실패 테스트를 먼저 실행한 뒤 최소 구현으로 통과시키고 코드를 정리하는 방식입니다.
-
-1. 이슈에 입력과 사용자 행동 및 기대 결과를 적습니다. 정상 동작뿐 아니라 실패와 취소 및 경계 조건도 정합니다.
-2. 구현 전에 해당 동작을 검증하는 테스트를 작성하고 실행해 실패 이유를 확인합니다. 문법 오류나 환경 오류를 기능 실패의 증거로 쓰지 않습니다.
-3. 테스트를 통과시키는 최소 코드를 작성합니다. 버그 수정에서는 재현 테스트 없이 구현부터 바꾸지 않습니다.
-4. 테스트가 통과하는 상태를 유지하며 코드를 정리하고 관련 회귀 테스트와 필수 검증을 실행합니다.
-5. PR의 검증 항목에 RED 명령과 실패 이유 및 GREEN 명령과 결과를 남깁니다. 필요하면 실패 테스트만 담은 로컬 커밋을 먼저 만듭니다. 제출할 최종 커밋의 검사는 모두 통과해야 합니다.
-
-기존 동작을 바꾸지 않고 테스트만 보완할 때는 현재 결과를 고정하는 테스트라고 명시합니다. 일부러 코드를 망가뜨려 RED 기록을 만들지 않습니다. 문서만 바꾸는 작업이나 자동화할 수 없는 실기기 동작은 예외 사유와 대체 검증 및 후속 이슈를 적습니다. 기능 코드의 테스트를 미루기 위한 예외로 사용하지 않습니다.
-
-테스트는 구현 세부사항보다 화면과 API의 결과를 확인합니다. 네트워크와 시간 및 하드웨어 경계를 통제하고 테스트 간 저장소와 이벤트 및 타이머가 남지 않게 합니다. 고정 시간 대기와 무조건 재시도로 실패를 숨기지 않습니다. CI는 최종 회귀를 검사하지만 작성 순서를 증명하지 못하므로 리뷰어가 RED와 GREEN 근거를 함께 확인합니다.
-
-전체 동작별 범위와 착수 순서는 [동작 테스트 계획](docs/qa/behavior-test-plan.md)을 따릅니다. PR 브랜치의 테스트 통과와 main 반영 및 배포와 실제 헤드셋 검증은 별도로 기록합니다.
-
-프론트엔드를 변경했다면 다음 검증을 실행한다.
+Iterate on the changed scope only. CI owns the full regression and E2E suites.
 
 ```bash
+# Frontend (iterate on changed files)
 cd frontend
+vp test src/path/to/file.test.ts
 vp check
-vp test
-vp run build
-```
 
-### Vite+ 사용법
-
-프론트엔드는 Vite+를 사용한다. Vite+는 Vite, Oxlint, Oxfmt, Vitest와 런타임 및 패키지 관리 기능을 `vp` 명령으로 제공한다.
-
-- `vp <name>`은 Vite+ 내장 명령을 실행한다. `package.json` 스크립트나 `vite.config.ts` 태스크는 `vp run <name>`으로 실행한다.
-- 원격 변경을 받은 뒤 작업을 시작하기 전에 `vp install`을 실행한다. 의존성 변경에는 `vp add`, `vp remove`를 사용한다.
-- 도구 버전은 `vp toolchain`으로 확인한다.
-- 환경 문제가 있으면 `vp env doctor`를 실행한다.
-- 로컬 문서는 `frontend/node_modules/vite-plus/docs`에 있다.
-
-백엔드를 변경했다면 다음 검증을 실행한다.
-
-```bash
+# Backend (requires Docker for Testcontainers)
 cd backend
-./mvnw test
-./mvnw package
+./mvnw -Dtest=SomeTest test
 ```
 
-실제 WebXR 헤드셋 검증과 배포 확인은 로컬 빌드 검증과 구분해 PR에 적는다.
+- Run full local checks (`vp test && vp run build`, `./mvnw test`) only for broad changes or edits to `docs/contracts/*.json`.
+- Verify user-visible UI changes in a real browser when practical.
+
+## Testing
+
+- Test behavior that can break: domain geometry (wall collisions, rotation, bounds), shared contracts, save/conflict recovery, and API validation or authorization.
+- Leave out tests for static copy, static markup, what types already guarantee, and purely visual tweaks (spacing, color, alignment).
+- Proof for a bug fix depends on the bug. Logic, data, state, and contract bugs get the fewest failing tests first (in an existing test file or table where one fits), then the fix. Purely visual bugs get before/after screenshots and no test.
+- Extend an existing test file or table before creating a new file. Never hide flakes with `sleep` waits or retries.
+
+## Documentation
+
+Most code changes need no documentation update. Agents and developers can read the code.
+
+- Keep docs only for cross-boundary contracts, repo traps, and external setup that the source cannot carry well.
+- Do not maintain feature, file, or field catalogs, test counts, or dated PR summaries. When documented behavior changes, rewrite or delete the stale text instead of appending.
+- Do not commit plans, research notes, or scratch QA logs.
+
+## Pull requests
+
+- Never open a PR unless asked.
+- Write PR titles and bodies in Korean, keeping them short (e.g., `feat: 가구 배치 저장 추가`, `fix: 벽 충돌 시 회전각 유지`).
+- Link a related issue if one exists. Put only what changed and how you verified it in the body; attach before/after screenshots for UI changes.
+
+## Reference docs
+
+| Area | Read first |
+|---|---|
+| UI components and SEED v2 rules | [DESIGN.md](DESIGN.md) |
+| Env vars, Playwright E2E, local AI, Pages preview | [docs/development.md](docs/development.md) |
+| Shared web-server contracts (`RoomModel`, API, catalog) | [docs/contracts/README.md](docs/contracts/README.md) |
+| WebXR support matrix and Quest debugging | [docs/webxr.md](docs/webxr.md) |

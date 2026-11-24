@@ -35,7 +35,7 @@
               ])
               ++ [ nix-vite-plus.packages.${system}.vp ];
 
-            # Ollama browser access: docs/ai/local-ollama-setup.md.
+            # Ollama browser access: docs/development.md.
             OLLAMA_ORIGINS = "http://localhost:5173,https://kokoro-band.github.io";
 
             shellHook = ''

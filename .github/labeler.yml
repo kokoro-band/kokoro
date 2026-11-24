@@ -21,7 +21,6 @@ area:backend:
 area:product:
   - changed-files:
       - any-glob-to-any-file:
-          - "PRODUCT.md"
           - "DESIGN.md"
 
 area:docs:

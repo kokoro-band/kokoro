@@ -34,7 +34,7 @@ for (const [name, paths, expected] of [
   ["runtime", ["flake.lock"], { frontend: true, backend: true }],
   [
     "prose only",
-    ["README.md", "docs/architecture.md"],
+    ["README.md", "AGENTS.md", "docs/development.md", "docs/contracts/README.md"],
     { frontend: false, backend: false },
   ],
   [

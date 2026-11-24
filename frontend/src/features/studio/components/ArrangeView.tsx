@@ -42,6 +42,7 @@ import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
 import { FurnitureThumb } from "./FurnitureThumb"
 import { HouseMap } from "./HouseMap"
+import { PhotoFurnitureDialog } from "./PhotoFurnitureDialog"
 import { RoomNavigator } from "./RoomNavigator"
 import { SceneEditor } from "./SceneEditor"
 
@@ -63,6 +64,7 @@ export function ArrangeView({
   onOpenStructure: () => void
 }) {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("selection")
+  const [photoOpen, setPhotoOpen] = useState(false)
   const [sheet, setSheet] = useState<MobileSheet>(null)
   const houseRoom = studio.project.room
   const rooms = houseRoom?.rooms ?? []
@@ -319,9 +321,9 @@ export function ArrangeView({
     )
   }
 
-  const addFurniture = (catalogId: string) => {
+  const addFurniture = (source: string | Furniture) => {
     setInspectorTab("selection")
-    studio.addFurniture(catalogId, room ? roomCenter(room) : undefined, room)
+    studio.addFurniture(source, room ? roomCenter(room) : undefined, room)
     // 방금 놓은 가구를 화면에서 바로 보고 옮길 수 있게 시트를 닫습니다.
     if (isMobile) setSheet(null)
   }
@@ -343,6 +345,7 @@ export function ArrangeView({
       onTabChange={studio.setLeftTab}
       onCategoryChange={studio.setCategory}
       onAddFurniture={addFurniture}
+      onAddFromPhoto={() => setPhotoOpen(true)}
       onSelectFurniture={selectFurniture}
       issues={issues}
       onSelectIssue={selectIssue}
@@ -439,6 +442,14 @@ export function ArrangeView({
           keyboardAccessible={isMobile}
         />
       }
+    />
+  )
+
+  const photoDialog = (
+    <PhotoFurnitureDialog
+      open={photoOpen}
+      onOpenChange={setPhotoOpen}
+      onAdd={addFurniture}
     />
   )
 
@@ -589,6 +600,7 @@ export function ArrangeView({
             </BottomSheet.Content>
           </BottomSheet.Positioner>
         </BottomSheet.Root>
+        {photoDialog}
       </div>
     )
   }
@@ -623,6 +635,7 @@ export function ArrangeView({
           </TabsContent>
         </TabsRoot>
       </aside>
+      {photoDialog}
     </div>
   )
 }

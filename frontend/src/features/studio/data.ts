@@ -1,5 +1,5 @@
 import { sampleRoom } from "./sample-room"
-import type { Project } from "./types"
+import { customFurnitureId, type Furniture, type Project } from "./types"
 import { parseFurnitureCatalog } from "./furniture-catalog"
 import catalogSource from "../../../../docs/contracts/furniture-catalog.json?raw"
 
@@ -74,3 +74,13 @@ export const initialMessages = [
     text: "어떤 방을 만들고 싶나요? 원하는 분위기와 필요한 가구를 알려 주면 함께 배치해 볼게요.",
   },
 ]
+
+/** 가구가 바닥에서 차지하는 크기입니다. 직접 추가한 가구는 자기 크기를, 나머지는 카탈로그 크기를 씁니다. */
+export function furnitureSize(
+  item: Pick<Furniture, "catalogId" | "size">
+): { width: number; depth: number; height?: number } | undefined {
+  if (item.size) return item.size
+  if (item.catalogId === customFurnitureId) return undefined
+  const entry = catalog.find((candidate) => candidate.id === item.catalogId)
+  return entry && { width: entry.width, depth: entry.depth }
+}

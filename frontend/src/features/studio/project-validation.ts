@@ -1,4 +1,11 @@
-import type { Furniture, Point2, Project, RoomModel } from "./types"
+import {
+  customFurnitureId,
+  type Furniture,
+  type FurnitureSize,
+  type Point2,
+  type Project,
+  type RoomModel,
+} from "./types"
 import {
   assertFurnitureCount,
   maxFurnitureCount,
@@ -48,6 +55,28 @@ function list(value: unknown, max: number, min = 0): unknown[] {
 function choice<T extends string>(value: unknown, allowed: readonly T[]): T {
   check(typeof value === "string" && allowed.includes(value as T))
   return value as T
+}
+const categories = ["소파", "테이블", "의자", "장식", "기타"] as const
+// FurnitureSize 경계는 서버 ProjectInputLimits와 같습니다.
+const minFurnitureSide = 0.05
+const maxFurnitureSide = 5
+/** custom-box 가구만 크기를 가지며, 그 크기는 꼭 있어야 합니다. */
+function furnitureSizeOf(
+  catalogId: string,
+  value: unknown
+): FurnitureSize | undefined {
+  const custom = catalogId === customFurnitureId
+  if (value == null) {
+    check(!custom)
+    return undefined
+  }
+  check(custom)
+  const size = record(value)
+  return {
+    width: number(size.width, minFurnitureSide, maxFurnitureSide),
+    depth: number(size.depth, minFurnitureSide, maxFurnitureSide),
+    height: number(size.height, minFurnitureSide, maxFurnitureSide),
+  }
 }
 function id(value: unknown, seen?: Set<string>): string {
   const result = text(value, 128)
@@ -194,8 +223,8 @@ export function assertFurnitureWrite(
         )
     }
     id(item.id, ids)
-    id(item.catalogId)
-    choice(item.category, ["소파", "테이블", "의자", "장식"] as const)
+    furnitureSizeOf(id(item.catalogId), item.size)
+    choice(item.category, categories)
     number(item.x)
     number(item.z)
     number(item.rotation)
@@ -212,21 +241,19 @@ export function parseStoredProject(value: unknown): Project {
   const furniture: Furniture[] = list(project.furniture, maxFurnitureCount).map(
     (value) => {
       const item = record(value)
+      const catalogId = id(item.catalogId)
+      const size = furnitureSizeOf(catalogId, item.size)
       return {
         id: id(item.id, ids),
-        catalogId: id(item.catalogId),
+        catalogId,
         name: text(item.name, 256),
-        category: choice(item.category, [
-          "소파",
-          "테이블",
-          "의자",
-          "장식",
-        ] as const),
+        category: choice(item.category, categories),
         // Valid out-of-room furniture stays available to the existing repair UI.
         x: number(item.x),
         z: number(item.z),
         rotation: number(item.rotation),
         color: text(item.color, 64),
+        ...(size ? { size } : {}),
       }
     }
   )

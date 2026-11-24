@@ -4,6 +4,7 @@ import com.kokoro.room.project.ProjectModels.ConversionStatus;
 import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FloorPlan;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
+import com.kokoro.room.project.ProjectModels.FurnitureSize;
 import com.kokoro.room.project.ProjectModels.RenovationProject;
 import com.kokoro.room.project.ProjectModels.RoomModel;
 import tools.jackson.databind.ObjectMapper;
@@ -164,12 +165,14 @@ public class JdbcProjectRepository implements ProjectRepository {
 
     private RenovationProject replaceFurniture(RenovationProject project) {
         List<FurnitureItem> furniture = jdbc.query("""
-                SELECT id, catalog_id, name, category, x, z, rotation, color
+                SELECT id, catalog_id, name, category, x, z, rotation, color, size_width, size_depth, size_height
                   FROM furniture_items WHERE project_id = ? ORDER BY item_order, id
                 """, (rs, rowNum) -> new FurnitureItem(
                 rs.getString("id"), rs.getString("catalog_id"), rs.getString("name"),
                 rs.getString("category"), rs.getDouble("x"), rs.getDouble("z"),
-                rs.getDouble("rotation"), rs.getString("color")), project.id());
+                rs.getDouble("rotation"), rs.getString("color"),
+                rs.getObject("size_width") == null ? null : new FurnitureSize(rs.getDouble("size_width"),
+                        rs.getDouble("size_depth"), rs.getDouble("size_height"))), project.id());
         project.furniture().clear();
         project.furniture().addAll(furniture);
         return project;
@@ -180,10 +183,14 @@ public class JdbcProjectRepository implements ProjectRepository {
             FurnitureItem item = project.furniture().get(index);
             jdbc.update("""
                     INSERT INTO furniture_items (
-                        project_id, id, catalog_id, name, category, x, z, rotation, color, item_order
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        project_id, id, catalog_id, name, category, x, z, rotation, color, item_order,
+                        size_width, size_depth, size_height
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, project.id(), item.id(), item.catalogId(), item.name(), item.category(),
-                    item.x(), item.z(), item.rotation(), item.color(), index);
+                    item.x(), item.z(), item.rotation(), item.color(), index,
+                    item.size() == null ? null : item.size().width(),
+                    item.size() == null ? null : item.size().depth(),
+                    item.size() == null ? null : item.size().height());
         }
     }
 

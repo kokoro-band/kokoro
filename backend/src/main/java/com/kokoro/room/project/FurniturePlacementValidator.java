@@ -105,7 +105,9 @@ public class FurniturePlacementValidator {
     }
 
     private OrientedBox box(FurnitureItem item) {
-        FurnitureCatalog.Size size = sizeOf.apply(item.catalogId());
+        FurnitureCatalog.Size size = item.size() != null
+                ? new FurnitureCatalog.Size(item.size().width(), item.size().depth())
+                : sizeOf.apply(item.catalogId());
         if (size == null) throw invalid("지원하지 않는 가구입니다: " + item.catalogId());
         if (!Double.isFinite(item.x()) || !Double.isFinite(item.z())) {
             throw invalid("가구 위치 값이 올바르지 않습니다.");

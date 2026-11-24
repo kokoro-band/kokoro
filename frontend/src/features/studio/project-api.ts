@@ -1,6 +1,6 @@
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
-import { catalog, sampleProject } from "./data"
+import { catalog, furnitureSize, sampleProject } from "./data"
 import {
   assertFurnitureCount,
   chatInputError,
@@ -352,8 +352,8 @@ export async function sendCommand(
   /** Free spot touching one side of the anchor, or null when none is near. */
   const besideAnchor = (item: Furniture) => {
     const anchor = anchors[0]
-    const a = catalog.find((entry) => entry.id === anchor.catalogId)
-    const b = catalog.find((entry) => entry.id === item.catalogId)
+    const a = furnitureSize(anchor)
+    const b = furnitureSize(item)
     if (!a || !b) return null
     const turned = Math.round(anchor.rotation / 90) % 2 === 1
     const dx = ((turned ? a.depth : a.width) + b.width) / 2 + 0.1
@@ -390,7 +390,7 @@ export async function sendCommand(
    * focused room, or in the whole house when no room is focused.
    */
   const besideWindow = (item: Furniture, from: Point2, label: string) => {
-    const size = catalog.find((entry) => entry.id === item.catalogId)
+    const size = furnitureSize(item)
     const reach = Math.max(size?.width ?? 0.6, size?.depth ?? 0.6) / 2 + 0.1
     const spots = (project.room?.openings ?? []).flatMap((opening) => {
       const wall = project.room?.walls.find(

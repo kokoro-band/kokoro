@@ -69,9 +69,11 @@ export function FurnitureInspector({
             {selected.name}
           </Type>
           <Type variant="caption" numeric maxLines={1}>
-            {item
-              ? `${formatPrice(item.price)} · ${item.width} × ${item.depth} m`
-              : selected.category}
+            {selected.size
+              ? `직접 추가 · ${[selected.size.width, selected.size.depth, selected.size.height].map((side) => Math.round(side * 100)).join(" × ")} cm`
+              : item
+                ? `${formatPrice(item.price)} · ${item.width} × ${item.depth} m`
+                : selected.category}
           </Type>
         </div>
         {onClose && (

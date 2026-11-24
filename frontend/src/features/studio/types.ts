@@ -1,7 +1,17 @@
 import type { LocalLayoutIntent } from "./local-ai-types"
 
 export type ViewMode = "3d" | "2d" | "vr"
-export type Category = "전체" | "소파" | "테이블" | "의자" | "장식"
+export type Category = "전체" | "소파" | "테이블" | "의자" | "장식" | "기타"
+
+/** 사진으로 잰 가구처럼 카탈로그에 없는 가구의 예약 카탈로그 ID입니다. */
+export const customFurnitureId = "custom-box"
+
+/** 미터 단위입니다. customFurnitureId 가구만 가집니다. */
+export type FurnitureSize = {
+  width: number
+  depth: number
+  height: number
+}
 
 export type Furniture = {
   id: string
@@ -12,6 +22,7 @@ export type Furniture = {
   z: number
   rotation: number
   color: string
+  size?: FurnitureSize
 }
 
 export type CatalogItem = {

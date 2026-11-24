@@ -127,6 +127,49 @@ class ProjectApiTest {
     }
 
     @Test
+    void savesAndReloadsCustomSizeFurniture() throws Exception {
+        String response = mockMvc.perform(post("/api/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"내 가구","roomType":"거실","dimensions":{"width":5.0,"depth":4.0,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = response.split("\"id\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(put("/api/projects/{id}/layout", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[
+                                  {"id":"fridge","catalogId":"custom-box","name":"냉장고","category":"기타","x":1.0,"z":1.0,"rotation":0,"color":"#F2F2F2",
+                                   "size":{"width":0.5,"depth":0.56,"height":1.05}},
+                                  {"id":"sofa","catalogId":"sofa-cloud","name":"소파","category":"소파","x":3.0,"z":2.8,"rotation":0,"color":"#D8C8B8"}
+                                ]}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture[0].category").value("기타"))
+                .andExpect(jsonPath("$.furniture[0].size.width").value(0.5))
+                .andExpect(jsonPath("$.furniture[0].size.depth").value(0.56))
+                .andExpect(jsonPath("$.furniture[0].size.height").value(1.05))
+                .andExpect(jsonPath("$.furniture[1].size").doesNotExist());
+    }
+
+    @Test
+    void rejectsCustomFurnitureWithoutSizeAndKeepsSavedLayout() throws Exception {
+        mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[{"id":"fridge","catalogId":"custom-box","name":"냉장고","category":"기타","x":1.0,"z":1.0,"rotation":0,"color":"#F2F2F2"}]}
+                                """))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/projects/{id}", "living-room-01"))
+                .andExpect(jsonPath("$.furniture[?(@.catalogId == 'custom-box')]").isEmpty());
+    }
+
+    @Test
     void savesAndReloadsRoomModel() throws Exception {
         String response = mockMvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)

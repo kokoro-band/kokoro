@@ -79,6 +79,12 @@
   padding: var(--seed-dimension-x2) var(--seed-dimension-x5);
 }
 
+.photo-add {
+  display: flex;
+  flex-direction: column;
+  padding: var(--seed-dimension-x1) var(--seed-dimension-x5);
+}
+
 .catalog-list,
 .room-list {
   padding-bottom: var(--seed-dimension-x3);

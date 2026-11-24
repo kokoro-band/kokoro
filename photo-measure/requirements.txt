@@ -1,0 +1,6 @@
+# torch는 GPU에 맞는 빌드를 먼저 설치한다 (README 참고)
+numpy>=2
+pillow>=11
+transformers>=5
+moge @ git+https://github.com/microsoft/MoGe.git@74fbce054ebed49800de42d0ad0e83495065719a
+pytest>=8

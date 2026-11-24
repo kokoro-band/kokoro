@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react"
-import { Armchair, Flower2, Sofa, Table2 } from "lucide-react"
+import { Armchair, Box, Flower2, Sofa, Table2 } from "lucide-react"
 
 import type { Category } from "@/features/studio/types"
 
@@ -8,6 +8,7 @@ const glyphs = {
   테이블: Table2,
   의자: Armchair,
   장식: Flower2,
+  기타: Box,
 } satisfies Record<Exclude<Category, "전체">, typeof Sofa>
 
 /**

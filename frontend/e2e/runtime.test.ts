@@ -139,6 +139,24 @@ describe("isolated E2E runtime", () => {
       })
     ).toThrow("absolute backend path")
   })
+  it("runs the real-model Ollama suite with --ollama-live", () => {
+    expect(
+      serverTestSetup(
+        ["--ollama-live", "--project=desktop"],
+        "/repo/frontend",
+        {}
+      )
+    ).toEqual({
+      backend: "/repo/backend",
+      args: [
+        "exec",
+        "playwright",
+        "test",
+        "--project=desktop",
+        "--config=playwright.ollama-live.config.ts",
+      ],
+    })
+  })
   it("refuses low disk space before any builds", async () => {
     vi.mocked(statfs).mockResolvedValue({ bavail: 100, bsize: 4096 } as Awaited<
       ReturnType<typeof statfs>

@@ -34,6 +34,7 @@ vp exec playwright install chromium   # add --with-deps on Linux CI
 | `vp run test:e2e` | Real Spring + disposable PostgreSQL + server-mode web | Java 17, Docker, Vite+ |
 | `vp run test:e2e:local-ai` | Local-demo browser WebGPU AI flow (mocked Worker responses) | Vite+ |
 | `vp run test:e2e:ollama` | Server-mode Ollama intent/confirmation flow (mocked Ollama HTTP) | Java 17, Docker, Vite+ |
+| `vp run test:e2e:ollama:live --project=desktop` | Live `qwen3:4b` end-to-end round-trip (not run in CI) | Java 17, Docker, Vite+, local Ollama |
 
 Filter by viewport or suite:
 

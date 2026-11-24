@@ -127,6 +127,30 @@ class ProjectApiTest {
     }
 
     @Test
+    void savesAndReloadsBlenderBedAndStorage() throws Exception {
+        var created = mockMvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"침실","roomType":"침실","dimensions":{"width":6,"depth":5,"height":2.4}}
+                                """))
+                .andExpect(status().isCreated()).andReturn();
+        String id = mapper.readTree(created.getResponse().getContentAsByteArray()).path("id").asString();
+        mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"furniture":[
+                                  {"id":"bed-1","catalogId":"bed-linen","name":"리넨 퀸 침대","category":"침대","x":2,"z":2,"rotation":90,"color":"#A8B39D"},
+                                  {"id":"shelf-1","catalogId":"storage-open","name":"프레임 책장","category":"수납","x":5,"z":3,"rotation":0,"color":"#A88968"}
+                                ]}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture[0].catalogId").value("bed-linen"))
+                .andExpect(jsonPath("$.furniture[0].rotation").value(90))
+                .andExpect(jsonPath("$.furniture[0].x").value(2))
+                .andExpect(jsonPath("$.furniture[1].category").value("수납"));
+    }
+
+    @Test
     void savesAndReloadsRoomModel() throws Exception {
         String response = mockMvc.perform(post("/api/projects")
                         .contentType(MediaType.APPLICATION_JSON)

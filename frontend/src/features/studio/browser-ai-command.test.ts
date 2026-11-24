@@ -54,7 +54,7 @@ it("binds explicit target and anchor instead of trusting invented model IDs", ()
     type: "ADD",
     catalogId: "plant-olive",
   })
-  expect(project.furniture).toHaveLength(4)
+  expect(project.furniture).toEqual(sampleProject.furniture)
   const command = response.proposedCommands[0]
   const proposed = {
     ...project.furniture[0],
@@ -97,8 +97,12 @@ it("corrects the observed small-model action and string angle before proposing",
 })
 
 it("keeps an explicit window placement when the model chooses another place", () => {
+  const project = structuredClone(sampleProject)
+  project.furniture = project.furniture.filter(
+    (piece) => piece.category !== "의자" || piece.catalogId === "chair-shell"
+  )
   const intent = groundBrowserIntent(
-    structuredClone(sampleProject),
+    project,
     "창가에 의자를 옮겨줘",
     parseBrowserIntent(
       '{"action":"MOVE","catalogId":"chair-sand","placement":"LEFT"}'

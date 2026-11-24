@@ -50,7 +50,7 @@ export async function createRoom(page: Page, remember: (id: string) => void) {
 }
 export async function openFurniture(page: Page, narrow: boolean) {
   if (narrow)
-    await page.getByRole("button", { name: "방 고르기", exact: true }).click()
+    await page.getByRole("button", { name: "방과 가구", exact: true }).click()
   await page
     .getByRole("button", { name: "거실 비어 있어요", exact: true })
     .click()

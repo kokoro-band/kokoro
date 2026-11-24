@@ -3,6 +3,7 @@ package com.kokoro.room;
 import com.kokoro.room.project.FurnitureCatalog;
 import com.kokoro.room.project.FurnitureCatalog.Size;
 import com.kokoro.room.project.FurniturePlacementValidator;
+import com.kokoro.room.project.ProjectInputLimits;
 import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import org.junit.jupiter.api.Test;
@@ -21,11 +22,14 @@ class FurnitureCatalogTest {
     void packagedCatalogEqualsSharedSourceAndPreservesEveryFootprint() throws Exception {
         var catalog = FurnitureCatalog.load();
         assertThat(catalog).isEqualTo(FurnitureCatalog.parse(source()));
-        assertThat(catalog).containsExactlyInAnyOrderEntriesOf(Map.of(
+        assertThat(catalog).containsAllEntriesOf(Map.of(
                 "sofa-cloud", new Size(2.2, 0.92), "sofa-moss", new Size(2.1, 0.95),
                 "table-oak", new Size(1.25, 0.7), "table-white", new Size(1, 1),
                 "chair-shell", new Size(0.65, 0.65), "chair-sand", new Size(0.65, 0.65),
                 "plant-olive", new Size(0.55, 0.55), "lamp-arc", new Size(0.5, 0.5)));
+        assertThat(catalog).hasSize(20)
+                .containsEntry("bed-linen", new Size(1.65, 2.12))
+                .containsEntry("storage-open", new Size(0.88, 0.33));
         var validator = new FurniturePlacementValidator();
         catalog.forEach((id, size) -> {
             var boundary = new FurnitureItem(id, id, id, "의자", size.width() / 2, size.depth() / 2, 0.0, "#000000");
@@ -37,6 +41,15 @@ class FurnitureCatalogTest {
         assertThatThrownBy(() -> validator.validate(new Dimensions(10, 10, 2.4), null,
                 List.of(new FurnitureItem("unknown", "unknown", "unknown", "의자", 2.0, 2.0, 0.0, "#000000"))))
                 .hasMessageContaining("지원하지 않는 가구");
+    }
+
+    @Test
+    void acceptsBedroomFurnitureForSaving() {
+        for (String category : List.of("침대", "수납")) {
+            ProjectInputLimits.furniture(List.of(
+                    new FurnitureItem("placed", "침대".equals(category) ? "bed-linen" : "storage-open",
+                            "가구", category, 3.0, 3.0, 90.0, "#BBCCDD")));
+        }
     }
 
     @Test

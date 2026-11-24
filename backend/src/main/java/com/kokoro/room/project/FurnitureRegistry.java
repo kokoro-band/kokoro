@@ -32,14 +32,9 @@ public class FurnitureRegistry {
         JsonNode sources = resource("furniture-source-assets.json");
         for (JsonNode item : catalog.path("items")) {
             JsonNode provenance = item.path("provenance");
-            boolean verified = false;
-            for (JsonNode asset : sources.path("items")) {
-                if (asset.path("assetName").equals(provenance.path("modelAsset"))
-                        && asset.path("sha256").equals(provenance.path("modelSha256"))) verified = true;
-            }
-            if (!verified || !"example".equals(provenance.path("dimensionKind").asString())
-                    || !"example".equals(provenance.path("priceKind").asString())
-                    || !"CC0-1.0".equals(provenance.path("license").asString())) {
+            if (!hasKnownOrigin(item, sources)
+                    || !"example".equals(provenance.path("dimensionKind").asString())
+                    || !"example".equals(provenance.path("priceKind").asString())) {
                 throw new IllegalStateException("가구 출처를 검증하지 못했습니다: " + item.path("id").asString());
             }
         }
@@ -59,6 +54,24 @@ public class FurnitureRegistry {
                         """, item.path("id").asString(), item.toString());
             }
         });
+    }
+
+    private static boolean hasKnownOrigin(JsonNode item, JsonNode sources) {
+        var origin = item.path("provenance");
+        if (origin.has("kind")) {
+            String filename = item.path("id").asString() + ".glb";
+            return "kokoro-blender".equals(origin.path("kind").asString())
+                    && filename.equals(origin.path("modelAsset").asString())
+                    && ("/models/" + filename).equals(item.path("modelUrl").asString())
+                    && origin.path("modelSha256").isString()
+                    && origin.path("modelSha256").asString().matches("[0-9a-f]{64}");
+        }
+        if (!"CC0-1.0".equals(origin.path("license").asString())) return false;
+        for (var asset : sources.path("items")) {
+            if (asset.path("assetName").equals(origin.path("modelAsset"))
+                    && asset.path("sha256").equals(origin.path("modelSha256"))) return true;
+        }
+        return false;
     }
 
     public Map<String, Object> catalog() {

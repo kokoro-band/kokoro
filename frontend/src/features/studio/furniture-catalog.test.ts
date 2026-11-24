@@ -19,16 +19,18 @@ const source = JSON.parse(
 describe("shared furniture catalog", () => {
   it("consumes the complete shared source without changing existing footprints", () => {
     expect(catalog).toEqual(source.items)
-    expect(catalog.map(({ id, width, depth }) => [id, width, depth])).toEqual([
-      ["sofa-cloud", 2.2, 0.92],
-      ["sofa-moss", 2.1, 0.95],
-      ["table-oak", 1.25, 0.7],
-      ["table-white", 1, 1],
-      ["chair-shell", 0.65, 0.65],
-      ["chair-sand", 0.65, 0.65],
-      ["plant-olive", 0.55, 0.55],
-      ["lamp-arc", 0.5, 0.5],
-    ])
+    expect(catalog.map(({ id, width, depth }) => [id, width, depth])).toEqual(
+      expect.arrayContaining([
+        ["sofa-cloud", 2.2, 0.92],
+        ["sofa-moss", 2.1, 0.95],
+        ["table-oak", 1.25, 0.7],
+        ["table-white", 1, 1],
+        ["chair-shell", 0.65, 0.65],
+        ["chair-sand", 0.65, 0.65],
+        ["plant-olive", 0.55, 0.55],
+        ["lamp-arc", 0.5, 0.5],
+      ])
+    )
     for (const item of catalog) {
       if (!item.modelUrl) continue
       const bytes = readFileSync(
@@ -37,6 +39,16 @@ describe("shared furniture catalog", () => {
       expect(bytes.subarray(0, 4).toString()).toBe("glTF")
     }
   })
+
+  it.each(["침대", "수납"])(
+    "accepts %s as a furniture category",
+    (category) => {
+      const item = { ...source.items[0], category }
+      expect(parseFurnitureCatalog({ ...source, items: [item] })).toEqual([
+        item,
+      ])
+    }
+  )
 
   it("rejects duplicate IDs", () => {
     expect(() =>
@@ -64,6 +76,7 @@ describe("shared furniture catalog", () => {
   it("rejects malformed display fields", () => {
     for (const patch of [
       { category: ["소파"] },
+      { category: "전체" },
       { price: -1 },
       { color: "red" },
       { modelUrl: "https://example.com/model.glb" },

@@ -57,6 +57,34 @@ export function makeFallbackModel(item: Furniture, catalogItem?: CatalogItem) {
       for (const z of [-0.23, 0.23])
         addBox(group, [0.045, 0.45, 0.045], [x, 0.23, z], "#53493E")
     }
+  } else if (item.category === "침대") {
+    addBox(group, [width, 0.24, depth], [0, 0.17, 0], "#967659")
+    addBox(
+      group,
+      [width * 0.98, 0.2, depth * 0.94],
+      [0, 0.39, 0.02],
+      item.color
+    )
+    addBox(group, [width, 0.7, 0.06], [0, 0.35, -depth / 2 + 0.03], item.color)
+  } else if (item.category === "수납") {
+    const height =
+      item.catalogId === "storage-media"
+        ? 0.5
+        : item.catalogId === "storage-open"
+          ? 1.6
+          : 0.9
+    const panel = Math.min(0.04, width / 8, depth / 8)
+    for (const side of [-1, 1]) {
+      addBox(
+        group,
+        [panel, height, depth],
+        [(side * (width - panel)) / 2, height / 2, 0],
+        item.color
+      )
+    }
+    for (const level of [panel / 2, height / 2, height - panel / 2]) {
+      addBox(group, [width, panel, depth], [0, level, 0], item.color)
+    }
   } else if (item.catalogId === "lamp-arc") {
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.22, 0.22, 0.05, 24),

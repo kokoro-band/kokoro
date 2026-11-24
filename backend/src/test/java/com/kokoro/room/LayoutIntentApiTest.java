@@ -199,6 +199,77 @@ class LayoutIntentApiTest {
         }
     }
 
+    private static final String TABLE_ON_THE_DEFAULT_SPOT = """
+            {"furniture":[
+              {"id":"table-a","catalogId":"table-oak","name":"오크 테이블","category":"테이블","x":4.0,"z":3.0,"rotation":0,"color":"#B08A5B"}
+            ]}""";
+
+    private String projectWith(String layout, String dimensions) throws Exception {
+        String created = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"기본 위치\",\"roomType\":\"거실\",\"dimensions\":" + dimensions + "}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asString();
+        mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content(layout))
+                .andExpect(status().isOk());
+        return id;
+    }
+
+    @Test
+    void addWithoutAnchorKeepsTheDefaultSpotWhenItIsFree() throws Exception {
+        String id = projectWithFurniture();
+
+        JsonNode proposal = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"sofa-moss\"}", null, 200);
+
+        JsonNode command = proposal.path("proposedCommands").get(0);
+        assertThat(command.path("x").asDouble()).isEqualTo(4.0);
+        assertThat(command.path("z").asDouble()).isEqualTo(3.0);
+    }
+
+    @Test
+    void addWithoutAnchorMovesToTheNearestFreeSpotWhenTheDefaultIsTaken() throws Exception {
+        String id = projectWith(TABLE_ON_THE_DEFAULT_SPOT, "{\"width\":8,\"depth\":6,\"height\":2.4}");
+
+        JsonNode proposal = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"sofa-moss\"}", null, 200);
+        JsonNode command = proposal.path("proposedCommands").get(0);
+        double distance = Math.hypot(command.path("x").asDouble() - 4.0, command.path("z").asDouble() - 3.0);
+        assertThat(distance).isGreaterThan(0.0).isLessThan(3.0);
+        assertThat(furnitureIds(project(id))).containsExactly("table-a");
+
+        JsonNode confirmed = send(id, "/layout/commands/confirm", "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+        assertThat(confirmed.path("project").path("furniture")).hasSize(2);
+        assertThat(project(id).path("furniture")).hasSize(2);
+
+        JsonNode again = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"sofa-moss\"}", null, 200);
+        JsonNode second = again.path("proposedCommands").get(0);
+        assertThat(second.path("x").asDouble() + "," + second.path("z").asDouble())
+                .isNotEqualTo(command.path("x").asDouble() + "," + command.path("z").asDouble());
+    }
+
+    @Test
+    void severalCopiesWithoutAnchorDoNotOverlapEachOther() throws Exception {
+        String id = projectWith(TABLE_ON_THE_DEFAULT_SPOT, "{\"width\":8,\"depth\":6,\"height\":2.4}");
+
+        JsonNode proposal = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"chair-sand\",\"count\":3}", null, 200);
+
+        assertThat(proposal.path("proposedCommands")).hasSize(3);
+        java.util.Set<String> spots = new java.util.HashSet<>();
+        for (JsonNode command : proposal.path("proposedCommands")) {
+            spots.add(command.path("x").asDouble() + "," + command.path("z").asDouble());
+        }
+        assertThat(spots).hasSize(3);
+    }
+
+    @Test
+    void addWithoutAnchorIsRejectedWithACodeWhenNoFreeSpotExists() throws Exception {
+        String id = projectWith("{\"furniture\":[]}", "{\"width\":1,\"depth\":1,\"height\":2.4}");
+        long revision = project(id).path("revision").asLong();
+
+        JsonNode problem = intents(id, "{\"type\":\"ADD\",\"catalogId\":\"sofa-moss\"}", null, 400);
+
+        assertThat(problem.path("code").asString()).isEqualTo("NO_VALID_PLACEMENT");
+        assertThat(project(id).path("revision").asLong()).isEqualTo(revision);
+    }
+
     private String projectWithFurniture() throws Exception {
         String created = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"의도 검증\",\"roomType\":\"거실\",\"dimensions\":{\"width\":8,\"depth\":6,\"height\":2.4}}"))

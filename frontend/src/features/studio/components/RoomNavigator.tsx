@@ -4,9 +4,8 @@ import {
   IconChevronRightLine,
   IconPlusLine,
 } from "@karrotmarket/react-monochrome-icon"
-import { ActionButton, Icon, ScrollFog } from "@seed-design/react"
+import { ActionButton, Icon } from "@seed-design/react"
 import {
-  ChipTabsCarousel,
   ChipTabsList,
   ChipTabsRoot,
   ChipTabsTrigger,
@@ -23,13 +22,18 @@ import {
   roomArea,
   roomForFurniture,
 } from "@/features/studio/house-navigation"
-import type { Category, Furniture, Project } from "@/features/studio/types"
+import {
+  furnitureCategories,
+  type Category,
+  type Furniture,
+  type Project,
+} from "@/features/studio/types"
 import type { PlacementIssue } from "@/features/studio/placement-issues"
 
 import { FurnitureThumb } from "./FurnitureThumb"
 import { PlacementIssueList } from "./PlacementIssueList"
 
-const categories: Category[] = ["전체", "소파", "테이블", "의자", "장식"]
+const categories: Category[] = ["전체", ...furnitureCategories]
 
 function sumPrice(items: Furniture[]) {
   return items.reduce((total, item) => total + furniturePrice(item), 0)
@@ -185,20 +189,13 @@ export function RoomNavigator({
             value={category}
             onValueChange={(value) => onCategoryChange(value as Category)}
           >
-            <ChipTabsCarousel>
-              <ScrollFog placement={["left", "right"]}>
-                <ChipTabsList
-                  aria-label="가구 종류"
-                  className="category-tabs-list"
-                >
-                  {categories.map((entry) => (
-                    <ChipTabsTrigger key={entry} value={entry}>
-                      {entry}
-                    </ChipTabsTrigger>
-                  ))}
-                </ChipTabsList>
-              </ScrollFog>
-            </ChipTabsCarousel>
+            <ChipTabsList aria-label="가구 종류" className="category-tabs-list">
+              {categories.map((entry) => (
+                <ChipTabsTrigger key={entry} value={entry}>
+                  {entry}
+                </ChipTabsTrigger>
+              ))}
+            </ChipTabsList>
           </ChipTabsRoot>
           <div className="catalog-search">
             <TextField
@@ -243,7 +240,8 @@ export function RoomNavigator({
                   />
                 }
                 title={item.name}
-                detail={formatPrice(item.price)}
+                detail={`${item.width} × ${item.depth} m · ${formatPrice(item.price)}`}
+                aria-description={`가로 ${item.width} m, 깊이 ${item.depth} m, ${formatPrice(item.price)}`}
                 suffix={<Icon svg={<IconPlusLine />} size="x4" />}
                 aria-label={`${item.name} ${room?.name ?? "집"}에 놓기`}
                 onClick={() => onAddFurniture(item.id)}

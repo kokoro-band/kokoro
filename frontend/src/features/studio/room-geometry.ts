@@ -304,7 +304,7 @@ function buildFloor(
   return mesh
 }
 
-function makeLabelSprite(text: string) {
+function makeLabelSprite(text: string, mode: ViewMode) {
   const canvas = document.createElement("canvas")
   const context = canvas.getContext("2d")
   const scale = 4
@@ -334,14 +334,17 @@ function makeLabelSprite(text: string) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: false,
+      depthTest: mode === "vr",
       depthWrite: false,
       toneMapped: false,
     })
   )
-  const worldHeight = window.matchMedia("(max-width: 820px)").matches
-    ? 0.48
-    : 0.32
+  const worldHeight =
+    mode === "vr"
+      ? 0.15
+      : window.matchMedia("(max-width: 820px)").matches
+        ? 0.48
+        : 0.32
   sprite.scale.set((canvas.width / canvas.height) * worldHeight, worldHeight, 1)
   sprite.renderOrder = 10
   return sprite
@@ -628,7 +631,7 @@ export function buildRoomGroup(
     mode === "vr" ? wallHeight - 0.35 : overview ? 0.52 : wallHeight + 0.25
   const labeledRooms = mode === "3d" && focusRoom ? [] : model.rooms
   for (const room of labeledRooms) {
-    const sprite = makeLabelSprite(room.name)
+    const sprite = makeLabelSprite(room.name, mode)
     if (!sprite) continue
     const [x, z] = labelPoint(room.polygon)
     sprite.position.set(x + offsetX, labelHeight, z + offsetZ)

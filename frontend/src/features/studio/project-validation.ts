@@ -1,4 +1,10 @@
-import type { Furniture, Point2, Project, RoomModel } from "./types"
+import {
+  furnitureCategories,
+  type Furniture,
+  type Point2,
+  type Project,
+  type RoomModel,
+} from "./types"
 import {
   assertFurnitureCount,
   maxFurnitureCount,
@@ -195,7 +201,7 @@ export function assertFurnitureWrite(
     }
     id(item.id, ids)
     id(item.catalogId)
-    choice(item.category, ["소파", "테이블", "의자", "장식"] as const)
+    choice(item.category, furnitureCategories)
     number(item.x)
     number(item.z)
     number(item.rotation)
@@ -216,12 +222,7 @@ export function parseStoredProject(value: unknown): Project {
         id: id(item.id, ids),
         catalogId: id(item.catalogId),
         name: text(item.name, 256),
-        category: choice(item.category, [
-          "소파",
-          "테이블",
-          "의자",
-          "장식",
-        ] as const),
+        category: choice(item.category, furnitureCategories),
         // Valid out-of-room furniture stays available to the existing repair UI.
         x: number(item.x),
         z: number(item.z),

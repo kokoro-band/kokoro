@@ -1,23 +1,25 @@
 import { useEffect, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
-import { VRButton } from "three/addons/webxr/VRButton.js"
 
 import { catalog } from "./data"
 import { roomAtPoint, roomCenter } from "./house-navigation"
 import { upgradeFurnitureModel } from "./furniture-models"
-import { addBox, makeFallbackModel } from "./furniture-fallback"
+import { makeFallbackModel } from "./furniture-fallback"
 import {
   animateDoors,
   setManualDoorStates,
   buildRoomGroup,
+  buildDimensionRoom,
+  updatePlanLabels,
   createWalkableTest,
   roomSpawnPoint,
   type DoorState,
 } from "./room-geometry"
+import { fitPlanCamera, planFurnitureSymbol } from "./plan-view"
 import { viewForward } from "./keyboard-nudge"
 import type { Furniture, Point2, RoomLabel, RoomModel, ViewMode } from "./types"
-import { localizeVrEntry } from "./vr-entry"
+import { mountVrEntry } from "./vr-entry"
 import { furnitureModelKey, planFurnitureSync } from "./scene-furniture-sync"
 import { holdStep, startHold, type Hold } from "./vr-grab"
 import { createVrLocomotion, type VrHand } from "./vr-locomotion"
@@ -29,20 +31,13 @@ import {
 
 type Bounds = { width: number; depth: number }
 
-const defaultBounds: Bounds = { width: 5.8, depth: 4.2 }
+const referenceRoomWidth = 5.8
 
 const sceneColors = {
   background: "#F2F3F6",
   ambientSky: "#FFFFFF",
   ambientGround: "#D9DCE3",
   sunlight: "#FFF8F0",
-  floor: "#E4E6EB",
-  wall: "#FFFFFF",
-  sideWall: "#F7F8FA",
-  glass: "#B8DAED",
-  frame: "#FFFFFF",
-  gridPrimary: "#BFC4CC",
-  gridSecondary: "#D6DAE0",
   selection: "#FF6F0F",
 } as const
 
@@ -58,6 +53,7 @@ type SceneRuntime = {
   scene: THREE.Scene
   furnitureGroup: THREE.Group
   bounds: Bounds
+  refreshPlanLabels: (furniture: Furniture[]) => void
   interaction: ReturnType<typeof bindSceneInteraction> | null
   doors: DoorState[]
   doorHighlights: Map<string, THREE.BoxHelper>
@@ -71,6 +67,7 @@ type Props = {
   selectedId: string | null
   mode: ViewMode
   tool: CursorTool
+  dimensions: Bounds & { height: number }
   room?: RoomModel
   focusRoom?: RoomLabel | null
   onSelect: (id: string | null) => void
@@ -104,10 +101,13 @@ function setDoorHighlight(
   for (const [doorId, helper] of highlights) helper.visible = doorId === id
 }
 
-function makeFurnitureModel(item: Furniture, bounds: Bounds) {
+function makeFurnitureModel(item: Furniture, bounds: Bounds, mode: ViewMode) {
   const group = new THREE.Group()
   const catalogItem = catalog.find((entry) => entry.id === item.catalogId)
-  const fallback = makeFallbackModel(item, catalogItem)
+  const fallback =
+    mode === "2d"
+      ? planFurnitureSymbol(item, catalogItem)
+      : makeFallbackModel(item, catalogItem)
   if (catalogItem) {
     const box = new THREE.Box3().setFromObject(fallback)
     const center = box.getCenter(new THREE.Vector3())
@@ -136,7 +136,7 @@ function disposeGroup(group: THREE.Group) {
       object.material.map?.dispose()
       object.material.dispose()
     }
-    if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+    if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
       object.geometry.dispose()
       const materials = Array.isArray(object.material)
         ? object.material
@@ -152,6 +152,11 @@ export function RoomScene({
   mode,
   tool,
   room,
+  dimensions: {
+    width: projectWidth,
+    depth: projectDepth,
+    height: projectHeight,
+  },
   focusRoom,
   onSelect,
   onMove,
@@ -199,31 +204,46 @@ export function RoomScene({
         errorMessage.className = "renderer-error"
         errorMessage.textContent =
           "이 브라우저에서 3D 렌더러를 시작하지 못했습니다. 다른 브라우저에서 다시 열어 주세요."
-        host.replaceChildren(errorMessage)
-        return
+        const errorHost =
+          mode === "vr" ? (xrEntryContainer?.current ?? host) : host
+        if (errorHost !== host) errorMessage.className = "vr-entry-status"
+        errorMessage.setAttribute("role", "status")
+        errorHost.replaceChildren(errorMessage)
+        return () => errorMessage.remove()
       }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-      renderer.shadowMap.enabled = true
+      renderer.shadowMap.enabled = showFinishes
       renderer.shadowMap.type = THREE.PCFShadowMap
       renderer.xr.enabled = mode === "vr"
-      renderer.setClearColor(lighting.background, 1)
+      renderer.setClearColor(mode === "2d" ? "#E8ECE8" : lighting.background, 1)
       if (showFinishes) renderer.toneMapping = THREE.ACESFilmicToneMapping
       host.appendChild(renderer.domElement)
 
-      const bounds: Bounds = room?.bounds ?? defaultBounds
-      const scale = Math.max(bounds.width, bounds.depth) / defaultBounds.width
-      const focusCenter = focusRoom ? roomCenter(focusRoom) : null
-      const focusWidth = focusRoom
-        ? Math.max(...focusRoom.polygon.map(([x]) => x)) -
-          Math.min(...focusRoom.polygon.map(([x]) => x))
+      const bounds: Bounds = room?.bounds ?? {
+        width: projectWidth,
+        depth: projectDepth,
+      }
+      const scale = Math.max(bounds.width, bounds.depth) / referenceRoomWidth
+      const focusXs = focusRoom?.polygon.map(([x]) => x)
+      const focusZs = focusRoom?.polygon.map(([, z]) => z)
+      const focusWidth = focusXs
+        ? Math.max(...focusXs) - Math.min(...focusXs)
         : bounds.width
-      const focusDepth = focusRoom
-        ? Math.max(...focusRoom.polygon.map(([, z]) => z)) -
-          Math.min(...focusRoom.polygon.map(([, z]) => z))
+      const focusDepth = focusZs
+        ? Math.max(...focusZs) - Math.min(...focusZs)
         : bounds.depth
+      const focusCenter: Point2 | null =
+        mode === "2d" && focusXs && focusZs
+          ? [
+              Math.min(...focusXs) + focusWidth / 2,
+              Math.min(...focusZs) + focusDepth / 2,
+            ]
+          : focusRoom
+            ? roomCenter(focusRoom)
+            : null
       const focusScale = Math.max(
         0.85,
-        Math.max(focusWidth, focusDepth, 2) / defaultBounds.width
+        Math.max(focusWidth, focusDepth, 2) / referenceRoomWidth
       )
       const centerX = focusCenter ? focusCenter[0] - bounds.width / 2 : 0
       const centerZ = focusCenter ? focusCenter[1] - bounds.depth / 2 : 0
@@ -240,14 +260,19 @@ export function RoomScene({
             : 1
 
       const scene = new THREE.Scene()
-      const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
-      camera.position.set(
-        centerX + (mode === "2d" ? 0 : 5 * focusScale * viewportFit),
+      const camera =
         mode === "2d"
-          ? 12 * focusScale * viewportFit
-          : 11 * focusScale * viewportFit,
-        centerZ + (mode === "2d" ? 0.01 : 7 * focusScale * viewportFit)
-      )
+          ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100 * scale)
+          : new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
+      if (camera instanceof THREE.OrthographicCamera) {
+        camera.up.set(0, 0, -1)
+        camera.position.set(centerX, 10 * scale, centerZ)
+      } else
+        camera.position.set(
+          centerX + 5 * focusScale * viewportFit,
+          11 * focusScale * viewportFit,
+          centerZ + 7 * focusScale * viewportFit
+        )
       const controls = new OrbitControls(camera, renderer.domElement)
       controls.target.set(centerX, overview ? 0.48 : 0.25, centerZ)
       // An editor must stop with the pointer. Inertia must not resume after
@@ -259,7 +284,9 @@ export function RoomScene({
           mode === "2d" ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE
         controls.touches.ONE = THREE.TOUCH.PAN
       }
-      controls.maxPolarAngle = Math.PI / 2.15
+      controls.maxPolarAngle = mode === "2d" ? Math.PI / 2 : Math.PI / 2.15
+      controls.minZoom = 0.45
+      controls.maxZoom = 8
       controls.minDistance = Math.max(2, 4 * focusScale)
       controls.maxDistance = 16 * scale
       controls.enableRotate = mode !== "2d"
@@ -330,48 +357,10 @@ export function RoomScene({
           roomGroup.add(shadow)
         }
       } else {
-        roomGroup = new THREE.Group()
-        addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], sceneColors.floor)
-        if (mode !== "2d") {
-          addBox(roomGroup, [5.8, 2.4, 0.1], [0, 1.2, -2.15], sceneColors.wall)
-          addBox(
-            roomGroup,
-            [0.1, 2.4, 4.2],
-            [-2.95, 1.2, 0],
-            sceneColors.sideWall
-          )
-          addBox(
-            roomGroup,
-            [2.4, 1.25, 0.025],
-            [0.8, 1.5, -2.09],
-            sceneColors.glass
-          )
-          addBox(
-            roomGroup,
-            [0.06, 1.3, 0.04],
-            [0.8, 1.5, -2.06],
-            sceneColors.frame
-          )
-          addBox(
-            roomGroup,
-            [2.5, 0.06, 0.04],
-            [0.8, 1.5, -2.05],
-            sceneColors.frame
-          )
-        }
-        if (mode === "2d") {
-          const grid = new THREE.GridHelper(
-            5.8,
-            29,
-            sceneColors.gridPrimary,
-            sceneColors.gridSecondary
-          )
-          grid.position.y = 0.008
-          grid.scale.z = 4.2 / 5.8
-          grid.material.transparent = true
-          grid.material.opacity = 0.24
-          roomGroup.add(grid)
-        }
+        roomGroup = buildDimensionRoom(mode, {
+          ...bounds,
+          height: projectHeight,
+        })
       }
       scene.add(roomGroup)
       const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
@@ -459,8 +448,19 @@ export function RoomScene({
           : null
       }
 
-      const placementGrid =
-        mode === "3d" ? roomGroup.getObjectByName("placement-grid") : undefined
+      const placementGrid = roomGroup.getObjectByName("placement-grid")
+      let labeledFurniture: Furniture[] | undefined
+      function refreshPlanLabels(items: Furniture[]) {
+        if (
+          mode !== "2d" ||
+          !room ||
+          placementGrid?.visible ||
+          items === labeledFurniture
+        )
+          return
+        updatePlanLabels(roomGroup, room, items)
+        labeledFurniture = items
+      }
       const interaction =
         mode === "vr"
           ? null
@@ -496,9 +496,19 @@ export function RoomScene({
               },
               onCommit() {
                 if (placementGrid) placementGrid.visible = false
+                refreshPlanLabels(furnitureRef.current)
                 onMoveEnd()
               },
               zoomCamera(factor) {
+                if (camera instanceof THREE.OrthographicCamera) {
+                  camera.zoom = THREE.MathUtils.clamp(
+                    camera.zoom / factor,
+                    controls.minZoom,
+                    controls.maxZoom
+                  )
+                  camera.updateProjectionMatrix()
+                  return
+                }
                 const offset = camera.position.clone().sub(controls.target)
                 offset.setLength(
                   THREE.MathUtils.clamp(
@@ -522,6 +532,7 @@ export function RoomScene({
         scene,
         furnitureGroup,
         bounds,
+        refreshPlanLabels,
         interaction,
         doors,
         doorHighlights,
@@ -530,8 +541,7 @@ export function RoomScene({
       }
       runtimeRef.current = runtime
 
-      let vrButton: HTMLElement | null = null
-      let stopLocalizingVrEntry: (() => void) | null = null
+      let disposeVrEntry: (() => void) | undefined
       let locomotion: ReturnType<typeof createVrLocomotion> | null = null
       // A grab moves only the 3D model each frame, limited by the walls, and
       // saves once on release. Updating React state per frame stuttered on Quest.
@@ -548,23 +558,26 @@ export function RoomScene({
         if (runtime.outline?.object === model.group) runtime.outline.update()
       }
       function grabInVr(ray: THREE.Ray, hand: VrHand) {
-        raycaster.ray.copy(ray)
-        const hit = pickScene()
+        const hit = hand.target
         if (hit?.kind === "door") {
           toggleDoor(hit.id)
           hand.pulse(0.25, 20)
           return true
         }
-        const item = hit
-          ? furnitureRef.current.find((entry) => entry.id === hit.id)
-          : undefined
-        if (!hit || !item) return false
+        if (hit?.kind !== "furniture") return false
+        const item = furnitureRef.current.find((entry) => entry.id === hit.id)
+        const model = runtime.models.get(hit.id)
+        if (!item || !model) return false
+        const center: [number, number] = [
+          model.group.position.x,
+          model.group.position.z,
+        ]
         grab = {
           item,
           hold: startHold(
             item.id,
-            hit.center,
-            floorPoint(ray) ?? hit.center,
+            center,
+            floorPoint(ray) ?? center,
             item.rotation
           ),
           changed: false,
@@ -577,7 +590,9 @@ export function RoomScene({
         if (!grab) return
         const step = holdStep(
           grab.hold,
-          floorPoint(hand.ray),
+          hand.target?.kind === "floor"
+            ? [hand.target.point.x, hand.target.point.z]
+            : null,
           hand.stickX,
           grab.item.rotation,
           deltaSeconds
@@ -623,12 +638,14 @@ export function RoomScene({
         grab = null
         if (saved) showPose(saved)
       }
-      if (mode === "vr") {
-        vrButton = VRButton.createButton(renderer)
-        vrButton.classList.add("xr-entry")
-        stopLocalizingVrEntry = localizeVrEntry(vrButton)
-        ;(xrEntryContainer?.current ?? host).appendChild(vrButton)
+      if (mode === "vr" && camera instanceof THREE.PerspectiveCamera) {
+        disposeVrEntry = mountVrEntry(
+          xrEntryContainer?.current ?? host,
+          renderer.xr
+        )
         locomotion = createVrLocomotion({
+          roomGroup,
+          furnitureGroup,
           renderer,
           scene,
           camera,
@@ -653,8 +670,13 @@ export function RoomScene({
         const width = host.clientWidth
         const height = host.clientHeight
         renderer.setSize(width, height)
-        camera.aspect = width / Math.max(height, 1)
-        camera.updateProjectionMatrix()
+        const aspect = Math.max(width, 1) / Math.max(height, 1)
+        if (camera instanceof THREE.OrthographicCamera)
+          fitPlanCamera(camera, focusWidth, focusDepth, aspect)
+        else {
+          camera.aspect = aspect
+          camera.updateProjectionMatrix()
+        }
       })
       observer.observe(host)
       const doorClock = new THREE.Clock()
@@ -694,16 +716,18 @@ export function RoomScene({
           helper.geometry.dispose()
           helper.material.dispose()
         }
+        disposeVrEntry?.()
         renderer.dispose()
         renderer.domElement.remove()
-        stopLocalizingVrEntry?.()
-        vrButton?.remove()
         runtimeRef.current = null
       }
     },
     [
       mode,
       room,
+      projectWidth,
+      projectDepth,
+      projectHeight,
       focusRoom,
       onMove,
       onMoveEnd,
@@ -724,6 +748,9 @@ export function RoomScene({
       doorStates,
       mode,
       room,
+      projectWidth,
+      projectDepth,
+      projectHeight,
       focusRoom,
       onMove,
       onMoveEnd,
@@ -744,6 +771,9 @@ export function RoomScene({
       highlightedDoorId,
       mode,
       room,
+      projectWidth,
+      projectDepth,
+      projectHeight,
       focusRoom,
       onMove,
       onMoveEnd,
@@ -763,6 +793,9 @@ export function RoomScene({
       tool,
       mode,
       room,
+      projectWidth,
+      projectDepth,
+      projectHeight,
       focusRoom,
       onMove,
       onMoveEnd,
@@ -779,6 +812,7 @@ export function RoomScene({
       const runtime = runtimeRef.current
       if (!runtime) return
       const { models, furnitureGroup, bounds } = runtime
+      runtime.refreshPlanLabels(furniture)
 
       function removeOutline() {
         if (!runtime?.outline) return
@@ -805,10 +839,10 @@ export function RoomScene({
       plan.remove.forEach(removeModel)
       for (const item of plan.rebuild) {
         removeModel(item.id)
-        const { group, catalogItem } = makeFurnitureModel(item, bounds)
+        const { group, catalogItem } = makeFurnitureModel(item, bounds, mode)
         models.set(item.id, { group, key: furnitureModelKey(item) })
         furnitureGroup.add(group)
-        if (!catalogItem) continue
+        if (!catalogItem || mode === "2d") continue
         void upgradeFurnitureModel(
           group,
           catalogItem,
@@ -836,6 +870,9 @@ export function RoomScene({
       selectedId,
       mode,
       room,
+      projectWidth,
+      projectDepth,
+      projectHeight,
       focusRoom,
       onMove,
       onMoveEnd,
@@ -851,7 +888,11 @@ export function RoomScene({
     <div
       ref={hostRef}
       className="room-renderer"
-      aria-label="가구를 드래그할 수 있는 3D 방 편집기"
+      aria-label={
+        mode === "2d"
+          ? "가구를 드래그할 수 있는 2D 평면도"
+          : "가구를 드래그할 수 있는 3D 방 편집기"
+      }
     />
   )
 }

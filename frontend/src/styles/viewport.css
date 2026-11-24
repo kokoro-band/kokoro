@@ -235,69 +235,96 @@
   text-align: center;
 }
 
-/* VR 안내 카드. three.js VRButton은 카드 안의 자리로 옮겨 SEED 버튼 모양을 입힙니다. */
-.overlay-center {
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: var(--seed-dimension-x4);
+.vr-entry-overlay {
+  inset: auto var(--seed-dimension-x3) var(--seed-dimension-x3);
+  display: flex;
+  justify-content: flex-start;
+  max-height: calc(100% - var(--seed-dimension-x6));
 }
 
 .vr-entry-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--seed-dimension-x2);
-  width: min(22rem, 100%);
-  padding: var(--seed-dimension-x5);
+  display: grid;
+  gap: var(--seed-dimension-x3);
+  width: min(20rem, 100%);
+  padding: var(--seed-dimension-x4);
+  overflow: auto;
+  border: 1px solid var(--seed-color-stroke-neutral-weak);
   border-radius: var(--seed-radius-r4);
   background: var(--seed-color-bg-layer-floating);
   box-shadow: var(--seed-shadow-s2);
 }
 
-.vr-entry-card > * {
+.vr-entry-card header {
+  display: flex;
+  align-items: center;
+  gap: var(--seed-dimension-x3);
+}
+
+.vr-entry-card :is(h2, p, dl, dd) {
   margin: 0;
 }
 
-.vr-entry-slot {
-  display: flex;
-  margin-top: var(--seed-dimension-x2);
+.vr-controller-guide {
+  border-block: 1px solid var(--seed-color-stroke-neutral-weak);
+  font-size: var(--seed-font-size-t4);
 }
 
-.vr-entry-slot:empty {
-  display: none;
-}
-
-/* three.js가 인라인 스타일을 직접 넣기 때문에 !important로 덮습니다. */
-.xr-entry {
-  position: static !important;
-  display: flex !important;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  width: 100% !important;
-  height: var(--seed-dimension-x10) !important;
-  margin: 0 !important;
-  padding: 0 var(--seed-dimension-x4) !important;
-  color: var(--seed-color-fg-neutral-inverted) !important;
-  font: inherit !important;
-  font-size: var(--seed-font-size-t4) !important;
-  font-weight: var(--seed-font-weight-bold) !important;
-  line-height: var(--seed-line-height-t4) !important;
-  text-align: center !important;
-  text-decoration: none !important;
-  background: var(--seed-color-bg-brand-solid) !important;
-  border: 0 !important;
-  border-radius: var(--seed-radius-r2_5) !important;
-  opacity: 1 !important;
+.vr-controller-guide summary {
+  padding-block: var(--seed-dimension-x3);
   cursor: pointer;
 }
 
-/* 들어갈 수 없을 때는 버튼이 아니라 이유를 알려 주는 상태 문구로 보여 줍니다. */
-.xr-entry[data-state="unavailable"] {
-  color: var(--seed-color-fg-neutral-muted) !important;
-  font-weight: var(--seed-font-weight-medium) !important;
-  background: var(--seed-color-bg-neutral-weak) !important;
-  cursor: default !important;
+.vr-controller-guide dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--seed-dimension-x2) var(--seed-dimension-x3);
+  padding-bottom: var(--seed-dimension-x3);
+  line-height: 1.5;
+}
+
+.vr-controller-guide dt {
+  font-weight: var(--seed-font-weight-bold);
+}
+
+.vr-entry-slot {
+  display: grid;
+  gap: var(--seed-dimension-x2);
+}
+
+.vr-entry-status {
+  color: var(--seed-color-fg-neutral-muted);
+  font-size: var(--seed-font-size-t4);
+  line-height: 1.5;
+}
+
+.vr-entry-slot:empty,
+.vr-entry-status:empty,
+.xr-entry[hidden] {
+  display: none;
+}
+
+.xr-entry {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: var(--seed-dimension-x2) var(--seed-dimension-x3);
+  border: 0;
+  border-radius: var(--seed-radius-r2_5);
+  background: var(--seed-color-bg-brand-solid);
+  color: var(--seed-color-fg-neutral-inverted);
+  font: inherit;
+  font-weight: var(--seed-font-weight-bold);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.xr-entry:disabled {
+  cursor: wait;
+}
+
+.viewport-canvas:has(.vr-entry-overlay) .viewport-minimap-mobile {
+  top: var(--seed-dimension-x3);
+  bottom: auto;
 }
 
 /* 집 평면 미니맵 */

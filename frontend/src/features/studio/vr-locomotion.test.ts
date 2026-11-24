@@ -8,7 +8,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function setup() {
+function setup(wall?: THREE.Mesh) {
   vi.spyOn(THREE.Clock.prototype, "getDelta").mockReturnValue(0.1)
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera()
@@ -26,7 +26,9 @@ function setup() {
   const sources: { handedness: string; gamepad?: { axes: number[] } }[] = []
   let presenting = false
   const events = new EventTarget()
+  const eyes: THREE.PerspectiveCamera[] = []
   const xr = {
+    getCamera: () => ({ cameras: eyes }),
     getController: (index: number) => controllers[index],
     getSession: () => (presenting ? { inputSources: sources } : null),
     addEventListener: events.addEventListener.bind(events),
@@ -37,7 +39,17 @@ function setup() {
   const selectEnd = vi.fn(() => false)
   const hold = vi.fn((_hand: VrHand, _deltaSeconds: number) => {})
   const cancel = vi.fn()
+  const roomGroup = new THREE.Group()
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(30, 0.1, 30))
+  floor.position.y = -0.05
+  floor.name = "room-floor"
+  roomGroup.add(floor)
+  if (wall) roomGroup.add(wall)
+  const furnitureGroup = new THREE.Group()
+  scene.add(roomGroup, furnitureGroup)
   const options = {
+    roomGroup,
+    furnitureGroup,
     renderer: { xr } as unknown as THREE.WebGLRenderer,
     scene,
     camera,
@@ -72,11 +84,14 @@ function setup() {
   const markers = scene.children.filter((child) => child instanceof THREE.Mesh)
   return {
     ...locomotion,
+    roomGroup,
+    furnitureGroup,
     options,
     dispose,
     scene,
     camera,
     controllers,
+    eyes,
     markers,
     sources,
     update,
@@ -121,6 +136,66 @@ describe("VR movement and input lifecycle", () => {
     expect(app.markers.every((marker) => !marker.visible)).toBe(true)
   })
 
+  it("stops the ray at the first surface and only offers a floor ring on visible walkable floor", () => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.08))
+    wall.position.set(2, 1, 2.8)
+    const app = setup(wall)
+    const chair = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.3))
+    chair.userData.furnitureId = "chair"
+    chair.position.set(2, 0.5, 2.5)
+    app.furnitureGroup.add(chair)
+    app.session(true)
+    const marker = app.markers[0] as THREE.Mesh
+    const line = app.controllers[0].children[0] as THREE.Line
+    const length = () => {
+      const vertex = new THREE.Vector3().fromBufferAttribute(
+        line.geometry.getAttribute("position"),
+        1
+      )
+      return line
+        .localToWorld(vertex)
+        .distanceTo(app.controllers[0].getWorldPosition(new THREE.Vector3()))
+    }
+    app.update()
+    expect(marker.visible).toBe(false)
+    expect(length()).toBeCloseTo(0.16 * Math.SQRT2)
+    app.input(0, "selectstart")
+    app.input(0, "select")
+    app.input(0, "selectend")
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+    expect(app.selectStart).not.toHaveBeenCalled()
+
+    wall.position.x = 5
+    app.update()
+    expect(marker.visible).toBe(true)
+    expect(marker.geometry.type).toBe("SphereGeometry")
+    expect(length()).toBeCloseTo(0.35 * Math.SQRT2)
+    app.selectStart.mockReturnValue(true)
+    app.input(0, "squeezestart")
+    expect(app.selectStart).toHaveBeenCalledOnce()
+    app.input(0, "squeeze")
+    app.input(0, "squeezeend")
+    chair.position.x = 5
+    app.update()
+    expect(marker.geometry.type).toBe("RingGeometry")
+    expect(marker.position.z).toBeCloseTo(2)
+    expect(length()).toBeCloseTo(Math.SQRT2)
+  })
+
+  it("never teleports on a cancelled floor press or on a floor release while the other hand grabs", () => {
+    const app = setup()
+    app.session(true)
+    app.input(0, "selectstart")
+    app.input(0, "selectend")
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+    app.input(0, "selectstart")
+    app.selectStart.mockReturnValue(true)
+    app.input(1, "squeezestart")
+    app.input(0, "select")
+    app.input(0, "selectend")
+    expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+  })
+
   it("does not move without a session or inside the walking dead zone", () => {
     const app = setup()
     app.sources.push({ handedness: "left", gamepad: { axes: [0, 0, 0, -1] } })
@@ -130,6 +205,26 @@ describe("VR movement and input lifecycle", () => {
     app.sources[0].gamepad!.axes[3] = -0.1
     app.update()
     expect(app.rig.position.toArray()).toEqual([2, 0, 3])
+  })
+
+  it("lands the midpoint of the headset eyes on the ring with a room-scale offset", () => {
+    const app = setup()
+    app.session(true)
+    for (const x of [0.17, 0.23]) {
+      const eye = new THREE.PerspectiveCamera()
+      eye.position.set(x, 1.6, 0.4)
+      app.eyes.push(eye)
+    }
+    // Three's combined culling camera can be behind the two tracked eyes.
+    app.camera.position.set(0.2, 1.6, 0.44)
+    app.update()
+    const target = app.markers[0].position.clone()
+    app.input(0, "selectstart")
+    app.input(0, "select")
+    app.input(0, "selectend")
+    const head = app.rig.localToWorld(new THREE.Vector3(0.2, 1.6, 0.4))
+    expect(head.x).toBeCloseTo(target.x, 6)
+    expect(head.z).toBeCloseTo(target.z, 6)
   })
 
   it("walks in the head direction and leaves the rig unchanged on a blocked step", () => {
@@ -203,11 +298,13 @@ describe("VR movement and input lifecycle", () => {
     const app = setup()
     app.session(true)
     app.input(0, "selectstart")
+    app.input(0, "select")
     app.input(0, "selectend")
     expect(app.rig.position.z).toBeCloseTo(2)
     expect(app.selectEnd).not.toHaveBeenCalled()
     app.walkable.mockReturnValue(false)
     app.input(0, "selectstart")
+    app.input(0, "select")
     app.input(0, "selectend")
     expect(app.rig.position.z).toBeCloseTo(2)
   })
@@ -440,7 +537,7 @@ describe("VR movement and input lifecycle", () => {
           controller.children.length === 0 && controller.parent === null
       )
     ).toBe(true)
-    expect(app.scene.children).toHaveLength(0)
+    expect(app.scene.children).toEqual([app.roomGroup, app.furnitureGroup])
     expect(app.camera.parent).toBeNull()
     app.input(0, "selectstart")
     expect(app.selectStart).not.toHaveBeenCalled()

@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { readFileSync } from "node:fs"
 import * as THREE from "three"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
@@ -18,6 +20,46 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
 })
+
+const modelHeights: Record<string, number> = {
+  "sofa-cloud": 0.86,
+  "sofa-moss": 0.78,
+  "table-oak": 0.46,
+  "table-white": 0.52,
+  "chair-shell": 0.8,
+  "chair-sand": 0.88,
+  "plant-olive": 1.22,
+  "lamp-arc": 1.68,
+}
+
+it.each(catalog)(
+  "publishes a normalized $id model and matching thumbnail",
+  async (item) => {
+    const model = readFileSync(
+      new URL(`../../../public${item.modelUrl}`, import.meta.url)
+    )
+    const { scene } = await new GLTFLoader().parseAsync(
+      Uint8Array.from(model).buffer,
+      ""
+    )
+    const bounds = new THREE.Box3().setFromObject(scene)
+    const size = bounds.getSize(new THREE.Vector3())
+    const center = bounds.getCenter(new THREE.Vector3())
+    expect(size.x).toBeCloseTo(item.width, 3)
+    expect(size.z).toBeCloseTo(item.depth, 3)
+    expect(size.y).toBeCloseTo(modelHeights[item.id], 3)
+    expect(bounds.min.y).toBeCloseTo(0, 3)
+    expect(center.x).toBeCloseTo(0, 3)
+    expect(center.z).toBeCloseTo(0, 3)
+    const thumb = readFileSync(
+      new URL(
+        `../../../public/models/thumbnails/${item.id}.webp`,
+        import.meta.url
+      )
+    )
+    expect(thumb.subarray(8, 12).toString()).toBe("WEBP")
+  }
+)
 
 describe("editable model fallback", () => {
   it.each(catalog)(

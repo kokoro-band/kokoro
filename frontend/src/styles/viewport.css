@@ -37,6 +37,36 @@
   gap: var(--seed-dimension-x1);
 }
 
+.viewport-scope {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--seed-dimension-x1);
+  min-width: 0;
+  padding-inline: var(--seed-dimension-x1);
+}
+
+.viewport-scope > svg {
+  flex: none;
+  color: var(--seed-color-fg-neutral-muted);
+}
+
+.viewport-scope [aria-current="location"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1080px) {
+  .viewport-toolbar-arrange {
+    flex-wrap: wrap;
+  }
+
+  .viewport-toolbar-arrange .viewport-scope {
+    flex-basis: 100%;
+  }
+}
+
 .door-menu {
   min-width: 18rem;
 }

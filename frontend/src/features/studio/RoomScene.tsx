@@ -46,6 +46,13 @@ const sceneColors = {
   selection: "#FF6F0F",
 } as const
 
+const studioColors = {
+  background: "#EAE3D8",
+  ambientSky: "#FFF8EA",
+  ambientGround: "#C9BAAB",
+  sunlight: "#FFF2DD",
+} as const
+
 type SceneRuntime = {
   renderer: THREE.WebGLRenderer
   scene: THREE.Scene
@@ -129,6 +136,10 @@ function placeFurnitureModel(
 function disposeGroup(group: THREE.Group) {
   group.traverse((object) => {
     if (object.userData.sharedAsset) return
+    if (object instanceof THREE.Sprite) {
+      object.material.map?.dispose()
+      object.material.dispose()
+    }
     if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
       object.geometry.dispose()
       const materials = Array.isArray(object.material)
@@ -180,6 +191,9 @@ export function RoomScene({
     function initializeRoomRenderer() {
       const host = hostRef.current
       if (!host) return
+      const isStudio3d = mode === "3d"
+      const overview = isStudio3d && !focusRoom
+      const lighting = isStudio3d ? studioColors : sceneColors
 
       let renderer: THREE.WebGLRenderer
       try {
@@ -196,7 +210,8 @@ export function RoomScene({
       renderer.shadowMap.enabled = true
       renderer.shadowMap.type = THREE.PCFShadowMap
       renderer.xr.enabled = mode === "vr"
-      renderer.setClearColor(sceneColors.background, 1)
+      renderer.setClearColor(lighting.background, 1)
+      if (isStudio3d) renderer.toneMapping = THREE.ACESFilmicToneMapping
       host.appendChild(renderer.domElement)
 
       const bounds: Bounds = room?.bounds ?? defaultBounds
@@ -216,8 +231,17 @@ export function RoomScene({
       )
       const centerX = focusCenter ? focusCenter[0] - bounds.width / 2 : 0
       const centerZ = focusCenter ? focusCenter[1] - bounds.depth / 2 : 0
-      const viewportFit =
-        host.clientWidth <= 480 ? 1.18 : host.clientWidth <= 820 ? 1.08 : 1
+      const wideOverview =
+        overview &&
+        host.clientWidth >= 880 &&
+        host.clientWidth >= host.clientHeight
+      const viewportFit = wideOverview
+        ? 0.85
+        : host.clientWidth <= 480
+          ? 1.18
+          : host.clientWidth <= 820
+            ? 1.08
+            : 1
 
       const scene = new THREE.Scene()
       const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100 * scale)
@@ -229,7 +253,7 @@ export function RoomScene({
         centerZ + (mode === "2d" ? 0.01 : 7 * focusScale * viewportFit)
       )
       const controls = new OrbitControls(camera, renderer.domElement)
-      controls.target.set(centerX, 0.25, centerZ)
+      controls.target.set(centerX, overview ? 0.48 : 0.25, centerZ)
       // An editor must stop with the pointer. Inertia must not resume after
       // changing from furniture editing back to camera movement.
       controls.enableDamping = false
@@ -256,24 +280,59 @@ export function RoomScene({
       reportViewForward()
 
       const ambient = new THREE.HemisphereLight(
-        sceneColors.ambientSky,
-        sceneColors.ambientGround,
-        2.4
+        lighting.ambientSky,
+        lighting.ambientGround,
+        isStudio3d ? 1.9 : 2.4
       )
       scene.add(ambient)
-      const sun = new THREE.DirectionalLight(sceneColors.sunlight, 3)
-      sun.position.set(-3, 7, -4)
+      const sun = new THREE.DirectionalLight(
+        lighting.sunlight,
+        isStudio3d ? 2.2 : 3
+      )
+      sun.position.set(-3, isStudio3d ? 10.5 : 7, -4)
       sun.castShadow = true
       sun.shadow.mapSize.set(2048, 2048)
       sun.shadow.camera.left = -7 * scale
       sun.shadow.camera.right = 7 * scale
       sun.shadow.camera.top = 7 * scale
       sun.shadow.camera.bottom = -7 * scale
+      if (isStudio3d) {
+        sun.shadow.normalBias = 0.013
+        sun.shadow.radius = 3
+      }
       scene.add(sun)
 
+      let floorMap: THREE.Texture | undefined
       let roomGroup: THREE.Group
       if (room) {
-        roomGroup = buildRoomGroup(room, mode, doorAnglesRef.current)
+        if (isStudio3d) {
+          floorMap = new THREE.TextureLoader().load(
+            `${import.meta.env.BASE_URL}models/finishes/oak-floor.webp`
+          )
+          floorMap.colorSpace = THREE.SRGBColorSpace
+          floorMap.wrapS = floorMap.wrapT = THREE.RepeatWrapping
+          floorMap.repeat.set(1 / 2.4, 1 / 1.2)
+          floorMap.anisotropy = Math.min(
+            4,
+            renderer.capabilities.getMaxAnisotropy()
+          )
+        }
+        roomGroup = buildRoomGroup(room, mode, doorAnglesRef.current, {
+          overview,
+          focusRoom,
+          floorMap,
+        })
+        if (overview) {
+          const extent = Math.max(bounds.width, bounds.depth) * 4
+          const shadow = new THREE.Mesh(
+            new THREE.PlaneGeometry(extent, extent),
+            new THREE.ShadowMaterial({ opacity: 0.12 })
+          )
+          shadow.rotation.x = -Math.PI / 2
+          shadow.position.y = -0.135
+          shadow.receiveShadow = true
+          roomGroup.add(shadow)
+        }
       } else {
         roomGroup = new THREE.Group()
         addBox(roomGroup, [5.8, 0.12, 4.2], [0, -0.06, 0], sceneColors.floor)
@@ -304,17 +363,19 @@ export function RoomScene({
             sceneColors.frame
           )
         }
-        const grid = new THREE.GridHelper(
-          5.8,
-          29,
-          sceneColors.gridPrimary,
-          sceneColors.gridSecondary
-        )
-        grid.position.y = 0.008
-        grid.scale.z = 4.2 / 5.8
-        grid.material.transparent = true
-        grid.material.opacity = 0.24
-        roomGroup.add(grid)
+        if (mode === "2d") {
+          const grid = new THREE.GridHelper(
+            5.8,
+            29,
+            sceneColors.gridPrimary,
+            sceneColors.gridSecondary
+          )
+          grid.position.y = 0.008
+          grid.scale.z = 4.2 / 5.8
+          grid.material.transparent = true
+          grid.material.opacity = 0.24
+          roomGroup.add(grid)
+        }
       }
       scene.add(roomGroup)
       const doors = (roomGroup.userData.doors as DoorState[] | undefined) ?? []
@@ -402,6 +463,9 @@ export function RoomScene({
           : null
       }
 
+      const placementGrid = isStudio3d
+        ? roomGroup.getObjectByName("placement-grid")
+        : undefined
       const interaction =
         mode === "vr"
           ? null
@@ -427,9 +491,18 @@ export function RoomScene({
                 if (index >= 0) enterRoomRef.current?.(index)
               },
               onMove(id, [x, z]) {
-                return onMove(id, x + bounds.width / 2, z + bounds.depth / 2)
+                const moved = onMove(
+                  id,
+                  x + bounds.width / 2,
+                  z + bounds.depth / 2
+                )
+                if (placementGrid && moved) placementGrid.visible = true
+                return moved
               },
-              onCommit: onMoveEnd,
+              onCommit() {
+                if (placementGrid) placementGrid.visible = false
+                onMoveEnd()
+              },
               zoomCamera(factor) {
                 const offset = camera.position.clone().sub(controls.target)
                 offset.setLength(
@@ -620,6 +693,7 @@ export function RoomScene({
         locomotion?.dispose()
         controls.dispose()
         disposeGroup(roomGroup)
+        floorMap?.dispose()
         disposeGroup(furnitureGroup)
         for (const helper of doorHighlights.values()) {
           helper.geometry.dispose()

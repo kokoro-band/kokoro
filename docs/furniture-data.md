@@ -8,7 +8,7 @@
 - [실제 수집한 압축 파일](https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip)
 - 목록과 수집일 및 압축 파일의 SHA-256은 `docs/contracts/furniture-source-assets.json`에 있습니다.
 
-기존 서비스의 8개 GLB 모두 공식 압축 파일의 대응 모델과 SHA-256이 일치했습니다. 모델을 다시 만들거나 다른 공급자의 모델로 교체하지 않았습니다.
+처음 사용한 8개 GLB는 공식 압축 파일의 대응 모델과 SHA-256이 일치했습니다. 현재 웹에서 표시하는 8개 GLB는 같은 배치 규격에 맞춰 Blender로 제작했습니다. 서버가 검증하는 출처 정보는 최초 카탈로그의 원본을 가리킵니다.
 
 ## 실제 배치 가능한 가구
 

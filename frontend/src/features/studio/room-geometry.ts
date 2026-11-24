@@ -1,17 +1,25 @@
 import * as THREE from "three"
 
 import { labelPoint } from "./room-builder"
-import type { Opening, Point2, RoomModel, ViewMode, Wall } from "./types"
+import type {
+  Opening,
+  Point2,
+  RoomLabel,
+  RoomModel,
+  ViewMode,
+  Wall,
+} from "./types"
 
 const colors = {
   floor: "#D8CAB5",
+  floorEdge: "#A99780",
   ceiling: "#F4F2EC",
-  exteriorWall: "#EDECE5",
-  interiorWall: "#F8F7F2",
-  glass: "#BED4D9",
-  frame: "#FFFFFF",
-  door: "#B98958",
-  label: "#4A4E57",
+  exteriorWall: "#DDD2C1",
+  interiorWall: "#EFE5D6",
+  glass: "#B6CAC9",
+  frame: "#F7F0E4",
+  door: "#AA805B",
+  label: "#40392F",
 }
 
 const planViewWallHeight = 0.35
@@ -112,6 +120,7 @@ function buildWall(
   doors: DoorState[]
 ) {
   const group = new THREE.Group()
+  group.name = wall.id
   const frame = wallFrame(wall)
   if (frame.length === 0) return group
 
@@ -264,7 +273,12 @@ function buildCeiling(
   return mesh
 }
 
-function buildFloor(outline: Point2[], offsetX: number, offsetZ: number) {
+function buildFloor(
+  outline: Point2[],
+  offsetX: number,
+  offsetZ: number,
+  floorMap?: THREE.Texture
+) {
   const shape = new THREE.Shape(
     outline.map(([x, z]) => new THREE.Vector2(x + offsetX, -(z + offsetZ)))
   )
@@ -272,13 +286,21 @@ function buildFloor(outline: Point2[], offsetX: number, offsetZ: number) {
     depth: 0.12,
     bevelEnabled: false,
   })
-  const mesh = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({ color: colors.floor, roughness: 0.85 })
-  )
+  const mesh = new THREE.Mesh(geometry, [
+    new THREE.MeshStandardMaterial({
+      color: floorMap ? "#FFFFFF" : colors.floor,
+      map: floorMap ?? null,
+      roughness: 0.86,
+    }),
+    new THREE.MeshStandardMaterial({
+      color: colors.floorEdge,
+      roughness: 0.9,
+    }),
+  ])
   mesh.rotation.x = -Math.PI / 2
   mesh.position.y = -0.12
   mesh.receiveShadow = true
+  mesh.castShadow = true
   return mesh
 }
 
@@ -298,8 +320,10 @@ function makeLabelSprite(text: string) {
   canvas.width = Math.ceil(context.measureText(text).width) + padding * 2
   canvas.height = 24 * scale
   context.font = font
-  context.fillStyle = "rgba(255, 255, 255, 0.82)"
-  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = "rgba(255, 252, 246, 0.92)"
+  context.beginPath()
+  context.roundRect(0, 0, canvas.width, canvas.height, canvas.height / 2)
+  context.fill()
   context.fillStyle = colors.label
   context.textBaseline = "middle"
   context.fillText(text, padding, canvas.height / 2)
@@ -307,10 +331,16 @@ function makeLabelSprite(text: string) {
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: texture, depthTest: false })
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    })
   )
   const worldHeight = window.matchMedia("(max-width: 820px)").matches
-    ? 0.9
+    ? 0.48
     : 0.32
   sprite.scale.set((canvas.width / canvas.height) * worldHeight, worldHeight, 1)
   sprite.renderOrder = 10
@@ -349,7 +379,84 @@ function pointInPolygon([px, pz]: Point2, polygon: Point2[]) {
   return inside
 }
 
-function isInsideRoom(model: RoomModel, worldX: number, worldZ: number) {
+function studioWallHeight(
+  wall: Wall,
+  model: RoomModel,
+  exterior: boolean,
+  overview: boolean
+) {
+  if (!exterior)
+    return overview ? Math.min(model.wallHeight, 1.82) : model.wallHeight
+  const dx = wall.b[0] - wall.a[0]
+  const dz = wall.b[1] - wall.a[1]
+  const length = Math.hypot(dx, dz)
+  if (!length) return model.wallHeight
+  const x = (wall.a[0] + wall.b[0]) / 2
+  const z = (wall.a[1] + wall.b[1]) / 2
+  const nx = -dz / length
+  const nz = dx / length
+  const positiveInside = pointInPolygon(
+    [x + nx * 0.02, z + nz * 0.02],
+    model.outline
+  )
+  const negativeInside = pointInPolygon(
+    [x - nx * 0.02, z - nz * 0.02],
+    model.outline
+  )
+  if (positiveInside === negativeInside) return model.wallHeight
+  // The opening camera views the house from the positive X and Z corner.
+  const outwardTowardCamera = (positiveInside ? -1 : 1) * (nx * 5 + nz * 7)
+  return outwardTowardCamera > 1.5
+    ? Math.min(model.wallHeight, 0.74)
+    : model.wallHeight
+}
+
+function buildPlacementGrid(model: RoomModel, visible: boolean) {
+  const { width, depth } = model.bounds
+  const spacing = Math.max(0.2, Math.max(width, depth) / 64)
+  const positions: number[] = []
+  const appendLines = (axis: 0 | 1, extent: number) => {
+    const crossAxis = axis === 0 ? 1 : 0
+    for (let line = spacing; line < extent; line += spacing) {
+      const crossings: number[] = []
+      for (let i = 0; i < model.outline.length; i++) {
+        const a = model.outline[i]
+        const b = model.outline[(i + 1) % model.outline.length]
+        if (a[axis] > line === b[axis] > line) continue
+        const t = (line - a[axis]) / (b[axis] - a[axis])
+        crossings.push(a[crossAxis] + t * (b[crossAxis] - a[crossAxis]))
+      }
+      crossings.sort((a, b) => a - b)
+      for (let i = 0; i + 1 < crossings.length; i += 2) {
+        for (const cross of [crossings[i], crossings[i + 1]]) {
+          const [x, z] = axis === 0 ? [line, cross] : [cross, line]
+          positions.push(x - width / 2, 0.012, z - depth / 2)
+        }
+      }
+    }
+  }
+  appendLines(0, width)
+  appendLines(1, depth)
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+  )
+  const grid = new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({
+      color: "#81715C",
+      transparent: true,
+      opacity: 0.25,
+      depthWrite: false,
+    })
+  )
+  grid.name = "placement-grid"
+  grid.visible = visible
+  return grid
+}
+
+export function isInsideRoom(model: RoomModel, worldX: number, worldZ: number) {
   return pointInPolygon(
     [worldX + model.bounds.width / 2, worldZ + model.bounds.depth / 2],
     model.outline
@@ -462,7 +569,16 @@ export function roomSpawnPoint(model: RoomModel) {
 export function buildRoomGroup(
   model: RoomModel,
   mode: ViewMode,
-  previousDoorAngles?: ReadonlyMap<string, number>
+  previousDoorAngles?: ReadonlyMap<string, number>,
+  {
+    overview = false,
+    focusRoom,
+    floorMap,
+  }: {
+    overview?: boolean
+    focusRoom?: RoomLabel | null
+    floorMap?: THREE.Texture
+  } = {}
 ) {
   const group = new THREE.Group()
   const offsetX = -model.bounds.width / 2
@@ -472,7 +588,7 @@ export function buildRoomGroup(
       ? Math.min(planViewWallHeight, model.wallHeight)
       : model.wallHeight
 
-  group.add(buildFloor(model.outline, offsetX, offsetZ))
+  group.add(buildFloor(model.outline, offsetX, offsetZ, floorMap))
 
   const doorRest = 0
   const doors: DoorState[] = []
@@ -480,12 +596,15 @@ export function buildRoomGroup(
     const openings = model.openings.filter(
       (opening) => opening.wallId === wall.id
     )
+    const exterior = isExteriorWall(wall, model.outline)
     group.add(
       buildWall(
         wall,
         openings,
-        wallHeight,
-        isExteriorWall(wall, model.outline),
+        mode === "3d"
+          ? studioWallHeight(wall, model, exterior, overview)
+          : wallHeight,
+        exterior,
         offsetX,
         offsetZ,
         doorRest,
@@ -505,8 +624,10 @@ export function buildRoomGroup(
     group.add(buildCeiling(model.outline, wallHeight, offsetX, offsetZ))
   }
 
-  const labelHeight = mode === "vr" ? wallHeight - 0.35 : wallHeight + 0.25
-  for (const room of model.rooms) {
+  const labelHeight =
+    mode === "vr" ? wallHeight - 0.35 : overview ? 0.52 : wallHeight + 0.25
+  const labeledRooms = mode === "3d" && focusRoom ? [] : model.rooms
+  for (const room of labeledRooms) {
     const sprite = makeLabelSprite(room.name)
     if (!sprite) continue
     const [x, z] = labelPoint(room.polygon)
@@ -514,16 +635,7 @@ export function buildRoomGroup(
     group.add(sprite)
   }
 
-  const grid = new THREE.GridHelper(
-    Math.max(model.bounds.width, model.bounds.depth),
-    Math.round(Math.max(model.bounds.width, model.bounds.depth) * 5),
-    "#B4A58F",
-    "#C3B59F"
-  )
-  grid.position.y = 0.008
-  grid.material.transparent = true
-  grid.material.opacity = 0.18
-  group.add(grid)
+  if (mode !== "vr") group.add(buildPlacementGrid(model, mode === "2d"))
 
   return group
 }

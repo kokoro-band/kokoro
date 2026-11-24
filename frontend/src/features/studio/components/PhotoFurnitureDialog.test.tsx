@@ -129,7 +129,7 @@ describe("사진으로 가구 추가", () => {
     const [sent, box] = measure.mock.calls[0] as unknown as [File, number[]]
     expect(sent).toBe(photo)
     expect(box).toEqual([0.1, 0.25, 0.9, 1])
-    expect(app.dialog().textContent).toContain("±20%")
+    expect(app.dialog().textContent).toContain("±10%")
     expect(app.field("가로").value).toBe("56")
     expect(app.field("높이").value).toBe("108")
 

@@ -225,7 +225,7 @@ export function PhotoFurnitureDialog({
             <ContentDialog.Title>사진으로 가구 추가</ContentDialog.Title>
             <ContentDialog.Description>
               {step === "result"
-                ? "사진으로 추정한 값이라 ±20% 정도 틀릴 수 있어요. 줄자로 잰 값이 있으면 고쳐 주세요."
+                ? "사진으로 추정한 값이라 ±10% 정도 틀릴 수 있어요. 줄자로 잰 값이 있으면 고쳐 주세요."
                 : step === "pick"
                   ? "휴대폰으로 찍은 가구 사진을 PC로 옮겨 원본 그대로 골라 주세요."
                   : "사진 위를 끌어서 가구 전체를 감싸는 상자를 그려 주세요."}

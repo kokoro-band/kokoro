@@ -76,7 +76,7 @@ describe("local command review contract", () => {
     const afterUndo = await api.confirmCommand(undone, proposal.proposalId!)
     expect(afterUndo.project).toEqual(undone)
     expect(afterUndo.appliedActions).toEqual([])
-    expect(api.readSavedProject().furniture).toEqual([])
+    expect(api.readSavedProjectWithRecovery().project.furniture).toEqual([])
   })
   it("rejects an expired proposal or a changed layout without applying it", async () => {
     const api = await localApi()

@@ -14,18 +14,20 @@ it("retains a group after a denied liveness probe and waits until it disappears"
   const groups = new ProcessGroups(kill)
   groups.track(44)
   groups.leaderExited(44)
-  expect(groups.groups.has(44)).toBe(true)
   await groups.stop(0)
-  expect(groups.groups.size).toBe(0)
+  expect(kill).toHaveBeenCalledWith(44, "SIGTERM")
+  expect(alive).toBe(false)
 })
 
 it("does not ignore permission errors when sending termination signals", async () => {
-  const groups = new ProcessGroups(() => {
+  const kill = vi.fn(() => {
     throw Object.assign(new Error("termination denied"), { code: "EPERM" })
   })
+  const groups = new ProcessGroups(kill)
   groups.track(45)
   await expect(groups.stop(0)).rejects.toThrow("termination denied")
-  expect(groups.groups.has(45)).toBe(true)
+  await expect(groups.stop(0)).rejects.toThrow("termination denied")
+  expect(kill).toHaveBeenCalledTimes(2)
 })
 
 it("cleans remaining descendants even when their leader already exited", async () => {

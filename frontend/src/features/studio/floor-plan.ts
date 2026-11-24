@@ -530,7 +530,7 @@ export function analyzeFloorPlan(
   }
 }
 
-export function alignEdges(values: number[], tolerance = edgeTolerance) {
+function alignEdges(values: number[], tolerance = edgeTolerance) {
   const sorted = [...new Set(values)].sort((left, right) => left - right)
   const aligned = new Map<number, number>()
   let group: number[] = []

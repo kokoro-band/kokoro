@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -188,14 +189,14 @@ class ProjectRevisionIntegrationTest {
         JsonNode before = read(id);
         assertFalse(coordinator.fail(id, job, "OLD", "old"));
         assertEquals(before, read(id));
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertRevision(read(id), 6);
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertEquals("FAILED", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, next));
         assertEquals("READY", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, job));
         assertEquals(25.25, read(id).path("furniture").get(0).path("rotation").doubleValue());
         JsonNode failed = read(id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals(failed, read(id));
     }
 
@@ -241,7 +242,7 @@ class ProjectRevisionIntegrationTest {
             try (var statement = blocker.createStatement(); var rows = statement.executeQuery("SELECT pg_backend_pid()")) {
                 assertTrue(rows.next()); blockerPid = rows.getInt(1);
             }
-            var recovering = executor.submit(() -> recovery.recover());
+            var recovering = executor.submit(() -> recovery.run(new DefaultApplicationArguments()));
             try {
                 // Wait for an observed database lock, not an arbitrary delay or a retry of the operation.
                 await().atMost(Duration.ofSeconds(10)).until(() -> Boolean.TRUE.equals(jdbc.queryForObject(
@@ -263,7 +264,7 @@ class ProjectRevisionIntegrationTest {
         String id = create();
         // V2 introduced nullable job IDs without backfilling older PROCESSING rows.
         jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING',floor_plan_job_id=NULL WHERE id=?", id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertRevision(read(id), 1);
         assertFalse(upload(id).isBlank());
@@ -277,7 +278,7 @@ class ProjectRevisionIntegrationTest {
         assertTrue(coordinator.markReady(id, job));
         Map<String, Object> terminal = jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job);
         jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING' WHERE id=?", id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals(terminal, jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job));
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertRevision(read(id), 3);

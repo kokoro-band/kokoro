@@ -92,7 +92,7 @@ it("shows a SEED confirmation with target names and cancels without changing sav
   const app = await setup()
   const input = await app.send("방을 비워줘")
   const dialog = document.querySelector(
-    '[role="dialog"].seed-content-dialog__content'
+    '[role="dialog"]'
   )
   expect(dialog).not.toBeNull()
   expect(dialog!.textContent).toContain("배치 변경 확인")
@@ -106,7 +106,7 @@ it("applies a local clear only when the confirmation button is clicked", async (
   const app = await setup()
   await app.send("방을 비워줘")
   const dialog = document.querySelector(
-    '[role="dialog"].seed-content-dialog__content'
+    '[role="dialog"]'
   )
   expect(dialog).not.toBeNull()
   await app.click("변경 적용", dialog!)
@@ -117,7 +117,7 @@ it("gives mobile confirmation sole modal ownership and restores the assistant on
   const app = await setup()
   await app.send("방을 비워줘")
   const dialog = document.querySelector(
-    '[role="dialog"].seed-content-dialog__content'
+    '[role="dialog"]'
   )
   expect(dialog?.textContent).toContain("배치 변경 확인")
   expect(document.querySelector('.mobile-sheet[aria-modal="true"]')).toBeNull()
@@ -138,7 +138,7 @@ it("lists same-named candidates with rooms and coordinates and changes only the 
   const app = await setup([one, two])
   await app.send("의자를 창가로 옮겨줘")
   const dialog = document.querySelector(
-    '[role="dialog"].seed-content-dialog__content'
+    '[role="dialog"]'
   )
   expect(dialog).not.toBeNull()
   expect(dialog!.textContent).toContain("대상 가구 선택")

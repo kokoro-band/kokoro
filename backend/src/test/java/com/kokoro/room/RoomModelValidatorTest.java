@@ -89,7 +89,21 @@ class RoomModelValidatorTest {
             var error = assertThrows(InvalidRoomException.class,
                     () -> validator.validate(mapper.treeToValue(room, RoomModel.class)), room.toString());
             assertFalse(error.violations().isEmpty());
-            assertTrue(error.violations().size() <= 32);
         }
+
+        var manyErrors = fixture();
+        var badWalls = mapper.createArrayNode();
+        for (int i = 0; i < 40; i++) {
+            badWalls.add(mapper.createObjectNode()
+                    .put("id", "bad-" + i)
+                    .put("thickness", -1)
+                    .set("a", mapper.readTree("[0,0]"))
+                    .set("b", mapper.readTree("[1,0]")));
+        }
+        manyErrors.set("walls", badWalls);
+        manyErrors.set("openings", mapper.createArrayNode());
+        var capped = assertThrows(InvalidRoomException.class,
+                () -> validator.validate(mapper.treeToValue(manyErrors, RoomModel.class)));
+        assertEquals(32, capped.violations().size());
     }
 }

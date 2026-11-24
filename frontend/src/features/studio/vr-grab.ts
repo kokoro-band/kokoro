@@ -1,31 +1,29 @@
-export const rotationStep = 15
-export const rotationDelay = 0.4
-export const rotationRepeat = 0.2
+const rotationStep = 15
+const rotationDelay = 0.4
+const rotationRepeat = 0.2
 const stickThreshold = 0.6
 
-export type TurnState = {
+type TurnState = {
   rotation: number
   armed: boolean
   repeatIn: number
-  turned: boolean
 }
 
 /** Wraps into [0, 360). Fractional angles stay, only float noise is dropped. */
-export function normalizeDegrees(value: number) {
+function normalizeDegrees(value: number) {
   const wrapped = ((value % 360) + 360) % 360
   return (Math.round(wrapped * 1e6) / 1e6) % 360
 }
 
-export function startTurn(rotation: number): TurnState {
+function startTurn(rotation: number): TurnState {
   return {
     rotation: normalizeDegrees(rotation),
     armed: true,
     repeatIn: 0,
-    turned: false,
   }
 }
 
-export function turnHeld(
+function turnHeld(
   state: TurnState,
   stickX: number,
   deltaSeconds: number
@@ -45,7 +43,6 @@ export function turnHeld(
       rotation: normalizeDegrees(state.rotation + push * rotationStep),
       armed: false,
       repeatIn: state.armed ? rotationDelay : rotationRepeat,
-      turned: true,
     },
     stepped: true,
   }
@@ -54,14 +51,14 @@ export function turnHeld(
 type Point = [x: number, z: number]
 
 /** Smallest hand motion that moves held furniture, in metres. */
-export const moveThreshold = 0.001
+const moveThreshold = 0.001
 /**
  * How far held furniture moves for each metre the ray moves on the floor.
  * Far away a small wrist turn sweeps the ray a long way, so 1 felt twitchy.
  */
-export const moveSensitivity = 0.6
+const moveSensitivity = 0.6
 /** Seconds to close most of the gap to the ray, so tremor does not jolt it. */
-export const moveSmoothing = 0.1
+const moveSmoothing = 0.1
 
 export type Hold = {
   id: string

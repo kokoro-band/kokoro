@@ -19,7 +19,7 @@ function doorPosition(room: RoomModel, opening: Opening) {
 }
 
 /** Name the spaces on either side of a doorway for the keyboard door menu. */
-export function doorLocation(room: RoomModel, opening: Opening) {
+function doorLocation(room: RoomModel, opening: Opening) {
   const position = doorPosition(room, opening)
   if (!position) return "위치를 알 수 없는 문"
   const { x, z, normalX, normalZ, offset } = position

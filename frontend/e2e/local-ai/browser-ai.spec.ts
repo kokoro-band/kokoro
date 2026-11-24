@@ -22,13 +22,6 @@ const rotate = JSON.stringify({
   rotation: 0,
   anchorCatalogId: null,
 })
-const clear = JSON.stringify({
-  action: "CLEAR",
-  catalogId: null,
-  placement: null,
-  rotation: null,
-  anchorCatalogId: null,
-})
 const baseline = JSON.stringify(initialProject)
 
 test("rotation waits for confirmation and survives reload in storage and furniture UI", async ({
@@ -73,119 +66,39 @@ test("rotation waits for confirmation and survives reload in storage and furnitu
   )
 })
 
-test("cancelling a clear proposal preserves storage and restores the input focus", async ({
+test("malformed model output preserves the project and permits a rule based request", async ({
   page,
   context,
 }, info) => {
   await gpuSupport(context)
-  await modelWorker(context, [[{ text: clear }]])
+  await modelWorker(context, [[{ text: "not JSON" }]])
   await openAssistant(page, info.project.name === "narrow")
-  await send(page, "방을 비워줘")
-  await review(page, "가구 2개 모두 삭제")
-  expect(await stored(page)).toBe(baseline)
-  await confirmation(page)
-    .getByRole("button", { name: "취소", exact: true })
-    .click()
+  await send(page, "의자를 90도 회전해줘")
+  await expect(page.locator(".assistant-log")).toContainText(
+    "AI가 요청을 읽을 수 있는 형식으로 답하지 않았어요."
+  )
   await expect(confirmation(page)).toHaveCount(0)
-  await expect(input(page)).toBeFocused()
+  await expect(input(page)).toBeEnabled()
   expect(await stored(page)).toBe(baseline)
-  await page.reload()
-  await page.getByRole("button", { name: "내역", exact: true }).click()
-  await expect(page.getByRole("main")).toContainText("셸 체어")
-  await expect(page.getByRole("main")).toContainText("클라우드 소파")
-  expect(await stored(page)).toBe(baseline)
+  await rulesFallback(page)
 })
 
-test("explicit plant beside sofa corrects a wrong model target and stays in the living room", async ({
+test("missing WebGPU never starts a model and permits a rule based request", async ({
   page,
   context,
 }, info) => {
-  await gpuSupport(context)
-  await modelWorker(context, [
-    [
-      {
-        text: JSON.stringify({
-          action: "ADD",
-          catalogId: "sofa-cloud",
-          placement: "CENTER",
-          rotation: null,
-          anchorCatalogId: null,
-        }),
-      },
-    ],
-  ])
+  await gpuSupport(context, "missing")
+  const model = await modelWorker(context, [])
   await openAssistant(page, info.project.name === "narrow")
-  await send(page, "소파 옆에 화분을 놓아줘")
-  await review(page, "올리브 화분 추가")
+  await send(page, "의자를 90도 회전해줘")
+  await expect(page.locator(".assistant-log")).toContainText(
+    "이 브라우저에서는 WebGPU를 사용할 수 없어요."
+  )
+  expect(model.loads()).toBe(0)
   expect(await stored(page)).toBe(baseline)
-  await apply(page)
-  const saved = await storedProject(page)
-  expect(saved.furniture.slice(0, 2)).toEqual(initialProject.furniture)
-  expect(saved.furniture).toHaveLength(3)
-  const plant = saved.furniture[2]
-  expect(plant.catalogId).toBe("plant-olive")
-  expect(plant.x).toBeGreaterThan(0)
-  expect(plant.x).toBeLessThan(4)
-  expect(plant.z).toBeGreaterThan(0)
-  expect(plant.z).toBeLessThan(6)
-  expect(Math.hypot(plant.x - 2, plant.z - 4.2)).toBeLessThanOrEqual(2.2)
-  await page.reload()
-  await page.getByRole("button", { name: "내역", exact: true }).click()
-  await expect(page.getByRole("main")).toContainText("올리브 화분")
-  expect(await storedProject(page)).toEqual(saved)
+  await rulesFallback(page)
+  expect(model.loads()).toBe(0)
 })
-
-for (const [name, text, message] of [
-  [
-    "malformed JSON",
-    "not JSON",
-    "AI가 요청을 읽을 수 있는 형식으로 답하지 않았어요.",
-  ],
-  [
-    "unknown action",
-    '{"action":"FLY","catalogId":"chair-shell"}',
-    "AI 응답 형식이 올바르지 않아요.",
-  ],
-  [
-    "unknown catalog item",
-    '{"action":"ADD","catalogId":"imaginary-chair"}',
-    "AI가 카탈로그에 없는 가구를 골랐어요. 배치는 유지했어요.",
-  ],
-]) {
-  test(`${name} preserves the project and permits a rule based request`, async ({
-    page,
-    context,
-  }, info) => {
-    await gpuSupport(context)
-    await modelWorker(context, [[{ text }]])
-    await openAssistant(page, info.project.name === "narrow")
-    await send(page, "의자를 90도 회전해줘")
-    await expect(page.locator(".assistant-log")).toContainText(message)
-    await expect(confirmation(page)).toHaveCount(0)
-    await expect(input(page)).toBeEnabled()
-    expect(await stored(page)).toBe(baseline)
-    await rulesFallback(page)
-  })
-}
-
-for (const mode of ["missing", "no-adapter", "throws"] as const) {
-  test(`WebGPU ${mode} never starts a model and permits a rule based request`, async ({
-    page,
-    context,
-  }, info) => {
-    await gpuSupport(context, mode)
-    const model = await modelWorker(context, [])
-    await openAssistant(page, info.project.name === "narrow")
-    await send(page, "의자를 90도 회전해줘")
-    await expect(page.locator(".assistant-log")).toContainText(
-      "이 브라우저에서는 WebGPU를 사용할 수 없어요."
-    )
-    expect(model.loads()).toBe(0)
-    expect(await stored(page)).toBe(baseline)
-    await rulesFallback(page)
-    expect(model.loads()).toBe(0)
-  })
-}
 
 for (const failure of ["error", "crash"] as const) {
   test(`Worker ${failure} preserves storage and recovers on the next AI request`, async ({

@@ -5,6 +5,7 @@ import {
   parseBrowserIntent,
   resolveRequestedRotation,
 } from "./browser-ai-intent"
+import { isWebGpuAvailable } from "./browser-ai"
 import { proposeBrowserIntent } from "./browser-ai-command"
 import { sampleProject } from "./data"
 import { roomForFurniture } from "./house-navigation"
@@ -203,4 +204,26 @@ it("keeps browser AI changes inside the focused room", async () => {
   expect(proposal.proposedCommands).toEqual([
     { type: "REMOVE", furnitureId: mine.id },
   ])
+})
+
+it.each([
+  ["missing", undefined],
+  ["no-adapter", { requestAdapter: async () => null }],
+  [
+    "throws",
+    {
+      requestAdapter: async () => {
+        throw new Error("blocked")
+      },
+    },
+  ],
+])("reports WebGPU unavailable when %s", async (_mode, gpu) => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, "gpu")
+  Object.defineProperty(navigator, "gpu", { value: gpu, configurable: true })
+  try {
+    expect(await isWebGpuAvailable()).toBe(false)
+  } finally {
+    if (previous) Object.defineProperty(navigator, "gpu", previous)
+    else delete (navigator as Navigator & { gpu?: unknown }).gpu
+  }
 })

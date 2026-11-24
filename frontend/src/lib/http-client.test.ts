@@ -5,7 +5,6 @@ import {
   ApiError,
   httpClient,
   normalizeApiError,
-  REQUEST_TIMEOUT_MS,
   UPLOAD_TIMEOUT_MS,
 } from "./http-client"
 
@@ -67,7 +66,7 @@ describe("normalizeApiError", () => {
 
 describe("request timeouts", () => {
   it("uses a finite default and a longer upload timeout", () => {
-    expect(httpClient.defaults.timeout).toBe(REQUEST_TIMEOUT_MS)
-    expect(UPLOAD_TIMEOUT_MS).toBeGreaterThan(REQUEST_TIMEOUT_MS)
+    expect(httpClient.defaults.timeout).toBe(15_000)
+    expect(UPLOAD_TIMEOUT_MS).toBeGreaterThan(httpClient.defaults.timeout!)
   })
 })

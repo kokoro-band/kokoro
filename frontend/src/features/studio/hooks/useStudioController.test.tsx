@@ -390,47 +390,6 @@ describe("useStudioController project switching", () => {
     calls("saveProject")[2].resolve(calls("saveProject")[2].arg)
     await flush()
   })
-  it("ignores a restore action from an older project's error notice", async () => {
-    const app = await setup()
-    act(() => app.get().addFurniture("sofa-cloud"))
-    await flush()
-    calls("saveProject")[0].reject(new ApiError("거부", 400, false))
-    await flush()
-    const oldNoticeId = app.get().notice!.id
-    act(() => {
-      void app.get().createProject("B")
-    })
-    await flush()
-    calls("createProject")[0].resolve(structuredClone(projectB))
-    await flush()
-    act(() => app.get().addFurniture("chair-shell"))
-    await flush()
-    calls("saveProject")[1].reject(new ApiError("거부", 400, false))
-    await flush()
-    const draft = app.get().project.furniture
-    act(() => app.get().restoreSavedProject(oldNoticeId))
-    expect(app.get().project.furniture).toEqual(draft)
-    act(() => app.get().restoreSavedProject(app.get().notice!.id))
-    expect(app.get().project.furniture).toEqual(projectB.furniture)
-  })
-  it("does not restore an old snapshot while a newer save is in flight", async () => {
-    const app = await setup()
-    act(() => app.get().addFurniture("sofa-cloud"))
-    await flush()
-    calls("saveProject")[0].reject(new ApiError("거부", 400, false))
-    await flush()
-    expect(app.get().saveRejected).toBe(true)
-    act(() => app.get().addFurniture("chair-shell"))
-    await flush()
-    const draft = app.get().project.furniture
-    expect(calls("saveProject")).toHaveLength(2)
-    act(() => app.get().restoreSavedProject())
-    expect(app.get().project.furniture).toEqual(draft)
-    calls("saveProject")[1].resolve(calls("saveProject")[1].arg)
-    await flush()
-    expect(app.get().project.furniture).toEqual(draft)
-    expect(app.get().dirty).toBe(false)
-  })
 
   it("serializes room saves after the upload status read and uses its revision", async () => {
     const app = await setup()

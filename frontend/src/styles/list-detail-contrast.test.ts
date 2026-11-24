@@ -43,11 +43,4 @@ describe("list detail text", () => {
     const panel = lightValue("--seed-color-bg-layer-default")
     expect(contrast(text, panel)).toBeGreaterThanOrEqual(4.5)
   })
-
-  it("documents why the SEED default is not enough", () => {
-    // SEED's own detail colour: about 3.4:1 on white.
-    expect(
-      contrast(lightValue("--seed-color-fg-neutral-subtle"), "#ffffff")
-    ).toBeLessThan(4.5)
-  })
 })

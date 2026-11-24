@@ -6,6 +6,7 @@ import com.kokoro.room.project.FloorPlanJobRecovery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -118,7 +119,7 @@ class FloorPlanJobStabilityTest {
         String projectId = createProject("재시작 복구");
         String jobId = jobId(upload(projectId, "before-restart.pdf"));
 
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
 
         mvc.perform(get("/api/projects/{id}/floor-plan/jobs/{jobId}", projectId, jobId))
                 .andExpect(status().isOk())
@@ -134,20 +135,7 @@ class FloorPlanJobStabilityTest {
     }
 
     @Test
-    void completionAfterDeletionDoesNotRestoreProject() throws Exception {
-        String projectId = createProject("삭제 경합");
-        String jobId = jobId(upload(projectId, "delete.pdf"));
-
-        mvc.perform(delete("/api/projects/{id}", projectId)).andExpect(status().isNoContent());
-        processor.process(projectId, jobId);
-
-        mvc.perform(get("/api/projects/{id}", projectId)).andExpect(status().isNotFound());
-        assertTrue(Files.notExists(storage.resolve(projectId))
-                || countRegularFiles(storage.resolve(projectId)) == 0);
-    }
-
-    @Test
-    void deleteProjectRemovesAllUploadedFloorPlanFiles() throws Exception {
+    void deleteProjectRemovesAllUploadedFloorPlanFilesAndLateCompletionDoesNotRestoreIt() throws Exception {
         String projectId = createProject("도면 교체 삭제");
         String firstJobId = jobId(upload(projectId, "first.pdf"));
         processor.process(projectId, firstJobId);

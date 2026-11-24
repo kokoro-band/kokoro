@@ -30,12 +30,16 @@ describe("project API paths", () => {
       setItem: (key: string, value: string) => storage.set(key, value),
     })
     try {
-      const { createProject, saveRoom, saveProject, readSavedProject } =
-        await import("./project-api")
+      const {
+        createProject,
+        saveRoom,
+        saveProject,
+        readSavedProjectWithRecovery,
+      } = await import("./project-api")
       const empty = await createProject("빈 프로젝트")
       expect(empty.furniture).toEqual([])
       await saveRoom(empty, sampleRoom)
-      expect(readSavedProject().furniture).toEqual([])
+      expect(readSavedProjectWithRecovery().project.furniture).toEqual([])
       const draft = {
         ...empty,
         furniture: [{ ...sampleProject.furniture[0], x: 30, z: 30 }],
@@ -46,8 +50,10 @@ describe("project API paths", () => {
         ...saved,
         furniture: [{ ...saved.furniture[0], x: 4 }],
       })
-      expect(readSavedProject().furniture[0]).toMatchObject({ x: 4, z: 30 })
-      expect(readSavedProject().room).toEqual(sampleRoom)
+      expect(readSavedProjectWithRecovery().project.furniture[0]).toMatchObject(
+        { x: 4, z: 30 }
+      )
+      expect(readSavedProjectWithRecovery().project.room).toEqual(sampleRoom)
     } finally {
       vi.unstubAllGlobals()
     }

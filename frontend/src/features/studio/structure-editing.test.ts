@@ -9,7 +9,6 @@ import {
 import {
   adjustOpening,
   alongWall,
-  resizeRect,
   resizeStructure,
   type ResizeHandle,
   type StructureState,
@@ -35,37 +34,41 @@ function withOpening(
 }
 
 describe("room handles", () => {
-  it.each(["n", "ne", "e", "se", "s", "sw", "w", "nw"] as ResizeHandle[])(
+  it.each([
+    ["n", { x: 0, z: 0.8, width: 4, depth: 3.2 }],
+    ["ne", { x: 0, z: 0.8, width: 4.8, depth: 3.2 }],
+    ["e", { x: 0, z: 0, width: 4.8, depth: 4 }],
+    ["se", { x: 0, z: 0, width: 4.8, depth: 4.8 }],
+    ["s", { x: 0, z: 0, width: 4, depth: 4.8 }],
+    ["sw", { x: 0.8, z: 0, width: 3.2, depth: 4.8 }],
+    ["w", { x: 0.8, z: 0, width: 3.2, depth: 4 }],
+    ["nw", { x: 0.8, z: 0.8, width: 3.2, depth: 3.2 }],
+  ] as [ResizeHandle, { x: number; z: number; width: number; depth: number }][])(
     "anchors the opposite edges for %s",
-    (handle) => {
-      const next = resizeRect(room, handle, 0.84, 0.84)
-      expect(next.width).toBe(
-        handle.includes("e") ? 4.8 : handle.includes("w") ? 3.2 : 4
-      )
-      expect(next.depth).toBe(
-        handle.includes("s") ? 4.8 : handle.includes("n") ? 3.2 : 4
-      )
-      expect(handle.includes("w") ? next.x + next.width : next.x).toBe(
-        handle.includes("w") ? 4 : 0
-      )
-      expect(handle.includes("n") ? next.z + next.depth : next.z).toBe(
-        handle.includes("n") ? 4 : 0
-      )
+    (handle, expected) => {
+      const next = resizeStructure(initial(), "a", handle, 0.84, 0.84).state
+        .draft.rooms[0]
+      expect(next).toMatchObject(expected)
     }
   )
   it("clamps without flipping and rejects non-finite input", () => {
-    expect(resizeRect(room, "nw", 200, 200)).toMatchObject({
+    const base = initial()
+    expect(
+      resizeStructure(base, "a", "nw", 200, 200).state.draft.rooms[0]
+    ).toMatchObject({
       x: 3,
       z: 3,
       width: 1,
       depth: 1,
     })
-    expect(resizeRect(room, "se", 200, 200)).toMatchObject({
+    expect(
+      resizeStructure(base, "a", "se", 200, 200).state.draft.rooms[0]
+    ).toMatchObject({
       width: 40,
       depth: 40,
     })
-    expect(resizeRect(room, "se", NaN, 1)).toBe(room)
-    expect(resizeRect(room, "se", 0.01, 0.01)).toBe(room)
+    expect(resizeStructure(base, "a", "se", NaN, 1).state).toBe(base)
+    expect(resizeStructure(base, "a", "se", 0.01, 0.01).state).toBe(base)
   })
   it("keeps other rooms still and normalizes only at commit", () => {
     const state = initial([room, { ...room, id: "b", x: 4 }])

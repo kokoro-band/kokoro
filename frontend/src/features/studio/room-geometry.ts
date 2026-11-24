@@ -349,7 +349,7 @@ function pointInPolygon([px, pz]: Point2, polygon: Point2[]) {
   return inside
 }
 
-export function isInsideRoom(model: RoomModel, worldX: number, worldZ: number) {
+function isInsideRoom(model: RoomModel, worldX: number, worldZ: number) {
   return pointInPolygon(
     [worldX + model.bounds.width / 2, worldZ + model.bounds.depth / 2],
     model.outline

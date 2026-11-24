@@ -45,7 +45,7 @@ describe("fractional rotation persistence", () => {
       const local = await import("./project-api")
       const source = project(rotation)
       await local.saveProject(source)
-      const restored = local.readSavedProject()
+      const restored = local.readSavedProjectWithRecovery().project
       expect(restored.furniture[0].rotation).toBe(rotation)
       expect(parseStoredProject(JSON.parse(saved!)).furniture[0].rotation).toBe(
         rotation
@@ -78,9 +78,10 @@ describe("fractional rotation persistence", () => {
       source.room!.walls.some((wall) => overlaps(box, wallBox(wall)))
     ).toBe(false)
     vi.stubEnv("VITE_API_MODE", "local")
-    const { saveProject, readSavedProject } = await import("./project-api")
+    const { saveProject, readSavedProjectWithRecovery } =
+      await import("./project-api")
     await saveProject({ ...source, furniture: [rotated] })
-    expect(readSavedProject().furniture[0]).toEqual(rotated)
+    expect(readSavedProjectWithRecovery().project.furniture[0]).toEqual(rotated)
   })
 })
 

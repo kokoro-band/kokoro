@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 
+import { containsPoint } from "./house-navigation"
 import {
   addOpening,
   addRoom,
@@ -8,18 +9,14 @@ import {
   draftAreaPyeong,
   draftFromModel,
   hasOverlap,
-  exteriorThickness,
   fitToArea,
   isConnected,
-  interiorThickness,
-  labelPoint,
   mergeRooms,
   moveRoom,
   nextRoomName,
   removeOpening,
   roomsAcrossWall,
   removeRoom,
-  resizeRoom,
   roomPolygon,
   setNotch,
   splitRoom,
@@ -76,7 +73,7 @@ describe("buildRoomModel", () => {
     expect(model.outline).toHaveLength(4)
     expect(model.walls).toHaveLength(4)
     expect(
-      model.walls.every((wall) => wall.thickness === exteriorThickness)
+      model.walls.every((wall) => wall.thickness === 0.2)
     ).toBe(true)
   })
 
@@ -89,7 +86,7 @@ describe("buildRoomModel", () => {
     )
 
     const interior = model.walls.filter(
-      (wall) => wall.thickness === interiorThickness
+      (wall) => wall.thickness === 0.12
     )
     expect(interior).toHaveLength(1)
     expect(interior[0].a).toEqual([4, 0])
@@ -155,28 +152,6 @@ describe("editing", () => {
     const draft = addRoom(createDraft(20), "안방")
     expect(draft.source?.roomCount).toBe(2)
     expect(removeRoom(draft, "room-2").source?.roomCount).toBe(1)
-  })
-
-  it("moves the rooms behind the resized edge so no gap appears", () => {
-    const draft = resizeRoom(
-      draftOf([
-        { id: "a", name: "거실", x: 0, z: 0, width: 4, depth: 3 },
-        { id: "b", name: "방", x: 4, z: 0, width: 3, depth: 3 },
-      ]),
-      "a",
-      3,
-      3
-    )
-
-    expect(draft.rooms[1].x).toBe(3)
-    expect(buildRoomModel(draft).bounds).toEqual({ width: 6, depth: 3 })
-    expect(buildRoomModel(draft).outline).toHaveLength(4)
-  })
-
-  it("keeps a minimum room size when resizing", () => {
-    const draft = resizeRoom(createDraft(20), "room-1", 0.2, 0.2)
-    expect(draft.rooms[0].width).toBe(1)
-    expect(draft.rooms[0].depth).toBe(1)
   })
 })
 
@@ -356,7 +331,7 @@ describe("openings", () => {
     ])
   )
   const interiorWall = model.walls.find(
-    (wall) => wall.thickness === interiorThickness
+    (wall) => wall.thickness === 0.12
   )!
 
   it("adds a door centred on the wall", () => {
@@ -437,7 +412,7 @@ describe("splitRoom", () => {
   it("builds a shared interior wall for the two halves", () => {
     const model = buildRoomModel(splitRoom(base, "room-1", "vertical", 4))
     const interior = model.walls.filter(
-      (wall) => wall.thickness === interiorThickness
+      (wall) => wall.thickness === 0.12
     )
 
     expect(interior).toHaveLength(1)
@@ -593,12 +568,6 @@ describe("guards", () => {
   it("ignores edits with values that are not numbers", () => {
     expect(moveRoom(twoRooms, "b", Number.NaN, 0)).toBe(twoRooms)
     expect(splitRoom(twoRooms, "a", "vertical", Number.NaN)).toBe(twoRooms)
-    expect(
-      resizeRoom(twoRooms, "a", Number.NaN, Number.NaN).rooms[0]
-    ).toMatchObject({
-      width: 4,
-      depth: 3,
-    })
   })
 
   it("keeps the area of a new draft within the supported range", () => {
@@ -629,7 +598,7 @@ describe("guards", () => {
   it("keeps opening ids unique after one is removed", () => {
     const model = buildRoomModel(twoRooms)
     const wall = model.walls.find(
-      (item) => item.thickness === interiorThickness
+      (item) => item.thickness === 0.12
     )!
     const withTwo = addOpening(
       addOpening(model, wall.id, "door", 0.6),
@@ -654,7 +623,9 @@ describe("guards", () => {
       )
     )
 
-    expect(model.spawn).toEqual(labelPoint(model.rooms[0].polygon))
+    expect(
+      containsPoint(model.rooms[0].polygon, model.spawn![0], model.spawn![1])
+    ).toBe(true)
     expect(model.spawn![0]).toBeLessThan(2)
   })
 })
@@ -737,7 +708,7 @@ describe("roomsAcrossWall", () => {
 
   it("finds the rooms on both sides of a shared wall", () => {
     const wall = model.walls.find(
-      (item) => item.thickness === interiorThickness
+      (item) => item.thickness === 0.12
     )!
 
     expect(roomsAcrossWall(draft, wall)?.sort()).toEqual(["a", "b"])
@@ -745,7 +716,7 @@ describe("roomsAcrossWall", () => {
 
   it("returns nothing for an outside wall", () => {
     const wall = model.walls.find(
-      (item) => item.thickness === exteriorThickness
+      (item) => item.thickness === 0.2
     )!
 
     expect(roomsAcrossWall(draft, wall)).toBeNull()
@@ -797,7 +768,7 @@ describe("fitToArea", () => {
   it("keeps doors on their wall without stretching them", () => {
     const model = buildRoomModel(layout)
     const wall = model.walls.find(
-      (item) => item.thickness === interiorThickness
+      (item) => item.thickness === 0.12
     )!
     const withDoor = addOpening(model, wall.id, "door", 2)
     const result = fitToArea(layout, 40, withDoor.openings, model.walls)

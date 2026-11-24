@@ -6,10 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { catalog } from "./data"
 import { parseFurnitureCatalog } from "./furniture-catalog"
 import {
-  LOCAL_AI_TIMEOUT_MS,
   LocalAiError,
-  localAiModel,
-  localAiUrl,
   parseLocalLayoutIntent,
   requestLocalLayoutIntent,
 } from "./local-ai"
@@ -30,7 +27,7 @@ const fixtures = JSON.parse(
 function chatReply(content: string) {
   return new Response(
     JSON.stringify({
-      model: localAiModel,
+      model: "qwen3:4b",
       message: { role: "assistant", content },
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
@@ -85,54 +82,73 @@ describe("local layout intent contract", () => {
 })
 
 describe("requestLocalLayoutIntent", () => {
-  it("tells the model how to use relation", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      chatReply(JSON.stringify(moveIntent))
-    )
-    await requestLocalLayoutIntent("소파를 창문에서 멀리 옮겨줘", {
-      catalog,
-      fetch,
-    })
-    const prompt = JSON.parse(fetch.mock.calls[0][1]?.body as string)
-      .messages[0].content
-    expect(prompt).toMatch(/relation.*NEAR.*FAR_FROM/s)
-  })
-
   it("sends only catalog ids, names and footprints to the local model", async () => {
+    const serverCatalog = parseFurnitureCatalog({
+      version: 1,
+      unit: "m",
+      dimensionKind: "example",
+      priceKind: "example",
+      currency: "KRW",
+      sourceAssetCount: 1,
+      items: [
+        {
+          id: "bench-server",
+          name: "서버 벤치",
+          category: "의자",
+          description: "서버에만 있는 벤치",
+          price: 120000,
+          width: 1.4,
+          depth: 0.4,
+          color: "#123456",
+          modelUrl: "/models/bench-server.glb",
+          provenance: { license: "CC0-1.0", sourceUrl: "https://example.com" },
+        },
+      ],
+    })
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       chatReply(JSON.stringify(moveIntent))
     )
 
     const intent = await requestLocalLayoutIntent("소파를 창가로 옮겨줘", {
-      catalog,
+      catalog: [...catalog, ...serverCatalog],
       fetch,
     })
 
     expect(intent).toEqual(moveIntent)
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, init] = fetch.mock.calls[0]
-    expect(url).toBe(`${localAiUrl}/api/chat`)
+    expect(url).toBe("http://127.0.0.1:11434/api/chat")
     expect(init?.method).toBe("POST")
     expect(init?.credentials).toBe("omit")
     expect(new Headers(init?.headers).has("Authorization")).toBe(false)
     const body = JSON.parse(init?.body as string)
-    expect(body).toMatchObject({ model: localAiModel, stream: false })
+    expect(body).toMatchObject({ model: "qwen3:4b", stream: false })
     const sent = JSON.stringify(body.messages)
     expect(sent).toContain("소파를 창가로 옮겨줘")
     expect(sent).toContain("sofa-cloud")
     expect(sent).toContain("클라우드 소파")
+    expect(body.messages[0].content).toContain(
+      JSON.stringify({
+        id: "bench-server",
+        name: "서버 벤치",
+        width: 1.4,
+        depth: 0.4,
+      })
+    )
     for (const item of catalog) {
       expect(sent).not.toContain(item.description)
       if (item.modelUrl) expect(sent).not.toContain(item.modelUrl)
     }
-    expect(sent).not.toMatch(/price|color|floorPlan|token/i)
+    expect(sent).not.toMatch(
+      /price|color|floorPlan|token|서버에만|120000|#123456|bench-server\.glb|provenance|CC0|example\.com/i
+    )
   })
 
   it("explains a missing model", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(
       async () =>
         new Response(
-          JSON.stringify({ error: `model '${localAiModel}' not found` }),
+          JSON.stringify({ error: "model 'qwen3:4b' not found" }),
           { status: 404 }
         )
     )
@@ -141,7 +157,7 @@ describe("requestLocalLayoutIntent", () => {
       requestLocalLayoutIntent("의자를 치워줘", { catalog, fetch })
     ).rejects.toMatchObject({
       kind: "model-missing",
-      message: expect.stringContaining(`ollama pull ${localAiModel}`),
+      message: expect.stringContaining("ollama pull qwen3:4b"),
     })
   })
 
@@ -175,49 +191,6 @@ describe("requestLocalLayoutIntent", () => {
 
     expect(error).toMatchObject({ kind: "failed" })
     expect((error as Error).message).not.toContain("연결")
-  })
-
-  it("sends only ids, names and footprints from a server catalog entry", async () => {
-    const serverCatalog = parseFurnitureCatalog({
-      version: 1,
-      unit: "m",
-      dimensionKind: "example",
-      priceKind: "example",
-      currency: "KRW",
-      sourceAssetCount: 1,
-      items: [
-        {
-          id: "bench-server",
-          name: "서버 벤치",
-          category: "의자",
-          description: "서버에만 있는 벤치",
-          price: 120000,
-          width: 1.4,
-          depth: 0.4,
-          color: "#123456",
-          modelUrl: "/models/bench-server.glb",
-          provenance: { license: "CC0-1.0", sourceUrl: "https://example.com" },
-        },
-      ],
-    })
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      chatReply(JSON.stringify(moveIntent))
-    )
-
-    await requestLocalLayoutIntent("벤치를 놓아줘", {
-      catalog: serverCatalog,
-      fetch,
-    })
-
-    const body = JSON.parse(fetch.mock.calls[0][1]?.body as string)
-    expect(body.messages[0].content).toContain(
-      JSON.stringify([
-        { id: "bench-server", name: "서버 벤치", width: 1.4, depth: 0.4 },
-      ])
-    )
-    expect(JSON.stringify(body)).not.toMatch(
-      /서버에만|120000|#123456|bench-server\.glb|provenance|CC0|example\.com/
-    )
   })
 
   it("explains a blocked browser origin when Ollama answers without CORS", async () => {
@@ -272,7 +245,7 @@ describe("requestLocalLayoutIntent", () => {
       signal: new AbortController().signal,
     })
     const settled = expect(result).rejects.toMatchObject({ kind: "timeout" })
-    await vi.advanceTimersByTimeAsync(LOCAL_AI_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(60_000)
     await settled
   })
 
@@ -294,7 +267,7 @@ describe("requestLocalLayoutIntent", () => {
 
     const result = requestLocalLayoutIntent("의자를 치워줘", { catalog, fetch })
     const settled = expect(result).rejects.toMatchObject({ kind: "timeout" })
-    await vi.advanceTimersByTimeAsync(LOCAL_AI_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(60_000)
     await settled
   })
 

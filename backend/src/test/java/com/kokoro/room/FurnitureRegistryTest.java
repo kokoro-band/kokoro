@@ -45,14 +45,15 @@ class FurnitureRegistryTest {
 
     @Test
     void exposesEightCompleteEntriesAndTheirSourceInventory() throws Exception {
-        mvc.perform(get("/api/furniture-catalog"))
+        String body = mvc.perform(get("/api/furniture-catalog"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(8)))
                 .andExpect(jsonPath("$.sourceAssetCount").value(140))
                 .andExpect(jsonPath("$.priceKind").value("example"))
                 .andExpect(jsonPath("$.dimensionKind").value("example"))
-                .andExpect(jsonPath("$.source.license").value("CC0-1.0"));
-        for (var item : registry.items()) {
+                .andExpect(jsonPath("$.source.license").value("CC0-1.0"))
+                .andReturn().getResponse().getContentAsString();
+        for (var item : mapper.readTree(body).path("items")) {
             assertThat(item.path("name").asString()).isNotBlank();
             assertThat(item.path("width").doubleValue()).isPositive();
             assertThat(item.path("depth").doubleValue()).isPositive();
@@ -67,7 +68,7 @@ class FurnitureRegistryTest {
     void reloadUsesPersistedRowsWithoutDuplicatingOrChangingImportTimestamps() {
         var before = jdbc.queryForList("SELECT id, payload::text, imported_at FROM furniture_catalog ORDER BY id");
         var reloaded = new FurnitureRegistry(jdbc, mapper, transactions);
-        assertThat(reloaded.items()).isEqualTo(registry.items());
+        assertThat(reloaded.catalog()).isEqualTo(registry.catalog());
         assertThat(jdbc.queryForList("SELECT id, payload::text, imported_at FROM furniture_catalog ORDER BY id"))
                 .isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM furniture_source_assets", Integer.class)).isEqualTo(140);

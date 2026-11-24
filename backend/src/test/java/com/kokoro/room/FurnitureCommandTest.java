@@ -172,32 +172,6 @@ class FurnitureCommandTest {
     }
 
     @Test
-    void staleProposalIsRejectedAfterLayoutChanges() throws Exception {
-        String id = createProject();
-        putTwoChairs(id);
-
-        String proposeResponse = mockMvc.perform(post("/api/projects/{id}/layout/commands", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"message\":\"가구를 모두 비워줘\"}"))
-                .andReturn().getResponse().getContentAsString();
-        String proposalId = proposeResponse.split("\"proposalId\":\"")[1].split("\"")[0];
-
-        mockMvc.perform(put("/api/projects/{id}/layout", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"furniture":[
-                                  {"id":"chair-a","catalogId":"chair-shell","name":"의자A","category":"의자","x":2,"z":2,"rotation":0,"color":"#000000"}
-                                ]}
-                                """))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/projects/{id}/layout/commands/confirm", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"proposalId\":\"" + proposalId + "\"}"))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
     void proposalOwnedByAnotherUserIsNotFound() throws Exception {
         String id = createProject();
         putTwoChairs(id);

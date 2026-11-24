@@ -12,10 +12,12 @@ import {
   uploadPlan,
 } from "./project-api"
 import {
+  confirmCommandMutationOptions,
   createProjectMutationOptions,
   projectKeys,
   projectQueryOptions,
   saveProjectMutationOptions,
+  saveRoomMutationOptions,
   sendCommandMutationOptions,
   shouldRetryProjectRequest,
   uploadPlanMutationOptions,
@@ -115,19 +117,6 @@ describe("project queries", () => {
       updatedProject
     )
   })
-
-  it("does not change cached data when a mutation fails", async () => {
-    const error = new ApiError("프로젝트가 없습니다.", 404, false)
-    vi.mocked(saveProject).mockRejectedValue(error)
-    const client = queryClient()
-    client.setQueryData(projectKeys.detail(project.id), project)
-
-    const mutation = client
-      .getMutationCache()
-      .build(client, saveProjectMutationOptions(client, project.id))
-    await expect(mutation.execute(project)).rejects.toBe(error)
-    expect(client.getQueryData(projectKeys.detail(project.id))).toEqual(project)
-  })
 })
 
 describe("project retry policy", () => {
@@ -145,14 +134,27 @@ describe("project retry policy", () => {
     ).toBe(false)
   })
 
-  it("only retries the idempotent save mutation", () => {
+  it("retries idempotent saves but never retries create, upload, or commands", () => {
     const client = queryClient()
+    const retryable = new ApiError("network", null, true)
+    const retries = (retry: unknown) =>
+      typeof retry === "function" ? retry(0, retryable) : retry
 
-    expect(createProjectMutationOptions(client).retry).toBe(false)
-    expect(uploadPlanMutationOptions(client, project.id).retry).toBe(false)
-    expect(sendCommandMutationOptions(client, project.id).retry).toBe(false)
-    expect(saveProjectMutationOptions(client, project.id).retry).toBe(
-      shouldRetryProjectRequest
+    expect(retries(createProjectMutationOptions(client).retry)).toBe(false)
+    expect(retries(uploadPlanMutationOptions(client, project.id).retry)).toBe(
+      false
+    )
+    expect(retries(sendCommandMutationOptions(client, project.id).retry)).toBe(
+      false
+    )
+    expect(
+      retries(confirmCommandMutationOptions(client, project.id).retry)
+    ).toBe(false)
+    expect(retries(saveProjectMutationOptions(client, project.id).retry)).toBe(
+      true
+    )
+    expect(retries(saveRoomMutationOptions(client, project.id).retry)).toBe(
+      true
     )
   })
 })

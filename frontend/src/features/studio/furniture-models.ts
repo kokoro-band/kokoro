@@ -6,7 +6,7 @@ import type { CatalogItem } from "./types"
 const loader = new GLTFLoader()
 const templates = new Map<string, Promise<THREE.Group>>()
 
-export function loadFurnitureModel(url: string) {
+function loadFurnitureModel(url: string) {
   // Catalog paths remain deployment-independent in the shared API contract.
   const assetUrl =
     url.startsWith("/") && !url.startsWith("//")
@@ -35,7 +35,7 @@ export function loadFurnitureModel(url: string) {
   return pending
 }
 
-export function instantiateFurnitureModel(
+function instantiateFurnitureModel(
   template: THREE.Group,
   item: CatalogItem
 ) {

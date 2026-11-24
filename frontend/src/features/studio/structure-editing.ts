@@ -17,7 +17,7 @@ export const maxRoomSize = 40
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
-export const wallLength = (wall: Wall) =>
+const wallLength = (wall: Wall) =>
   Math.hypot(wall.b[0] - wall.a[0], wall.b[1] - wall.a[1])
 export function alongWall(wall: Wall, point: Point2) {
   return (
@@ -34,7 +34,7 @@ export function draftOrigin(draft: RoomDraft): Point2 {
 }
 
 /** Keep the opposite edge in world coordinates. Normalize only when the gesture commits. */
-export function resizeRect(
+function resizeRect(
   room: RoomRect,
   handle: ResizeHandle,
   dx: number,

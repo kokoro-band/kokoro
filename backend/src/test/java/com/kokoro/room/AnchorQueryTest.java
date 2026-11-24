@@ -27,7 +27,8 @@ class AnchorQueryTest {
     void anythingElseHasNoAnchor() {
         for (String query : new String[] {"벽", "구석", "소파", "침대 옆"}) {
             assertThatThrownBy(() -> AnchorQuery.kind(query)).as(query)
-                    .isInstanceOf(LayoutIntentException.class).hasFieldOrPropertyWithValue("code", "NO_ANCHOR");
+                    .isInstanceOfSatisfying(LayoutIntentException.class,
+                            error -> assertThat(error.code()).isEqualTo("NO_ANCHOR"));
         }
     }
 }

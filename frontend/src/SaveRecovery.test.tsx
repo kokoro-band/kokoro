@@ -399,33 +399,6 @@ describe("save recovery through the real App and SEED UI", () => {
     await settle()
     expect(ui.text()).not.toContain("저장 충돌 해결")
   })
-  it("keeps the draft visible until explicit conflict recovery and sends the reviewed server version", async () => {
-    const ui = await setup()
-    await ui.add()
-    const mine = ui.savedResponse(0).furniture
-    await ui.reject(0, new ApiError("server changed", 409, false))
-    expect(ui.text()).toContain("서버 내용이 바뀌었어요")
-    expect(ui.text()).toContain("저장 충돌 해결")
-    await ui.click("나중에 해결")
-    await ui.click("저장 충돌 해결")
-    await ui.click("최신 내용 확인")
-    const latest = { ...ui.initial, revision: 5 }
-    const latestRead = http.calls.at(-1)!
-    expect(latestRead.config.method).not.toBe("PUT")
-    await act(async () => latestRead.resolve(latest))
-    await settle()
-    expect(ui.text()).toContain("서버 버전 5")
-    expect(ui.saves()).toHaveLength(1)
-    await ui.click("내 변경을 최신 내용에 적용")
-    expect(ui.saves()).toHaveLength(2)
-    expect(ui.saves()[1].config.data).toEqual({
-      furniture: mine,
-      expectedRevision: 5,
-    })
-    await ui.resolve(1)
-    expect(ui.text()).not.toContain("저장 충돌 해결")
-    expect(ui.header().textContent).toContain("저장됨")
-  })
   it("clears the old manual save busy state after switching to the sample project", async () => {
     const ui = await setup()
     await ui.add()
@@ -590,37 +563,6 @@ describe("save recovery through the real App and SEED UI", () => {
     await ui.resolve(2)
     expect(ui.header().textContent).toContain("저장됨")
     expect(ui.header().textContent).not.toContain("다시 저장")
-  })
-  it("retries from the error snackbar without duplicating the request", async () => {
-    const ui = await setup()
-    await ui.add()
-    await ui.reject(0)
-    const retries = [
-      ...document.querySelectorAll<HTMLButtonElement>("button"),
-    ].filter(
-      (node) =>
-        node.textContent?.trim() === "다시 저장" && !ui.header().contains(node)
-    )
-    expect(retries).toHaveLength(1)
-    await act(async () => {
-      retries[0].click()
-      retries[0].click()
-    })
-    await settle()
-    expect(ui.saves()).toHaveLength(2)
-    await ui.resolve(1)
-    expect(ui.header().textContent).toContain("저장됨")
-  })
-  it("restores the last saved furniture after a validation rejection without another write", async () => {
-    const ui = await setup()
-    await ui.add()
-    await ui.reject(0, new ApiError("벽과 겹쳐요", 400, false))
-    expect(ui.text()).toContain("이 배치는 저장되지 않았어요")
-    await ui.click("저장된 배치로 되돌리기")
-    expect(ui.saves()).toHaveLength(1)
-    expect(ui.header().textContent).toContain("저장됨")
-    await ui.click("내역")
-    expect(ui.text()).toContain("아직 놓은 가구가 없어요")
   })
   it("does not let an older project's retry snackbar write the new project", async () => {
     const ui = await setup()

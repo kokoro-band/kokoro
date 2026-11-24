@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FurniturePlacementValidatorTest {
-    private final FurniturePlacementValidator validator = new FurniturePlacementValidator();
+    private final FurniturePlacementValidator validator = TestFurnitureValidator.fromPackagedCatalog();
     private final Dimensions dimensions = new Dimensions(5.8, 4.2, 2.4);
 
     @Test

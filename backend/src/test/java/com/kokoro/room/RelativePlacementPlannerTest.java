@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RelativePlacementPlannerTest {
-    private final FurniturePlacementValidator validator = new FurniturePlacementValidator();
+    private final FurniturePlacementValidator validator = TestFurnitureValidator.fromPackagedCatalog();
     private final RelativePlacementPlanner planner = new RelativePlacementPlanner(validator);
     private final FurnitureItem chair = new FurnitureItem("new", "chair-shell", "셸 체어", "의자", 0.0, 0.0, 0.0, "#4A665A");
     private final FurnitureItem sofa = new FurnitureItem("new", "sofa-cloud", "클라우드 소파", "소파", 0.0, 0.0, 0.0, "#D8C8B8");
@@ -122,17 +122,8 @@ class RelativePlacementPlannerTest {
         Placement far = planner.placeNew(dims, room, List.of(), chair, 1, AnchorKind.DOOR, Proximity.FAR_FROM).get(0);
 
         assertThat(distance(far, doorX, doorZ)).isGreaterThan(distance(near, doorX, doorZ) + 1.0);
+        validator.validate(dims, room, withPlacements(List.of(), chair, List.of(near)));
         validator.validate(dims, room, withPlacements(List.of(), chair, List.of(far)));
-    }
-
-    @Test
-    void placementNextToADoorNeverBlocksTheDoorClearance() {
-        Dimensions dims = new Dimensions(5, 4, 2.4);
-        RoomModel room = rect(5, 4, opening("w2", "door", 1.0, 1.9));
-
-        Placement placed = planner.placeNew(dims, room, List.of(), chair, 1, AnchorKind.DOOR, Proximity.NEAR).get(0);
-
-        validator.validate(dims, room, withPlacements(List.of(), chair, List.of(placed)));
     }
 
     @Test

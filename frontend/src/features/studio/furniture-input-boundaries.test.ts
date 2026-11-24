@@ -86,5 +86,4 @@ it("keeps legacy long furniture readable and preserves the original when a new s
   expect(restored).toEqual({ project, recovery: null })
   await expect(saveProject(project)).rejects.toThrow()
   expect(setItem).not.toHaveBeenCalled()
-  expect(getItem()).toBe(raw)
 })

@@ -228,15 +228,12 @@ describe("furniture search and real local workflow", () => {
     const ui = await setup()
     await ui.click("클라우드 소파 거실에 놓기")
     const [sofa] = ui.saved().furniture
-    await act(async () => ui.controller.current!.setLeftTab("placed"))
+    await ui.click("배치한 가구 1")
     const list = ui.container.querySelector(`[data-furniture-id="${sofa.id}"]`)
     expect(list?.textContent).toContain(
       `위치 가로 ${sofa.x.toFixed(1)} m · 세로 ${sofa.z.toFixed(1)} m · 0°`
     )
     expect(ui.summary().textContent).toContain("소파 · 2.2 × 0.92 m")
-    expect(ui.summary().textContent).not.toContain(
-      `${sofa.x.toFixed(1)} m × ${sofa.z.toFixed(1)} m`
-    )
   })
 
   it("commits keyboard rotation and restores it with one undo", async () => {

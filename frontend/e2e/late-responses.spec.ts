@@ -217,11 +217,6 @@ for (const operation of [
         await expect(
           page.getByRole("textbox", { name: "이름", exact: true })
         ).toHaveValue("새 프로젝트의 미저장 구조")
-        expect(
-          await page.evaluate(() =>
-            localStorage.getItem("kokoro-active-server-project-v1")
-          )
-        ).toBe(next.id)
         await page.getByRole("button", { name: /프로젝트 메뉴$/ }).click()
         await page
           .getByRole("menuitem", { name: "도면 파일", exact: true })

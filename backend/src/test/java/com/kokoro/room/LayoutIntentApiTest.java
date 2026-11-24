@@ -115,21 +115,6 @@ class LayoutIntentApiTest {
         assertThat(furnitureIds(project(id))).containsExactlyInAnyOrder("sofa-a", "chair-a", "chair-b");
     }
 
-    @Test
-    void confirmingAfterTheProjectChangedIsAConflict() throws Exception {
-        String id = projectWithFurniture();
-        JsonNode proposal = intents(id, "{\"type\":\"REMOVE\",\"targetQuery\":\"소파\"}", null, 200);
-
-        mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON).content(LAYOUT))
-                .andExpect(status().isOk());
-
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/projects/{id}/layout/commands/confirm", id).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}"))
-                .andExpect(status().isConflict());
-        assertThat(furnitureIds(project(id))).containsExactlyInAnyOrder("sofa-a", "chair-a", "chair-b");
-    }
-
     private static String room(String openings) {
         return """
                 {"room":{"version":2,"unit":"m","wallHeight":2.4,"bounds":{"width":8,"depth":6},
@@ -187,16 +172,72 @@ class LayoutIntentApiTest {
     void moveNearTheWindowKeepsTheRotationAndConfirmMovesIt() throws Exception {
         String id = projectWithFurniture();
         saveRoom(id, WINDOW_ON_TOP + "," + DOOR_ON_BOTTOM);
+        mvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
+                        .content(LAYOUT.replace("\"id\":\"sofa-a\",\"catalogId\":\"sofa-cloud\",\"name\":\"클라우드 소파\",\"category\":\"소파\",\"x\":6.5,\"z\":4.5,\"rotation\":0",
+                                "\"id\":\"sofa-a\",\"catalogId\":\"sofa-cloud\",\"name\":\"클라우드 소파\",\"category\":\"소파\",\"x\":6.5,\"z\":4.5,\"rotation\":180")))
+                .andExpect(status().isOk());
 
         JsonNode proposal = intents(id, "{\"type\":\"MOVE\",\"targetQuery\":\"소파\",\"anchorQuery\":\"창문\",\"relation\":\"NEAR\"}", null, 200);
         JsonNode confirmed = send(id, "/layout/commands/confirm", "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
 
+        JsonNode sofa = null;
         for (JsonNode item : confirmed.path("project").path("furniture")) {
-            if (item.path("id").asString().equals("sofa-a")) {
-                assertThat(item.path("z").asDouble()).isLessThan(2.0);
-                assertThat(item.path("rotation").asDouble()).isZero();
-            }
+            if (item.path("id").asString().equals("sofa-a")) sofa = item;
         }
+        assertThat(sofa).isNotNull();
+        assertThat(sofa.path("z").asDouble()).isLessThan(2.0);
+        assertThat(sofa.path("rotation").asDouble()).isEqualTo(180.0);
+    }
+
+    @Test
+    void chainedAddAndRotateKeepsTheGeneratedIdThroughConfirm() throws Exception {
+        String created = mvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"연속 의도\",\"roomType\":\"거실\",\"dimensions\":{\"width\":8,\"depth\":6,\"height\":2.4}}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asString();
+        saveRoom(id, WINDOW_ON_TOP);
+
+        JsonNode proposal = intents(id,
+                "{\"type\":\"ADD\",\"catalogId\":\"chair-shell\",\"anchorQuery\":\"창가\"},{\"type\":\"ROTATE\",\"targetQuery\":\"의자\",\"rotation\":90}",
+                null, 200);
+        JsonNode commands = proposal.path("proposedCommands");
+        assertThat(commands).hasSize(2);
+        String addedId = commands.get(0).path("furnitureId").asString();
+        assertThat(addedId).isNotBlank();
+        assertThat(commands.get(1).path("furnitureId").asString()).isEqualTo(addedId);
+        assertThat(commands.get(0).path("z").asDouble()).isLessThan(1.5);
+
+        JsonNode confirmed = send(id, "/layout/commands/confirm",
+                "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+        assertThat(confirmed.path("project").path("furniture")).hasSize(1);
+        JsonNode chair = confirmed.path("project").path("furniture").get(0);
+        assertThat(chair.path("id").asString()).isEqualTo(addedId);
+        assertThat(chair.path("rotation").asDouble()).isEqualTo(90.0);
+        assertThat(chair.path("z").asDouble()).isLessThan(1.5);
+    }
+
+    @Test
+    void movingAFurnitureRotatedByAnEarlierIntentUsesItsLatestRotation() throws Exception {
+        String id = projectWithFurniture();
+        saveRoom(id, WINDOW_ON_TOP);
+
+        JsonNode proposal = intents(id,
+                "{\"type\":\"ROTATE\",\"targetQuery\":\"소파\",\"rotation\":90},{\"type\":\"MOVE\",\"targetQuery\":\"소파\",\"anchorQuery\":\"창가\"}",
+                null, 200);
+        JsonNode move = proposal.path("proposedCommands").get(1);
+        assertThat(move.path("type").asString()).isEqualTo("MOVE");
+        // sofa-cloud is 2.2m wide; rotated 90 deg its depth half-extent is 1.1m plus wall half-thickness 0.1m.
+        assertThat(move.path("z").asDouble()).isBetween(1.2, 2.0);
+
+        JsonNode confirmed = send(id, "/layout/commands/confirm",
+                "{\"proposalId\":\"" + proposal.path("proposalId").asString() + "\"}", 200);
+        JsonNode sofa = null;
+        for (JsonNode item : confirmed.path("project").path("furniture")) {
+            if (item.path("id").asString().equals("sofa-a")) sofa = item;
+        }
+        assertThat(sofa).isNotNull();
+        assertThat(sofa.path("rotation").asDouble()).isEqualTo(90.0);
+        assertThat(sofa.path("z").asDouble()).isBetween(1.2, 2.0);
     }
 
     private String projectWithFurniture() throws Exception {

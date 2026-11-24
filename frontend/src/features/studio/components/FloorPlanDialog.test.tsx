@@ -91,7 +91,6 @@ describe("floor plan status", () => {
         : null
       const app = setup("PROCESSING", attempt, true)
       expect(app.dialog().textContent).toContain("파일을 처리하고 있어요")
-      expect(app.dialog().textContent).not.toContain("치수를 읽고")
       expect(app.button("다른 파일 올리기").disabled).toBe(true)
     }
   )

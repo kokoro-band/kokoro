@@ -67,7 +67,7 @@ public class FurnitureRegistry {
                 jdbc.queryForObject("SELECT COUNT(*) FROM furniture_source_assets", Integer.class));
     }
 
-    public List<JsonNode> items() {
+    private List<JsonNode> items() {
         return jdbc.query("SELECT payload::text FROM furniture_catalog ORDER BY id",
                 (rs, index) -> mapper.readTree(rs.getString(1)));
     }

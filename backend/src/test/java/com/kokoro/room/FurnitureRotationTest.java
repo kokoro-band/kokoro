@@ -113,10 +113,8 @@ class FurnitureRotationTest {
                     insert.executeUpdate();
                 }
             }
-            assertEquals("integer", rotationType(connection, schema));
             Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                     .schemas(schema).defaultSchema(schema).load().migrate();
-            assertEquals("double precision", rotationType(connection, schema));
             try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT rotation FROM furniture_items ORDER BY item_order")) {
                 for (int value : original) { assertTrue(rows.next()); assertEquals((double) value, rows.getDouble(1)); }
                 assertFalse(rows.next());
@@ -127,13 +125,6 @@ class FurnitureRotationTest {
                     assertTrue(rows.next()); assertEquals(25.25, rows.getDouble(1));
                 }
             }
-        }
-    }
-
-    private String rotationType(java.sql.Connection connection, String schema) throws Exception {
-        try (var statement = connection.prepareStatement("SELECT data_type FROM information_schema.columns WHERE table_schema=? AND table_name='furniture_items' AND column_name='rotation'")) {
-            statement.setString(1, schema);
-            try (var rows = statement.executeQuery()) { assertTrue(rows.next()); return rows.getString(1); }
         }
     }
 

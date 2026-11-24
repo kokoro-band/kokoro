@@ -867,7 +867,6 @@ export function StructureView({
                           <g
                             key={handle}
                             className="plan-resize-handle"
-                            data-handle={`opening-${handle}`}
                             transform={`translate(${point.x} ${point.z})`}
                             onPointerDown={(event) => {
                               event.stopPropagation()
@@ -920,7 +919,7 @@ export function StructureView({
                     <g
                       key={handle}
                       className="plan-resize-handle"
-                      data-handle={handle}
+                      aria-label={`${selected.name} ${handle} 크기 조절`}
                       style={{ cursor: `${handle}-resize` }}
                       transform={`translate(${x} ${z})`}
                       onPointerDown={(event) => startResize(event, handle)}

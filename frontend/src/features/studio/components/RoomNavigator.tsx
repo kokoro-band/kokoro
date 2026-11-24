@@ -236,7 +236,11 @@ export function RoomNavigator({
               <ListButtonItem
                 key={item.id}
                 prefix={
-                  <FurnitureThumb category={item.category} color={item.color} />
+                  <FurnitureThumb
+                    catalogId={item.id}
+                    category={item.category}
+                    color={item.color}
+                  />
                 }
                 title={item.name}
                 detail={formatPrice(item.price)}
@@ -287,7 +291,11 @@ export function RoomNavigator({
                   )
                 }
                 prefix={
-                  <FurnitureThumb category={item.category} color={item.color} />
+                  <FurnitureThumb
+                    catalogId={item.catalogId}
+                    category={item.category}
+                    color={item.color}
+                  />
                 }
                 title={item.name}
                 detail={`위치 가로 ${formatMeters(item.x)} · 세로 ${formatMeters(item.z)} · ${item.rotation}°`}

@@ -335,6 +335,13 @@ select {
   height: var(--seed-dimension-x6);
 }
 
+.furniture-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
 .furniture-thumb-large {
   width: var(--seed-dimension-x12);
   height: var(--seed-dimension-x12);

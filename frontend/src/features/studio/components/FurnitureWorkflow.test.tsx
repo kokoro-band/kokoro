@@ -159,6 +159,25 @@ async function setup(overrides: Partial<Project> = {}, isMobile = false) {
 }
 
 describe("furniture search and real local workflow", () => {
+  it("shows model thumbnails in the catalog, selected furniture and summary, and falls back when an image fails", async () => {
+    const ui = await setup()
+    const row = ui.button("셸 체어 거실에 놓기").closest("li")!
+    const thumbnailPath = `${import.meta.env.BASE_URL}models/thumbnails/chair-shell.webp`
+    const thumbnail = row.querySelector<HTMLImageElement>("img")
+    expect(thumbnail?.getAttribute("src")).toBe(thumbnailPath)
+    await act(async () => thumbnail!.dispatchEvent(new Event("error")))
+    expect(row.querySelector("img")).toBeNull()
+    expect(row.querySelector(".furniture-thumb svg")).not.toBeNull()
+
+    await ui.click("셸 체어 거실에 놓기")
+    expect(
+      ui.container.querySelector(".inspector-identity img")?.getAttribute("src")
+    ).toBe(thumbnailPath)
+    expect(ui.summary().querySelector("img")?.getAttribute("src")).toBe(
+      thumbnailPath
+    )
+  })
+
   it("searches by name and category and treats blank input as all results", async () => {
     const ui = await setup()
     expect(ui.catalogButtons()).toHaveLength(catalog.length)
@@ -318,6 +337,11 @@ describe("moving furniture between rooms", () => {
   it("moves the selected furniture into another room keeping its identity", async () => {
     const ui = await setup({ ...twoRooms(), furniture: [chair] })
     await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    expect(
+      ui
+        .button("다른 방으로 옮기기")
+        .closest('section[aria-label="가구가 있는 방"]')
+    ).not.toBeNull()
     await ui.click("다른 방으로 옮기기")
     await ui.click("침실")
     const [moved] = ui.saved().furniture
@@ -329,6 +353,23 @@ describe("moving furniture between rooms", () => {
     expect(ui.controller.current!.notice?.text).toBe(
       "셸 체어를 침실로 옮겼어요."
     )
+  })
+
+  it("moves the selected furniture using the mobile quick tools with the keyboard", async () => {
+    const ui = await setup({ ...twoRooms(), furniture: [chair] }, true)
+    await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    const trigger = ui.button("방 이동")
+    expect(
+      trigger.closest('[aria-label="선택한 가구 빠른 도구"]')
+    ).not.toBeNull()
+    trigger.focus()
+    await ui.key(trigger, "ArrowDown")
+    const destination = ui.button("침실")
+    expect(destination.getAttribute("role")).toBe("menuitem")
+    await vi.waitFor(() => expect(document.activeElement).toBe(destination))
+    await ui.key(destination, "Enter")
+    expect(ui.saved().furniture[0].x).toBeGreaterThan(4.8)
+    expect(ui.controller.current!.selectedId).toBe(chair.id)
   })
 
   it("exposes destination rooms to assistive technology inside the mobile sheet", async () => {

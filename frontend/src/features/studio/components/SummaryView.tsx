@@ -131,7 +131,11 @@ export function SummaryView({
               <ListItem
                 key={item.id}
                 prefix={
-                  <FurnitureThumb category={item.category} color={item.color} />
+                  <FurnitureThumb
+                    catalogId={item.catalogId}
+                    category={item.category}
+                    color={item.color}
+                  />
                 }
                 title={item.name}
                 detail={productSize(item)}

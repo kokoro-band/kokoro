@@ -60,7 +60,7 @@ async function key(
   })
   await flush()
 }
-async function setup() {
+async function setup(initialRoom: number | null = null) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   const project = structuredClone(sampleProject)
   const doors = project
@@ -71,6 +71,7 @@ async function setup() {
   const redo = vi.fn()
   function Harness() {
     const [mode, setMode] = useState<ViewMode>("3d")
+    const [roomIndex, setRoomIndex] = useState(initialRoom)
     const [dialog, setDialog] = useState(false)
     const [view, setView] = useState("arrange")
     useShortcut("viewStructure", () => setView("structure"))
@@ -84,7 +85,8 @@ async function setup() {
         <output aria-label="화면">{view}</output>
         <SceneEditor
           project={project}
-          focusRoom={null}
+          focusRoom={roomIndex === null ? null : project.room!.rooms[roomIndex]}
+          onShowHouse={() => setRoomIndex(null)}
           selectedId={null}
           mode={mode}
           canUndo
@@ -152,6 +154,18 @@ async function setup() {
 }
 
 describe("scene tools wired to actual keyboard controls", () => {
+  it("shows the focused room next to the view modes and returns to the whole house", async () => {
+    const app = await setup(0)
+    const scope = app.container.querySelector('[aria-label="공간 보기"]')
+    expect(scope?.querySelector('[aria-current="location"]')?.textContent).toBe(
+      sampleProject.room!.rooms[0].name
+    )
+    await app.click("집 전체")
+    expect(scope?.querySelector('[aria-current="location"]')?.textContent).toBe(
+      "집 전체"
+    )
+    expect(app.button("3D").getAttribute("aria-checked")).toBe("true")
+  })
   it("puts the editing area in the tab order and describes how to move furniture", async () => {
     const app = await setup()
     const area = app.container.querySelector<HTMLElement>(

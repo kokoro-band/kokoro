@@ -40,6 +40,7 @@ import type { Furniture, Point2 } from "@/features/studio/types"
 
 import { AssistantPanel } from "./AssistantPanel"
 import { FurnitureInspector } from "./FurnitureInspector"
+import { FurnitureRoomMenu } from "./FurnitureRoomMenu"
 import { FurnitureThumb } from "./FurnitureThumb"
 import { HouseMap } from "./HouseMap"
 import { RoomNavigator } from "./RoomNavigator"
@@ -359,6 +360,9 @@ export function ArrangeView({
       onPreview={(update) => studio.previewSelected(update)}
       onCommitPreview={commitMove}
       onDelete={deleteSelected}
+      roomName={
+        rooms.length > 0 ? (rooms[selectedRoom]?.name ?? "방 밖") : undefined
+      }
       moveTargets={isMobile && !sheetElement ? [] : moveTargets}
       onMoveToRoom={moveToRoom}
       menuContainer={isMobile ? sheetMenuContainer : undefined}
@@ -424,6 +428,7 @@ export function ArrangeView({
       onFullscreenError={studio.reportFullscreenError}
       onSelect={selectSceneFurniture}
       onEnterRoom={changeRoom}
+      onShowHouse={() => changeRoom(null)}
       viewForwardRef={viewForwardRef}
       onMove={studio.moveFurniture}
       onMoveEnd={commitMove}
@@ -466,6 +471,7 @@ export function ArrangeView({
         {selected && sheet !== "selection" && (
           <section className="selection-bar" aria-label="선택한 가구 빠른 도구">
             <FurnitureThumb
+              catalogId={selected.catalogId}
               category={selected.category}
               color={selected.color}
             />
@@ -478,6 +484,13 @@ export function ArrangeView({
             >
               {selected.name}
             </Type>
+            {moveTargets.length > 0 && (
+              <FurnitureRoomMenu
+                targets={moveTargets}
+                onMove={moveToRoom}
+                compact
+              />
+            )}
             <ActionButton
               variant="ghost"
               size="small"

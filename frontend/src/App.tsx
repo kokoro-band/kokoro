@@ -162,7 +162,7 @@ function Studio() {
         onExport={studio.exportProject}
         onOpenShortcuts={() => setGuideOpen(true)}
       />
-      <main id="workspace" className="workspace">
+      <main id="workspace" className="workspace" tabIndex={-1}>
         {!ready ? (
           <ProjectStartup
             state={studio.projectLoad}

@@ -117,6 +117,17 @@ export function rememberActiveProject(projectId: string) {
   }
 }
 
+/** Drops a remembered project the server no longer has, such as after a database reset. */
+export function forgetActiveProject() {
+  const key = activeProjectKey()
+  if (!key) return
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Nothing was remembered.
+  }
+}
+
 /** The signed-in account's projects, most recently updated first. */
 export function listProjects() {
   return request<Project[]>({ url: "/projects" }).then((projects) => {

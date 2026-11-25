@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -27,8 +28,11 @@ public class UserAccounts {
     private final JdbcTemplate jdbc;
     private final DemoAccounts demoAccounts;
     private final int maxUsers;
-    // Owns the seed project and anything created without a login, and project ownership follows the token subject.
-    private final String localOwner;
+    // Migration V3 gave every pre-ownership project to this name, whatever LOCAL_USER_ID is now.
+    private static final String LEGACY_OWNER = "local-user";
+
+    // Own the seed project and anything created without a login, and project ownership follows the token subject.
+    private final Set<String> reservedOwners;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     // Compared against for unknown names so a missing account takes about as long as a wrong password.
     private final String unknownHash = encoder.encode(UUID.randomUUID().toString());
@@ -39,7 +43,7 @@ public class UserAccounts {
         this.jdbc = jdbc;
         this.demoAccounts = demoAccounts;
         this.maxUsers = maxUsers;
-        this.localOwner = normalize(localOwner);
+        this.reservedOwners = Set.copyOf(List.of(normalize(localOwner), LEGACY_OWNER));
     }
 
     public static String normalize(String username) {
@@ -54,7 +58,7 @@ public class UserAccounts {
         if (password == null || password.length() < MIN_PASSWORD_CHARS
                 || password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호는 8자 이상이어야 하고 너무 길 수 없어요.");
-        if (demoAccounts.has(username) || username.equals(localOwner))
+        if (demoAccounts.has(username) || reservedOwners.contains(username))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디예요.");
         Integer count = jdbc.queryForObject("SELECT count(*) FROM app_users", Integer.class);
         if (count != null && count >= maxUsers)
@@ -74,6 +78,6 @@ public class UserAccounts {
                 String.class, username);
         boolean matched = encoder.matches(password, hashes.isEmpty() ? unknownHash : hashes.get(0));
         // A row an earlier build let through must not sign in as the local owner.
-        return !hashes.isEmpty() && matched && !username.equals(localOwner);
+        return !hashes.isEmpty() && matched && !reservedOwners.contains(username);
     }
 }

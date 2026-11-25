@@ -13,6 +13,7 @@ import {
   isServerMode,
   fetchFurnitureCatalog,
   sendLayoutIntent,
+  forgetActiveProject,
   getProject,
   listProjects,
   makeFurniture,
@@ -526,7 +527,10 @@ export function useStudioController() {
   )
 
   const loadServerProject = useCallback(
-    async function loadServerProject(projectId: string) {
+    async function loadServerProject(
+      projectId: string,
+      onMissing?: () => Promise<void>
+    ) {
       const navigation = (navigationRef.current += 1)
       activeProjectIdRef.current = projectId
       setProjectLoad({ status: "loading", message: "" })
@@ -543,6 +547,8 @@ export function useStudioController() {
         setProjectLoad({ status: "ready", message: "" })
       } catch (error) {
         if (navigationRef.current !== navigation) return
+        if (onMissing && error instanceof ApiError && error.status === 404)
+          return onMissing()
         setProjectLoad({
           status: "error",
           message:
@@ -555,11 +561,9 @@ export function useStudioController() {
     [closeQueue, closingFor, openProject, queryClient]
   )
 
-  /** Opens the remembered project, or else the account's most recent one. */
-  const loadStartupProject = useCallback(
-    async function loadStartupProject() {
-      if (activeProjectIdRef.current)
-        return loadServerProject(activeProjectIdRef.current)
+  /** Opens the account's most recent project, or the first-project screen when it has none. */
+  const loadLatestProject = useCallback(
+    async function loadLatestProject() {
       const navigation = (navigationRef.current += 1)
       setProjectLoad({ status: "loading", message: "" })
       try {
@@ -579,6 +583,21 @@ export function useStudioController() {
       }
     },
     [loadServerProject]
+  )
+
+  /** Opens the remembered project, or else the account's most recent one. */
+  const loadStartupProject = useCallback(
+    async function loadStartupProject() {
+      const remembered = activeProjectIdRef.current
+      if (!remembered) return loadLatestProject()
+      // A remembered project can vanish when the demo database is reset.
+      return loadServerProject(remembered, async () => {
+        forgetActiveProject()
+        activeProjectIdRef.current = null
+        await loadLatestProject()
+      })
+    },
+    [loadLatestProject, loadServerProject]
   )
 
   useEffect(

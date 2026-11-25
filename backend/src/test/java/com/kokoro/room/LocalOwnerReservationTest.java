@@ -50,12 +50,12 @@ class LocalOwnerReservationTest {
     @MockitoBean com.kokoro.room.project.FloorPlanJobDispatcher dispatcher;
 
     @Test
-    void aCustomLocalOwnerIdCannotBeTakenBySignUp() throws Exception {
+    void aCustomLocalOwnerIdAndTheLegacyOwnerCannotBeTakenBySignUp() throws Exception {
         mvc.perform(signup("studio-owner")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail", containsString("이미")));
         mvc.perform(signup("Studio-Owner")).andExpect(status().isConflict());
-        // The default name is free once the owner is configured as something else.
-        mvc.perform(signup("local-user")).andExpect(status().isCreated());
+        // Migration V3 gave pre-ownership projects to local-user, so that name stays reserved too.
+        mvc.perform(signup("local-user")).andExpect(status().isConflict());
     }
 
     private org.springframework.test.web.servlet.RequestBuilder signup(String username) {

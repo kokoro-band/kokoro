@@ -9,6 +9,7 @@ import argparse
 import json
 import random
 import sys
+from itertools import pairwise
 from math import cos, pi, sin
 from pathlib import Path
 
@@ -878,6 +879,239 @@ def lounge(item):
     back.rotation_euler.x = -0.20
 
 
+def kitchen_island(item):
+    w, d = item["width"], item["depth"]
+    enamel = mat("Enamel cabinet fronts", item["color"], 0.62)
+    oak = mat("Oiled oak shelving", "#A77C53", 0.65)
+    stone = mat("Honed limestone counter", "#E5DCCB", 0.55)
+    iron = mat("Dark bronze hardware", "#605344", 0.46, 0.45)
+
+    box("Recessed plinth", (0, 0, 0.055), (w - 0.17, d - 0.15, 0.11), iron, 0.011)
+    box("Oak base deck", (0, 0, 0.132), (w - 0.09, d - 0.08, 0.05), oak, 0.009)
+    case_x, case_width = -w * 0.153, w * 0.62
+    box("Island cabinet", (case_x, 0.01, 0.496), (case_width, d - 0.12, 0.71), oak)
+    for z, height in ((0.31, 0.293), (0.586, 0.241), (0.775, 0.118)):
+        box(
+            "Drawer front",
+            (case_x, -d / 2 + 0.048, z),
+            (case_width - 0.02, 0.036, height),
+            enamel,
+            0.009,
+        )
+        box(
+            "Edge pull",
+            (case_x, -d / 2 + 0.021, z + height / 2 - 0.015),
+            (0.24, 0.029, 0.016),
+            iron,
+            0.005,
+        )
+
+    # The open end is accessible from both sides of the worktop.
+    for y in (-d * 0.39, d * 0.39):
+        box("Shelf stile", (w * 0.446, y, 0.50), (0.049, 0.045, 0.70), oak)
+    box("Open end shelf", (w * 0.306, 0, 0.487), (w * 0.305, d - 0.12, 0.034), oak)
+    box("Stone worktop", (0, 0, 0.875), (w, d, 0.05), stone, 0.018, 3)
+
+
+def serving_cart(item):
+    w, d = item["width"], item["depth"]
+    frame = mat("Enamel trolley", item["color"], 0.54, 0.17)
+    oak = mat("Beech chopping block", "#C9A575", 0.65)
+    rubber = mat("Graphite rubber", "#474945", 0.94)
+    steel = mat("Brushed wheel forks", "#90938A", 0.39, 0.58)
+    left, right = -w * 0.45, w * 0.33
+    center = (left + right) / 2
+    for x in (left, right):
+        for y in (-d * 0.42, d * 0.42):
+            rod(
+                "Caster tyre",
+                (x, y - 0.016, 0.055),
+                (x, y + 0.016, 0.055),
+                0.055,
+                0.055,
+                rubber,
+                18,
+            )
+            rod(
+                "Axle hub",
+                (x, y - 0.02, 0.055),
+                (x, y + 0.02, 0.055),
+                0.018,
+                0.018,
+                steel,
+                12,
+            )
+            box(
+                "Caster fork", (x, y + 0.02, 0.088), (0.021, 0.011, 0.073), steel, 0.004
+            )
+            rod(
+                "Tubular upright", (x, y, 0.115), (x, y, 0.753), 0.017, 0.017, frame, 12
+            )
+
+    length = right - left + 0.044
+    box("Lower tray", (center, 0, 0.175), (length, d, 0.028), frame, 0.011)
+    for y in (-d / 2 + 0.009, d / 2 - 0.009):
+        box("Tray rim", (center, y, 0.201), (length, 0.018, 0.055), frame, 0.007)
+    for x in (center - length / 2 + 0.009, center + length / 2 - 0.009):
+        box("Tray end", (x, 0, 0.201), (0.018, d - 0.036, 0.055), frame, 0.006)
+    for x in (left, right):
+        box("Slat support", (x, 0, 0.433), (0.033, d * 0.89, 0.032), frame)
+    for slat in range(5):
+        box(
+            "Beech rack slat",
+            (center, (slat - 2) * d * 0.17, 0.457),
+            (length, d * 0.14, 0.021),
+            oak,
+            0.005,
+        )
+    box("Beech worktop", (center, 0, 0.739), (length, d, 0.046), oak, 0.015, 3)
+    grip_x, grip_y = w * 0.46, d * 0.42
+    for y in (-grip_y, grip_y):
+        rod(
+            "Handle return",
+            (right, y, 0.719),
+            (grip_x, y, 0.843),
+            0.016,
+            0.016,
+            frame,
+            12,
+        )
+    rod(
+        "Push handle",
+        (grip_x, -grip_y, 0.843),
+        (grip_x, grip_y, 0.843),
+        0.019,
+        0.019,
+        oak,
+        16,
+    )
+
+
+def linen_cabinet(item):
+    w, d = item["width"], item["depth"]
+    ash = mat("Linen cabinet ash", item["color"])
+    cane = mat("Inset woven flax", "#BCA889", 0.94)
+    ivory = mat("Undyed terry", "#E6DCCA", 0.96)
+    sage = mat("Sage terry", "#899983", 0.96)
+    brass = mat("Antique brass", "#907756", 0.46, 0.48)
+    cabinet_shell(w, d, 1.75, ash)
+    for z in (0.78, 1.09, 1.40):
+        box("Linen shelf", (0, 0, z), (w - 0.08, d - 0.02, 0.026), ash)
+
+    door_y = -d / 2 + 0.017
+    box("Framed hamper door", (0, door_y, 0.469), (w - 0.082, 0.039, 0.587), ash)
+    box(
+        "Woven door panel",
+        (0, door_y - 0.020, 0.469),
+        (w - 0.146, 0.006, 0.50),
+        cane,
+        0.003,
+    )
+    rod(
+        "Door knob",
+        (w * 0.28, door_y - 0.022, 0.667),
+        (w * 0.28, door_y - 0.052, 0.667),
+        0.014,
+        0.022,
+        brass,
+        12,
+    )
+    for row in range(3):
+        box(
+            "Folded bath towel",
+            (-0.022 + 0.01 * row, -0.006, 0.825 + 0.060 * row),
+            (w * 0.61 - 0.014 * row, d * 0.71, 0.065),
+            ivory if row == 1 else sage,
+            0.03,
+            3,
+        )
+    for x, z, material in (
+        (-0.091, 1.177, ivory),
+        (0.064, 1.177, ivory),
+        (-0.012, 1.306, sage),
+    ):
+        rod("Rolled towel", (x, -0.132, z), (x, 0.126, z), 0.075, 0.075, material, 22)
+        rod(
+            "Fold at the end of the roll",
+            (x, -0.136, z),
+            (x, -0.131, z),
+            0.032,
+            0.032,
+            material,
+            18,
+        )
+
+
+def washstand(item):
+    w, d = item["width"], item["depth"]
+    lacquer = mat("Lacquered vanity", item["color"], 0.51)
+    walnut = mat("Oiled walnut rails", "#937152", 0.64)
+    porcelain = mat("Ivory glazed porcelain", "#F4F0E5", 0.27)
+    stone = mat("Warm composite stone", "#C4BBAD", 0.55)
+    tap = mat("Satin nickel", "#868C89", 0.32, 0.74)
+    legs(walnut, w * 0.414, d * 0.34, 0.224, 0.03, 1.02)
+    box("Washstand case", (0, 0, 0.47), (w - 0.055, d - 0.065, 0.55), walnut, 0.016)
+    for side in (-1, 1):
+        box(
+            "Vanity door",
+            (side * w * 0.23, -d / 2 + 0.032, 0.468),
+            (w * 0.448, 0.036, 0.506),
+            lacquer,
+            0.012,
+        )
+        box(
+            "Lip pull",
+            (side * 0.056, -d / 2 + 0.009, 0.679),
+            (0.054, 0.026, 0.018),
+            tap,
+            0.006,
+        )
+    box("Counter slab", (0, 0, 0.758), (w, d, 0.042), stone, 0.016, 3)
+
+    # Build the outside and the hollow inner wall of the vessel in one profile.
+    bowl = ring(
+        "Oval vessel bowl",
+        (0, 0, 0),
+        [
+            (0.777, 0.089),
+            (0.786, 0.113),
+            (0.818, 0.151),
+            (0.878, 0.181),
+            (0.895, 0.182),
+            (0.898, 0.173),
+            (0.879, 0.171),
+            (0.830, 0.144),
+            (0.800, 0.101),
+            (0.792, 0.048),
+        ],
+        porcelain,
+        40,
+    )
+    bowl.scale = (1.21, 0.90, 1)
+    bowl.location.y = -0.044
+    ring("Drain cap", (0, -0.044, 0), [(0.791, 0.019), (0.794, 0.019)], tap, 20)
+    faucet_x = 0.098
+    spout = [
+        (faucet_x, 0.161, 0.775),
+        (faucet_x, 0.161, 0.976),
+        (faucet_x, 0.139, 1.000),
+        (faucet_x, 0.051, 1.000),
+        (faucet_x, 0.029, 0.980),
+        (faucet_x, 0.029, 0.957),
+    ]
+    for start, end in pairwise(spout):
+        rod("Mixer spout", start, end, 0.012, 0.012, tap, 16)
+    rod(
+        "Mixer lever",
+        (faucet_x, 0.161, 0.838),
+        (faucet_x + 0.063, 0.163, 0.879),
+        0.011,
+        0.008,
+        tap,
+        12,
+    )
+
+
 builders = {
     "sofa-cloud": (lambda i: sofa(i, False), 0.86),
     "sofa-moss": (lambda i: sofa(i, True), 0.78),
@@ -899,6 +1133,10 @@ builders = {
     "chair-bench": (bench, 0.46),
     "chair-stool": (stool, 0.55),
     "sofa-reading": (lounge, 0.85),
+    "table-island": (kitchen_island, 0.90),
+    "storage-cart": (serving_cart, 0.86),
+    "storage-linen": (linen_cabinet, 1.75),
+    "storage-vanity": (washstand, 1.01),
 }
 
 

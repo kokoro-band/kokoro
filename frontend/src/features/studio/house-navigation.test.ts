@@ -26,8 +26,10 @@ describe("house navigation", () => {
       "주방 · 식당",
       "주방 · 식당",
       "방1",
+      "화장실",
+      "다용도실",
     ])
-    expect(projectTotal(sampleProject)).toBe(3_272_000)
+    expect(projectTotal(sampleProject)).toBe(4_055_000)
   })
 
   it("chooses an interior point for a room with a recessed corner", () => {

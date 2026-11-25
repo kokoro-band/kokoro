@@ -53,6 +53,8 @@ export const sampleProject: Project = {
     sampleFurniture("dining-01", "table-dining", 4.86, 0.92),
     sampleFurniture("bench-01", "chair-bench", 4.86, 1.7),
     sampleFurniture("shelf-01", "storage-open", 9.12, 0.32),
+    sampleFurniture("vanity-01", "storage-vanity", 7.56, 0.74, 90),
+    sampleFurniture("linen-01", "storage-linen", 1.84, 1.3, 180),
   ],
   updatedAt: new Date().toISOString(),
 }

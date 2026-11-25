@@ -63,10 +63,18 @@ describe("local project read boundary", () => {
       expect.arrayContaining(["table-dining", "chair-bench"])
     )
     expect(byRoom("방1")).toContain("storage-open")
+    expect(byRoom("화장실")).toEqual(["storage-vanity"])
+    expect(byRoom("다용도실")).toEqual(["storage-linen"])
     expect(placementIssues(demo)).toEqual([])
-    const previous = { ...demo, furniture: demo.furniture.slice(0, 4) }
-    values.set(key, JSON.stringify(previous))
-    expect(readSavedProject().furniture).toEqual(previous.furniture)
+    for (const previousCount of [4, 8]) {
+      const previous = {
+        ...demo,
+        furniture: demo.furniture.slice(0, previousCount),
+      }
+      values.set(key, JSON.stringify(previous))
+      expect(readSavedProject().furniture).toEqual(previous.furniture)
+    }
+    expect(setItem).not.toHaveBeenCalled()
     expect((await createProject("빈 프로젝트")).furniture).toEqual([])
   })
 

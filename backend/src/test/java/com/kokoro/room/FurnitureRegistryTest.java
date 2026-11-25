@@ -52,7 +52,7 @@ class FurnitureRegistryTest {
     void exposesTheExpandedCollectionAndTheirSourceInventory() throws Exception {
         mvc.perform(get("/api/furniture-catalog"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items", hasSize(20)))
+                .andExpect(jsonPath("$.items", hasSize(24)))
                 .andExpect(jsonPath("$.sourceAssetCount").value(140))
                 .andExpect(jsonPath("$.priceKind").value("example"))
                 .andExpect(jsonPath("$.dimensionKind").value("example"))

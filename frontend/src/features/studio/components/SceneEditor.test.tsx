@@ -196,7 +196,9 @@ describe("scene tools wired to actual keyboard controls", () => {
     await app.click("VR")
     const panel = app.container.querySelector(".vr-entry-card")!
     expect(panel.textContent).toContain(sampleProject.room!.rooms[0].name)
-    expect(panel.querySelector("summary")?.textContent).toBe("컨트롤러 조작법")
+    expect(
+      panel.querySelector(".vr-controller-guide summary")?.textContent
+    ).toBe("컨트롤러 조작법")
     expect(panel.textContent).toContain("왼쪽 스틱")
     expect(panel.textContent).toContain("오른쪽 스틱")
     expect(panel.textContent).toContain("트리거")

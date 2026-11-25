@@ -1,4 +1,4 @@
-import type { RefObject } from "react"
+import type { ReactNode, RefObject } from "react"
 import { ActionButton } from "@seed-design/react"
 import { Glasses } from "lucide-react"
 
@@ -9,11 +9,13 @@ import type { RoomLabel, RoomModel } from "../types"
 export function VrEntryCard({
   room,
   focusRoom,
+  minimap,
   entryRef,
   onReturn,
 }: {
   room?: RoomModel
   focusRoom: RoomLabel | null
+  minimap?: ReactNode
   entryRef: RefObject<HTMLDivElement | null>
   onReturn: () => void
 }) {
@@ -40,6 +42,12 @@ export function VrEntryCard({
             </Type>
           </div>
         </header>
+        {minimap && (
+          <details className="vr-start-room">
+            <summary>시작할 방 바꾸기</summary>
+            {minimap}
+          </details>
+        )}
         <details className="vr-controller-guide">
           <summary>컨트롤러 조작법</summary>
           <dl>

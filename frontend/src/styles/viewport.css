@@ -264,11 +264,16 @@
   margin: 0;
 }
 
+.vr-start-room,
 .vr-controller-guide {
-  border-block: 1px solid var(--seed-color-stroke-neutral-weak);
   font-size: var(--seed-font-size-t4);
 }
 
+.vr-controller-guide {
+  border-block: 1px solid var(--seed-color-stroke-neutral-weak);
+}
+
+.vr-start-room summary,
 .vr-controller-guide summary {
   padding-block: var(--seed-dimension-x3);
   cursor: pointer;
@@ -320,11 +325,6 @@
 
 .xr-entry:disabled {
   cursor: wait;
-}
-
-.viewport-canvas:has(.vr-entry-overlay) .viewport-minimap-mobile {
-  top: var(--seed-dimension-x3);
-  bottom: auto;
 }
 
 /* 집 평면 미니맵 */

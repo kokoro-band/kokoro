@@ -164,7 +164,8 @@ export function SceneEditor({
     })
   }
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
-  const showMinimap = Boolean(minimap) && (mode !== "2d" || Boolean(focusRoom))
+  const showMinimap =
+    Boolean(minimap) && (mode === "3d" || (mode === "2d" && Boolean(focusRoom)))
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
   // VR에서는 고른 방에서 출발해 집 전체를 걸어 다닐 수 있습니다.
@@ -467,6 +468,7 @@ export function SceneEditor({
           <VrEntryCard
             room={project.room}
             focusRoom={focusRoom}
+            minimap={minimap}
             entryRef={xrEntryRef}
             onReturn={() => {
               onModeChange("3d")

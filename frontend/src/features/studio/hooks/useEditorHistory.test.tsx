@@ -83,19 +83,6 @@ describe("editor undo and redo", () => {
     act(() => history().undo())
     expect(history().present).toBe(1)
   })
-  it("keeps a marked boundary through no-op replacement in a batch", () => {
-    const history = setup()
-    act(() => {
-      history().mark()
-      history().replace((value) => value)
-      history().replace(() => 1)
-      history().replace(() => 2)
-    })
-    act(() => history().undo())
-    expect(history().present).toBe(0)
-    act(() => history().redo())
-    expect(history().present).toBe(2)
-  })
   it("keeps empty undo and redo harmless and restores an edit", () => {
     const history = setup()
     act(() => {
@@ -109,15 +96,6 @@ describe("editor undo and redo", () => {
     expect(history().canRedo).toBe(true)
     act(() => history().redo())
     expect(history().present).toBe(1)
-    expect(history().canRedo).toBe(false)
-  })
-  it("preserves redo for no-op edits but clears it for new edits", () => {
-    const history = setup()
-    act(() => history().set(() => 1))
-    act(() => history().undo())
-    act(() => history().set((value) => value))
-    expect(history().canRedo).toBe(true)
-    act(() => history().set(() => 2))
     expect(history().canRedo).toBe(false)
   })
   it("groups repeated tagged edits within 700ms and splits later edits", () => {

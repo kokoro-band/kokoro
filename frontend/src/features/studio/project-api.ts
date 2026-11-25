@@ -41,10 +41,6 @@ function projectPath(projectId: string) {
   return `/projects/${projectId}`
 }
 
-export function readSavedProject(): Project {
-  return readSavedProjectWithRecovery().project
-}
-
 export function readSavedProjectWithRecovery(): {
   project: Project
   recovery: "corrupt" | "unavailable" | null
@@ -111,7 +107,7 @@ export function getProject(projectId: string) {
   )
 }
 
-export function requireProjectRevision(project: Project): number {
+function requireProjectRevision(project: Project): number {
   const revision = project?.revision
   if (
     typeof revision !== "number" ||

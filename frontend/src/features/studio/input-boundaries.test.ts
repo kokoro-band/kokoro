@@ -27,29 +27,22 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe.each(["server", "local"])("%s input boundaries", (mode) => {
+describe("input boundaries", () => {
   it.each(fixtures.strings.filter(({ field }) => field !== "roomType"))(
     "$id",
     async (fixture) => {
-      vi.stubEnv("VITE_API_MODE", mode)
+      vi.stubEnv("VITE_API_MODE", "local")
       const { createProject, sendCommand } = await import("./project-api")
       const value = (fixture.prefix ?? "") + fixture.unit.repeat(fixture.repeat)
       const action =
         fixture.field === "name"
           ? createProject(value)
-          : sendCommand(
-              {
-                ...structuredClone(sampleProject),
-                ...(mode === "server" ? { revision: 0 } : {}),
-              },
-              value
-            )
+          : sendCommand(structuredClone(sampleProject), value)
       if (fixture.client) await expect(action).resolves.toBeDefined()
       else {
         await expect(action).rejects.toThrow(
           fixture.field === "name" ? "이름" : "요청"
         )
-        expect(request).not.toHaveBeenCalled()
         expect(setItem).not.toHaveBeenCalled()
       }
     }
@@ -58,11 +51,10 @@ describe.each(["server", "local"])("%s input boundaries", (mode) => {
   it.each(fixtures.furniture)(
     "furniture count $count",
     async ({ count, accepted }) => {
-      vi.stubEnv("VITE_API_MODE", mode)
+      vi.stubEnv("VITE_API_MODE", "local")
       const { saveProject } = await import("./project-api")
       const project = {
         ...sampleProject,
-        ...(mode === "server" ? { revision: 0 } : {}),
         furniture: Array.from({ length: count }, (_, index) => ({
           ...sampleProject.furniture[0],
           id: `item-${index}`,
@@ -72,12 +64,32 @@ describe.each(["server", "local"])("%s input boundaries", (mode) => {
       if (accepted) await expect(saveProject(project)).resolves.toBeDefined()
       else {
         await expect(saveProject(project)).rejects.toThrow("200")
-        expect(request).not.toHaveBeenCalled()
         expect(setItem).not.toHaveBeenCalled()
       }
       expect(project).toEqual(snapshot)
     }
   )
+
+  it("blocks invalid name, command, and furniture count before calling the server API", async () => {
+    vi.stubEnv("VITE_API_MODE", "server")
+    const { createProject, saveProject, sendCommand } =
+      await import("./project-api")
+    const project = { ...structuredClone(sampleProject), revision: 0 }
+    await expect(createProject("가".repeat(81))).rejects.toThrow("이름")
+    await expect(sendCommand(project, "가".repeat(1001))).rejects.toThrow(
+      "요청"
+    )
+    await expect(
+      saveProject({
+        ...project,
+        furniture: Array.from({ length: 201 }, (_, index) => ({
+          ...project.furniture[0],
+          id: `item-${index}`,
+        })),
+      })
+    ).rejects.toThrow("200")
+    expect(request).not.toHaveBeenCalled()
+  })
 })
 
 it.each(fixtures.strings.filter(({ field }) => field !== "message"))(

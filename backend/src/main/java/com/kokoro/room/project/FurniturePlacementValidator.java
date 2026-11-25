@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -27,13 +26,6 @@ public class FurniturePlacementValidator {
     private static final double DOOR_CLEARANCE = 0.8;
     private final java.util.function.Function<String, FurnitureCatalog.Size> sizeOf;
 
-    /** Pure geometry tests use the same packaged contract without a database. */
-    public FurniturePlacementValidator() {
-        Map<String, FurnitureCatalog.Size> sizes = FurnitureCatalog.load();
-        sizeOf = sizes::get;
-    }
-
-    @org.springframework.beans.factory.annotation.Autowired
     public FurniturePlacementValidator(FurnitureRegistry registry) {
         sizeOf = id -> {
             var item = registry.require(id);

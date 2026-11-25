@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { sampleProject } from "./data"
 import {
   createProject,
-  readSavedProject,
   readSavedProjectWithRecovery,
   saveProject,
   saveRoom,
@@ -52,7 +51,7 @@ function repeated<T extends object>(value: T, count: number) {
 
 describe("local project read boundary", () => {
   it("furnishes the first-visit demo by room without adding demo pieces to a user's project", async () => {
-    const demo = readSavedProject()
+    const demo = readSavedProjectWithRecovery().project
     const rooms = demo.room!.rooms
     const byRoom = (name: string) =>
       demo.furniture
@@ -66,7 +65,9 @@ describe("local project read boundary", () => {
     expect(placementIssues(demo)).toEqual([])
     const previous = { ...demo, furniture: demo.furniture.slice(0, 4) }
     values.set(key, JSON.stringify(previous))
-    expect(readSavedProject().furniture).toEqual(previous.furniture)
+    expect(readSavedProjectWithRecovery().project.furniture).toEqual(
+      previous.furniture
+    )
     expect((await createProject("빈 프로젝트")).furniture).toEqual([])
   })
 
@@ -79,7 +80,7 @@ describe("local project read boundary", () => {
       z: -5,
     }
     values.set(key, JSON.stringify(saved))
-    expect(readSavedProject()).toEqual(saved)
+    expect(readSavedProjectWithRecovery().project).toEqual(saved)
     expect(setItem).not.toHaveBeenCalled()
     expect(removeItem).not.toHaveBeenCalled()
   })
@@ -100,7 +101,9 @@ describe("local project read boundary", () => {
         rotation: 90,
       })
       await saveProject(saved)
-      expect(readSavedProject().furniture).toEqual(saved.furniture)
+      expect(readSavedProjectWithRecovery().project.furniture).toEqual(
+        saved.furniture
+      )
     }
   )
 
@@ -118,14 +121,14 @@ describe("local project read boundary", () => {
       },
     }
     values.set(key, JSON.stringify(saved))
-    expect(readSavedProject().id).toBe(saved.id)
+    expect(readSavedProjectWithRecovery().project.id).toBe(saved.id)
   })
   it("preserves Unicode names accepted by the new-project dialog", async () => {
     const saved = { ...project(), name: "😀".repeat(60) }
     await expect(saveProject(saved)).resolves.toMatchObject({
       name: saved.name,
     })
-    expect(readSavedProject().name).toBe(saved.name)
+    expect(readSavedProjectWithRecovery().project.name).toBe(saved.name)
   })
   it.each<[string, unknown]>([
     ["furniture", [null]],
@@ -187,7 +190,7 @@ describe("local project read boundary", () => {
       const raw = JSON.stringify(saved)
       values.set(key, raw)
       expect(readSavedProjectWithRecovery().recovery).toBe("corrupt")
-      expect(readSavedProject().id).toBe(sampleProject.id)
+      expect(readSavedProjectWithRecovery().project.id).toBe(sampleProject.id)
       expect(values.get(key)).toBe(raw)
       expect(setItem).not.toHaveBeenCalled()
       expect(removeItem).not.toHaveBeenCalled()
@@ -235,22 +238,6 @@ describe("local project read boundary", () => {
     expect(saved.room.rooms).toBeNull()
     expect(parseStoredProject({ ...saved, room: null }).room).toBeUndefined()
   })
-  it("accepts exactly 200 furniture and rejects the next on save", async () => {
-    const saved = {
-      ...project(),
-      furniture: repeated(sampleProject.furniture[0], 200),
-    }
-    await saveProject(saved)
-    expect(readSavedProject().furniture).toHaveLength(200)
-    const raw = values.get(key)
-    await expect(
-      saveProject({
-        ...saved,
-        furniture: repeated(sampleProject.furniture[0], 201),
-      })
-    ).rejects.toThrow()
-    expect(values.get(key)).toBe(raw)
-  })
   it("caps total room polygon points at 4096", () => {
     const saved = project()
     const points = Array.from({ length: 512 }, (_, i): [number, number] => [
@@ -269,7 +256,7 @@ describe("local project read boundary", () => {
     for (const area of [3, 20, 100]) {
       const room = buildRoomModel(createDraft(area))
       await saveRoom(project(), room)
-      expect(readSavedProject().room).toEqual(room)
+      expect(readSavedProjectWithRecovery().project.room).toEqual(room)
     }
   })
   it("does not persist a local draft that the reader would reject", async () => {

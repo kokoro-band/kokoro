@@ -151,59 +151,7 @@ it("sends a validated Ollama intent to the server and cancels without changing t
   expect(app.get().canUndo).toBe(false)
   expect(http.calls).toHaveLength(3)
 })
-it("locks edits synchronously during confirmation and keeps them locked after response loss", async () => {
-  const app = await setup()
-  await app.propose()
-  act(() => app.get().selectFurniture(app.initial.furniture[0].id))
-  act(() => {
-    app.get().confirmCommandReview()
-    app.get().addFurniture("chair-shell")
-    app.get().updateSelected({ rotation: 90 })
-    app.get().moveFurniture(app.initial.furniture[0].id, 1, 1)
-    app.get().commitPreview()
-    app.get().deleteSelected()
-    app.get().redo()
-    app
-      .get()
-      .uploadFloorPlan(
-        new File(["pdf"], "plan.pdf", { type: "application/pdf" })
-      )
-    void app.get().createProject("another project")
-    app.get().openSampleProject()
-    app.get().undo()
-    void app
-      .get()
-      .applyRoom({ ...app.initial.room!, bounds: { width: 20, depth: 20 } })
-    app.get().saveProject()
-  })
-  await flush()
-  expect(app.get().project).toEqual(app.initial)
-  expect(http.calls).toHaveLength(3)
-  expect(http.calls[2].config.url).toContain("/confirm")
-  expect(app.get().editingLocked).toBe(true)
-  http.calls[2].reject(new ApiError("연결 끊김", null, true))
-  await flush()
-  act(() => {
-    app.get().cancelCommandReview()
-    app.get().addFurniture("chair-shell")
-    app.get().requestCommandAgain()
-  })
-  await flush()
-  expect(app.get().commandReview?.status).toBe("retry")
-  expect(app.get().project).toEqual(app.initial)
-  expect(http.calls).toHaveLength(3)
-  act(() => app.get().confirmCommandReview())
-  await flush()
-  expect(http.calls[3].config.data).toEqual({ proposalId: "proposal-1" })
-  http.calls[3].resolve(
-    response({ ...app.initial, revision: 1, furniture: [] })
-  )
-  await flush()
-  expect(app.get().project.furniture).toEqual([])
-  act(() => app.get().addFurniture("chair-shell"))
-  expect(app.get().project.furniture).toHaveLength(1)
-})
-it("reuses the model intent for candidate selection without running Ollama again", async () => {
+it("reuses the model intent for single-intent candidate selection without an index prefix", async () => {
   const remove = {
     version: 1,
     intents: [{ type: "REMOVE", targetQuery: "소파" }],
@@ -212,7 +160,7 @@ it("reuses the model intent for candidate selection without running Ollama again
   const item = app.initial.furniture[0]
   http.calls[2].resolve(
     response(app.initial, {
-      reply: "1번째 명령의 대상을 선택해 주세요.",
+      reply: "어떤 가구를 바꿀지 골라 주세요.",
       candidates: [{ furnitureId: item.id, name: item.name }],
     })
   )

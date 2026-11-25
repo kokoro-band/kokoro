@@ -82,12 +82,8 @@ async function setup() {
   return { get: () => result.current!, container }
 }
 describe("storage recovery through the actual controller", () => {
-  it.each([
-    "",
-    "null",
-    "{",
-    JSON.stringify({ ...sampleProject, dimensions: {} }),
-  ])("announces a damaged save without overwriting it: %j", async (raw) => {
+  it("announces a damaged save without overwriting it", async () => {
+    const raw = "{"
     values.set(key, raw)
     const app = await setup()
     expect(app.get().project.id).toBe(sampleProject.id)

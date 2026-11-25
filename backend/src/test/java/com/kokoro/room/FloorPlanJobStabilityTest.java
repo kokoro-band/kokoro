@@ -6,6 +6,7 @@ import com.kokoro.room.project.FloorPlanJobRecovery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -15,9 +16,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -38,17 +36,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class FloorPlanJobStabilityTest {
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @TempDir static Path storage;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        SharedPostgres.register(registry, "floor_plan_stability");
         registry.add("app.floor-plan-storage-root", () -> storage.toString());
     }
 
@@ -118,7 +111,7 @@ class FloorPlanJobStabilityTest {
         String projectId = createProject("재시작 복구");
         String jobId = jobId(upload(projectId, "before-restart.pdf"));
 
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
 
         mvc.perform(get("/api/projects/{id}/floor-plan/jobs/{jobId}", projectId, jobId))
                 .andExpect(status().isOk())
@@ -134,20 +127,7 @@ class FloorPlanJobStabilityTest {
     }
 
     @Test
-    void completionAfterDeletionDoesNotRestoreProject() throws Exception {
-        String projectId = createProject("삭제 경합");
-        String jobId = jobId(upload(projectId, "delete.pdf"));
-
-        mvc.perform(delete("/api/projects/{id}", projectId)).andExpect(status().isNoContent());
-        processor.process(projectId, jobId);
-
-        mvc.perform(get("/api/projects/{id}", projectId)).andExpect(status().isNotFound());
-        assertTrue(Files.notExists(storage.resolve(projectId))
-                || countRegularFiles(storage.resolve(projectId)) == 0);
-    }
-
-    @Test
-    void deleteProjectRemovesAllUploadedFloorPlanFiles() throws Exception {
+    void deleteProjectRemovesAllUploadedFloorPlanFilesAndLateCompletionDoesNotRestoreIt() throws Exception {
         String projectId = createProject("도면 교체 삭제");
         String firstJobId = jobId(upload(projectId, "first.pdf"));
         processor.process(projectId, firstJobId);

@@ -10,19 +10,12 @@ import {
   projectResponse,
 } from "./helpers"
 
-export function gate() {
-  let release!: () => void
-  const opened = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  return { opened, release }
-}
-export async function field(page: Page, name: string, value: string) {
+async function field(page: Page, name: string, value: string) {
   const input = page.getByRole("textbox", { name, exact: true })
   await input.fill(value)
   await input.press("Enter")
 }
-export async function closeSheet(page: Page, narrow: boolean) {
+async function closeSheet(page: Page, narrow: boolean) {
   if (!narrow) return
   await page
     .locator(".mobile-sheet")

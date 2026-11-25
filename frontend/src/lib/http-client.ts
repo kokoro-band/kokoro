@@ -4,7 +4,7 @@ import { isApiPath, resolveApiBaseUrl } from "./api-url"
 const defaultMessage = "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요."
 const networkMessage =
   "서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."
-export const REQUEST_TIMEOUT_MS = 15_000
+const REQUEST_TIMEOUT_MS = 15_000
 export const UPLOAD_TIMEOUT_MS = 60_000
 const MAX_ERROR_MESSAGE_LENGTH = 200
 

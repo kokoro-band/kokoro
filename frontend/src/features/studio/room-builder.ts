@@ -27,10 +27,10 @@ export type RoomDraft = {
   source?: RoomSource
 }
 
-export const squareMetersPerPyeong = 3.3058
-export const exteriorThickness = 0.2
-export const interiorThickness = 0.12
-export const snapDistance = 0.3
+const squareMetersPerPyeong = 3.3058
+const exteriorThickness = 0.2
+const interiorThickness = 0.12
+const snapDistance = 0.3
 export const minRoomSize = 1
 const gridStep = 0.1
 
@@ -244,14 +244,6 @@ export function splitSpan(
   return span[1] - span[0] > 0 ? span : null
 }
 
-function fitNotch(room: RoomRect, notch: Notch | undefined): RoomRect {
-  if (!notch) return { ...room, notch: undefined }
-  const width = Math.min(notch.width, round(room.width - minRoomSize / 2))
-  const depth = Math.min(notch.depth, round(room.depth - minRoomSize / 2))
-  if (width <= 0 || depth <= 0) return { ...room, notch: undefined }
-  return { ...room, notch: { corner: notch.corner, width, depth } }
-}
-
 function nextRoomId(draft: RoomDraft) {
   const used = draft.rooms.map((room) => {
     const match = /^room-(\d+)$/.exec(room.id)
@@ -448,46 +440,6 @@ export function moveRoom(
     ...draft,
     rooms: draft.rooms.map((room) => (room.id === id ? moved : room)),
   })
-}
-
-export function resizeRoom(
-  draft: RoomDraft,
-  id: string,
-  width: number,
-  depth: number
-): RoomDraft {
-  const target = draft.rooms.find((room) => room.id === id)
-  if (!target) return draft
-
-  const nextWidth = Math.max(
-    minRoomSize,
-    snapToGrid(finite(width, target.width))
-  )
-  const nextDepth = Math.max(
-    minRoomSize,
-    snapToGrid(finite(depth, target.depth))
-  )
-  const shiftX = round(nextWidth - target.width)
-  const shiftZ = round(nextDepth - target.depth)
-  const right = round(target.x + target.width)
-  const bottom = round(target.z + target.depth)
-  const epsilon = 1e-6
-
-  const rooms = draft.rooms.map((room) => {
-    if (room.id === id) {
-      return fitNotch(
-        { ...room, width: nextWidth, depth: nextDepth },
-        room.notch
-      )
-    }
-    return {
-      ...room,
-      x: room.x > right - epsilon ? round(room.x + shiftX) : room.x,
-      z: room.z > bottom - epsilon ? round(room.z + shiftZ) : room.z,
-    }
-  })
-
-  return normalizeDraft({ ...draft, rooms })
 }
 
 function clampToCluster(rect: RoomRect, others: RoomRect[]): RoomRect {

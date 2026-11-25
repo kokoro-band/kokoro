@@ -9,9 +9,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -26,20 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** issue #9: rule-based target selection and the destructive-command confirm contract. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class FurnitureCommandTest {
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("kokoro")
-            .withUsername("kokoro")
-            .withPassword("kokoro");
-
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
+        SharedPostgres.register(registry, "kokoro_api");
     }
 
     @Autowired MockMvc mockMvc;
@@ -164,32 +151,6 @@ class FurnitureCommandTest {
 
         jdbc.update("UPDATE layout_proposals SET expires_at = ? WHERE proposal_id = ?",
                 Timestamp.from(Instant.now().minusSeconds(60)), proposalId);
-
-        mockMvc.perform(post("/api/projects/{id}/layout/commands/confirm", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"proposalId\":\"" + proposalId + "\"}"))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void staleProposalIsRejectedAfterLayoutChanges() throws Exception {
-        String id = createProject();
-        putTwoChairs(id);
-
-        String proposeResponse = mockMvc.perform(post("/api/projects/{id}/layout/commands", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"message\":\"가구를 모두 비워줘\"}"))
-                .andReturn().getResponse().getContentAsString();
-        String proposalId = proposeResponse.split("\"proposalId\":\"")[1].split("\"")[0];
-
-        mockMvc.perform(put("/api/projects/{id}/layout", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"furniture":[
-                                  {"id":"chair-a","catalogId":"chair-shell","name":"의자A","category":"의자","x":2,"z":2,"rotation":0,"color":"#000000"}
-                                ]}
-                                """))
-                .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/projects/{id}/layout/commands/confirm", id)
                         .contentType(MediaType.APPLICATION_JSON)

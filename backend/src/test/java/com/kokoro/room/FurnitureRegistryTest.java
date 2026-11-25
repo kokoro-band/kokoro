@@ -10,9 +10,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -29,17 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class FurnitureRegistryTest {
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("kokoro").withUsername("kokoro").withPassword("kokoro");
-
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        SharedPostgres.register(registry, "kokoro_api");
     }
 
     @Autowired MockMvc mvc;
@@ -50,14 +40,15 @@ class FurnitureRegistryTest {
 
     @Test
     void exposesTheExpandedCollectionAndTheirSourceInventory() throws Exception {
-        mvc.perform(get("/api/furniture-catalog"))
+        String body = mvc.perform(get("/api/furniture-catalog"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(20)))
                 .andExpect(jsonPath("$.sourceAssetCount").value(140))
                 .andExpect(jsonPath("$.priceKind").value("example"))
                 .andExpect(jsonPath("$.dimensionKind").value("example"))
-                .andExpect(jsonPath("$.source.license").value("CC0-1.0"));
-        for (var item : registry.items()) {
+                .andExpect(jsonPath("$.source.license").value("CC0-1.0"))
+                .andReturn().getResponse().getContentAsString();
+        for (var item : mapper.readTree(body).path("items")) {
             var origin = item.path("provenance");
             if ("kokoro-blender".equals(origin.path("kind").asString())) {
                 var glb = Path.of("../frontend/public/models", origin.path("modelAsset").asString());
@@ -78,7 +69,7 @@ class FurnitureRegistryTest {
     void reloadUsesPersistedRowsWithoutDuplicatingOrChangingImportTimestamps() {
         var before = jdbc.queryForList("SELECT id, payload::text, imported_at FROM furniture_catalog ORDER BY id");
         var reloaded = new FurnitureRegistry(jdbc, mapper, transactions);
-        assertThat(reloaded.items()).isEqualTo(registry.items());
+        assertThat(reloaded.catalog()).isEqualTo(registry.catalog());
         assertThat(jdbc.queryForList("SELECT id, payload::text, imported_at FROM furniture_catalog ORDER BY id"))
                 .isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM furniture_source_assets", Integer.class)).isEqualTo(140);

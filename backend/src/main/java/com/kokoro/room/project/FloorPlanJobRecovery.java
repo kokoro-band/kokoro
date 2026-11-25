@@ -25,11 +25,6 @@ public class FloorPlanJobRecovery implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        recover();
-    }
-
-    @Transactional
-    public void recover() {
         // Do not run independent bulk scans: a new upload between them is not part of this recovery.
         for (var project : projectRepository.lockProcessing()) {
             var floorPlan = project.floorPlan();

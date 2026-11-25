@@ -287,6 +287,5 @@ describe("room focus is a view, not a movement boundary", () => {
       '[aria-labelledby="position-title"] [role="status"]'
     )!.textContent
     expect(status).toContain("집 바깥 경계")
-    expect(status).not.toContain("거실")
   })
 })

@@ -287,7 +287,7 @@ describe("StructureView real UI transactions", () => {
       ui.type("이름", "작업실")
       ui.click("실행 취소")
       ui.pointer(
-        ui.svg.querySelector('[data-handle="e"]')!,
+        ui.svg.querySelector('[aria-label$=" e 크기 조절"]')!,
         "pointerdown",
         4,
         2
@@ -307,7 +307,12 @@ describe("StructureView real UI transactions", () => {
 
   it("commits a completed resize once and undoes the whole gesture", () => {
     const ui = setup()
-    ui.pointer(ui.svg.querySelector('[data-handle="e"]')!, "pointerdown", 4, 2)
+    ui.pointer(
+      ui.svg.querySelector('[aria-label$=" e 크기 조절"]')!,
+      "pointerdown",
+      4,
+      2
+    )
     ui.pointer(ui.svg, "pointermove", 5, 2)
     ui.pointer(ui.svg, "pointermove", 6, 2)
     ui.pointer(ui.svg, "pointerup", 6, 2)

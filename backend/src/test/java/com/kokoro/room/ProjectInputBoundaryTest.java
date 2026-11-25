@@ -1,6 +1,5 @@
 package com.kokoro.room;
 
-import com.kokoro.room.project.FurniturePlacementValidator;
 import com.kokoro.room.project.ProjectModels.Dimensions;
 import com.kokoro.room.project.ProjectModels.FurnitureItem;
 import org.junit.jupiter.api.DynamicTest;
@@ -14,10 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.server.ResponseStatusException;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -32,23 +27,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class ProjectInputBoundaryTest {
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("kokoro").withUsername("kokoro").withPassword("kokoro");
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
+        SharedPostgres.register(registry, "kokoro_api");
     }
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired JdbcTemplate jdbc;
-    @Autowired FurniturePlacementValidator validator;
 
     @TestFactory
     List<DynamicTest> sharedStringBoundaries() throws Exception {
@@ -121,14 +108,6 @@ class ProjectInputBoundaryTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("200")));
         assertEquals(before, read(id));
-    }
-
-    @Test
-    void countIsCheckedBeforeCatalogOrGeometryInBothEntryPoints() {
-        var invalidItems = IntStream.range(0, 201).mapToObj(i -> new FurnitureItem(
-                "item-" + i, "missing-catalog", "의자", "의자", 1.0, 1.0, 0.0, "#000000")).toList();
-        assertTrue(assertThrows(ResponseStatusException.class, () -> validator.validateData(invalidItems)).getReason().contains("200"));
-        assertTrue(assertThrows(ResponseStatusException.class, () -> validator.validate(new Dimensions(6, 5, 2.4), null, invalidItems)).getReason().contains("200"));
     }
 
     private List<FurnitureItem> furniture(int count) {

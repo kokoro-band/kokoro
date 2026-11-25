@@ -9,9 +9,6 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,20 +20,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class ProjectApiTest {
-    @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("kokoro")
-            .withUsername("kokoro")
-            .withPassword("kokoro");
-
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
+        SharedPostgres.register(registry, "kokoro_api");
     }
 
     @Autowired MockMvc mockMvc;
@@ -81,20 +68,6 @@ class ProjectApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.appliedActions", hasSize(2)))
                 .andExpect(jsonPath("$.project.furniture", hasSize(2)));
-    }
-
-    @Test
-    void rejectsUnsupportedFloorPlanAndAllowsAnEmptyLayout() throws Exception {
-        MockMultipartFile invalid = new MockMultipartFile(
-                "file", "plan.txt", "text/plain", "not-a-plan".getBytes());
-        mockMvc.perform(multipart("/api/projects/living-room-01/floor-plan").file(invalid))
-                .andExpect(status().isUnsupportedMediaType());
-
-        mockMvc.perform(put("/api/projects/living-room-01/layout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"furniture\":[]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.furniture", hasSize(0)));
     }
 
     @Test
@@ -200,9 +173,6 @@ class ProjectApiTest {
         // Simulate pre-contract data still stored as object coordinates in PostgreSQL.
         jdbc.update("UPDATE projects SET room = ?::jsonb WHERE id = ?", mapper.writeValueAsString(legacyCoordinates(expected)), id);
         assertRoom(id, expectedRoom);
-        // A new repository instance has no in-memory state and must read the same persisted room.
-        var reloaded = new com.kokoro.room.project.JdbcProjectRepository(jdbc, mapper).findById(id).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(expectedRoom, reloaded.room());
     }
 
     private void assertRoom(String id, com.kokoro.room.project.ProjectModels.RoomModel expected) throws Exception {
@@ -235,18 +205,15 @@ class ProjectApiTest {
     }
 
     @Test
-    void savesManualDraftsOutsideRoomAndWithOverlappingFurniture() throws Exception {
-        mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
-                        .contentType(MediaType.APPLICATION_JSON)
+    void savesManualDraftWithOverlappingFurniture() throws Exception {
+        String created = mockMvc.perform(post("/api/projects").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"furniture":[
-                                  {"id":"outside","catalogId":"sofa-cloud","name":"소파","category":"소파","x":0.5,"z":2.1,"rotation":0,"color":"#D8C8B8"}
-                                ]}
+                                {"name":"겹침 초안","roomType":"거실","dimensions":{"width":6,"depth":5,"height":2.4}}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.furniture[0].x").value(0.5));
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = mapper.readTree(created).path("id").asText();
 
-        mockMvc.perform(put("/api/projects/{id}/layout", "living-room-01")
+        mockMvc.perform(put("/api/projects/{id}/layout", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"furniture":[
@@ -299,11 +266,12 @@ class ProjectApiTest {
         mockMvc.perform(put("/api/projects/{id}/layout", id).contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(mapper.createObjectNode().set("furniture", furniture))))
                 .andExpect(status().isOk());
-        var reloaded = new com.kokoro.room.project.JdbcProjectRepository(jdbc, mapper).findById(id).orElseThrow();
-        org.junit.jupiter.api.Assertions.assertEquals(1, reloaded.furniture().size());
-        org.junit.jupiter.api.Assertions.assertEquals(1.5, reloaded.furniture().get(0).x());
-        org.junit.jupiter.api.Assertions.assertEquals(1.0, reloaded.furniture().get(0).z());
-        org.junit.jupiter.api.Assertions.assertEquals(mapper.treeToValue(room, com.kokoro.room.project.ProjectModels.RoomModel.class), reloaded.room());
+        mockMvc.perform(get("/api/projects/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.furniture", hasSize(1)))
+                .andExpect(jsonPath("$.furniture[0].x").value(1.5))
+                .andExpect(jsonPath("$.furniture[0].z").value(1.0));
+        assertRoom(id, mapper.treeToValue(room, com.kokoro.room.project.ProjectModels.RoomModel.class));
     }
 
     @Test

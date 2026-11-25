@@ -212,12 +212,13 @@ describe("VR movement and input lifecycle", () => {
     expect(app.rig.position.z).toBeCloseTo(2)
   })
 
-  it("discards a held selection when a session ends before selectend", () => {
+  it("discards and cancels a held selection when a session ends before selectend", () => {
     const app = setup()
     app.session(true)
     app.selectStart.mockReturnValue(true)
     app.input(0, "selectstart")
     app.session(false)
+    expect(app.cancel).toHaveBeenCalledOnce()
     app.session(true)
     app.update()
     expect(app.markers[0].visible).toBe(true)
@@ -259,13 +260,14 @@ describe("VR movement and input lifecycle", () => {
     expect(app.rig.rotation.y).toBeCloseTo(-Math.PI / 6)
   })
 
-  it("clears the held selection on controller disconnection", () => {
+  it("clears and cancels the held selection on controller disconnection", () => {
     const app = setup()
     app.session(true)
     app.selectStart.mockReturnValue(true)
-    app.input(0, "selectstart")
+    app.input(0, "squeezestart")
     app.input(0, "disconnected")
-    app.input(0, "selectend")
+    expect(app.cancel).toHaveBeenCalledOnce()
+    app.input(0, "squeezeend")
     expect(app.selectEnd).not.toHaveBeenCalled()
     expect(app.rig.position.toArray()).toEqual([2, 0, 3])
     app.update()
@@ -380,22 +382,6 @@ describe("VR movement and input lifecycle", () => {
       0.5,
       40
     )
-  })
-
-  it.each([
-    ["the session ends", (app: ReturnType<typeof setup>) => app.session(false)],
-    [
-      "the controller disconnects",
-      (app: ReturnType<typeof setup>) => app.input(0, "disconnected"),
-    ],
-  ])("cancels the held furniture when %s", (_, interrupt) => {
-    const app = setup()
-    app.session(true)
-    app.selectStart.mockReturnValue(true)
-    app.input(0, "squeezestart")
-    interrupt(app)
-    expect(app.cancel).toHaveBeenCalledOnce()
-    expect(app.selectEnd).not.toHaveBeenCalled()
   })
 
   it.each([

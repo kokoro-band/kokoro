@@ -27,20 +27,16 @@ const cases = [
   ...fixtures.numbers,
 ]
 
-describe.each(["local", "server"])("%s furniture write boundary", (mode) => {
+describe("furniture write boundaries", () => {
   it.each(cases)("$id", async ({ field, value, accepted }) => {
-    vi.stubEnv("VITE_API_MODE", mode)
+    vi.stubEnv("VITE_API_MODE", "local")
     const { saveProject } = await import("./project-api")
-    const project = {
-      ...structuredClone(sampleProject),
-      ...(mode === "server" ? { revision: 0 } : {}),
-    }
+    const project = structuredClone(sampleProject)
     project.furniture = [{ ...project.furniture[0], [field]: value }]
     const before = structuredClone(project)
     if (accepted) await expect(saveProject(project)).resolves.toBeDefined()
     else {
       await expect(saveProject(project)).rejects.toThrow()
-      expect(request).not.toHaveBeenCalled()
       expect(setItem).not.toHaveBeenCalled()
     }
     expect(project).toEqual(before)
@@ -49,14 +45,33 @@ describe.each(["local", "server"])("%s furniture write boundary", (mode) => {
   it.each([null, [null]])(
     "rejects malformed list %j before side effects",
     async (furniture) => {
-      vi.stubEnv("VITE_API_MODE", mode)
+      vi.stubEnv("VITE_API_MODE", "local")
       const { saveProject } = await import("./project-api")
       const project = { ...sampleProject, furniture } as unknown as Project
       await expect(saveProject(project)).rejects.toThrow()
-      expect(request).not.toHaveBeenCalled()
       expect(setItem).not.toHaveBeenCalled()
     }
   )
+
+  it("blocks invalid furniture writes before calling the server API", async () => {
+    vi.stubEnv("VITE_API_MODE", "server")
+    const { saveProject } = await import("./project-api")
+    const base = { ...structuredClone(sampleProject), revision: 0 }
+    const rejected = cases.find((entry) => !entry.accepted)!
+    await expect(
+      saveProject({
+        ...base,
+        furniture: [{ ...base.furniture[0], [rejected.field]: rejected.value }],
+      })
+    ).rejects.toThrow()
+    await expect(
+      saveProject({
+        ...base,
+        furniture: null as unknown as Project["furniture"],
+      })
+    ).rejects.toThrow()
+    expect(request).not.toHaveBeenCalled()
+  })
 })
 
 it.each(fixtures.dimensions)(
@@ -86,5 +101,4 @@ it("keeps legacy long furniture readable and preserves the original when a new s
   expect(restored).toEqual({ project, recovery: null })
   await expect(saveProject(project)).rejects.toThrow()
   expect(setItem).not.toHaveBeenCalled()
-  expect(getItem()).toBe(raw)
 })

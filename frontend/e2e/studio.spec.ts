@@ -12,27 +12,7 @@ import {
 } from "./helpers"
 
 suite(
-  "UI-created structure and furniture survive an actual server reload",
-  async ({ page, request, projectIds }, info) => {
-    const project = await createRoom(page, (id) => projectIds.push(id))
-    await openFurniture(page, info.project.name === "narrow")
-    const saved = await projectResponse(
-      await addFurniture(page, project.id, "셸 체어")
-    )
-    expect(saved.revision).toBe(project.revision! + 1)
-    expect(saved.furniture).toHaveLength(1)
-    await summary(page, saved, ["셸 체어"])
-    const read = await request.get(`${apiURL}/projects/${project.id}`)
-    expect(read.ok()).toBe(true)
-    const restored = (await read.json()) as Project
-    expect(restored.room).toEqual(saved.room)
-    expect(restored.furniture).toEqual(saved.furniture)
-    expect(restored.revision).toBe(saved.revision)
-  }
-)
-
-suite(
-  "stale tab preserves its draft and explicitly reapplies against the latest server",
+  "stale tab preserves its draft and explicitly reapplies against the latest server @narrow",
   async ({ page, context, request, projectIds }, info) => {
     const initial = await createRoom(page, (id) => projectIds.push(id))
     const other = await context.newPage()

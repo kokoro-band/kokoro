@@ -3,9 +3,9 @@ import intentSchemaSource from "../../../../docs/contracts/local-layout-intent.s
 import type { CatalogItem } from "./types"
 import type { LocalLayoutIntent, LocalLayoutIntentItem } from "./local-ai-types"
 
-export const localAiUrl = "http://127.0.0.1:11434"
-export const localAiModel = "qwen3:4b"
-export const LOCAL_AI_TIMEOUT_MS = 60_000
+const localAiUrl = "http://127.0.0.1:11434"
+const localAiModel = "qwen3:4b"
+const LOCAL_AI_TIMEOUT_MS = 60_000
 
 export type {
   LocalLayoutIntent,

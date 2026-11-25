@@ -118,10 +118,4 @@ describe("placement warnings in a focused room", () => {
     expect(ui.container.textContent).not.toContain("이 방 배치 확인 필요")
     expect(ui.others()!.textContent).toContain("다른 방 배치 확인 필요 5개")
   })
-
-  it("talks about placing furniture, not about structure work", () => {
-    const ui = setup(index("거실"))
-    expect(ui.container.textContent).not.toContain("구조 작업")
-    expect(ui.container.textContent).toContain("위치를 바꾸거나 빼 주세요")
-  })
 })

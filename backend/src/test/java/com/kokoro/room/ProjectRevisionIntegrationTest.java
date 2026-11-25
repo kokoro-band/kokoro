@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -23,9 +24,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,16 +47,12 @@ import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 @Timeout(30)
 class ProjectRevisionIntegrationTest {
-    @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @TempDir static Path storage;
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        SharedPostgres.register(registry, "project_revision");
         registry.add("app.floor-plan-storage-root", () -> storage.toString());
     }
     @Autowired MockMvc mvc;
@@ -188,29 +182,30 @@ class ProjectRevisionIntegrationTest {
         JsonNode before = read(id);
         assertFalse(coordinator.fail(id, job, "OLD", "old"));
         assertEquals(before, read(id));
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertRevision(read(id), 6);
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertEquals("FAILED", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, next));
         assertEquals("READY", jdbc.queryForObject("SELECT status FROM floor_plan_jobs WHERE job_id=?", String.class, job));
         assertEquals(25.25, read(id).path("furniture").get(0).path("rotation").doubleValue());
         JsonNode failed = read(id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals(failed, read(id));
     }
 
     @Test
     void migrationFromV8PreservesDataAndDoesNotInventProposalVersion() throws Exception {
         String schema = "revision_legacy";
-        Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+        String url = SharedPostgres.jdbcUrl("project_revision");
+        Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                 .schemas(schema).defaultSchema(schema).target("8").load().migrate();
-        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (var connection = DriverManager.getConnection(url, SharedPostgres.username(), SharedPostgres.password())) {
             connection.setSchema(schema);
             try (var statement = connection.createStatement()) {
                 statement.executeUpdate("INSERT INTO projects(id,owner_id,name,room_type,width,depth,height,updated_at) VALUES ('old','local-user','이전','거실',6,6,2.4,now())");
                 statement.executeUpdate("INSERT INTO furniture_items(project_id,id,catalog_id,name,category,x,z,rotation,color,item_order) VALUES ('old','chair','chair-shell','의자','의자',3,3,25.25,'#000000',0)");
                 statement.executeUpdate("INSERT INTO layout_proposals(proposal_id,project_id,owner_id,base_updated_at,commands,created_at,expires_at) VALUES ('old-proposal','old','local-user',now(),'[]',now(),now()+interval '5 minutes')");
-                Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                         .schemas(schema).defaultSchema(schema).load().migrate();
                 try (var columns = connection.getMetaData().getColumns(null, schema, "projects", "revision")) {
                     assertTrue(columns.next(), "V9 must add the project revision column");
@@ -231,7 +226,7 @@ class ProjectRevisionIntegrationTest {
         String oldJob = upload(oldId);
         String newId = create();
         var executor = Executors.newSingleThreadExecutor();
-        try (var blocker = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (var blocker = DriverManager.getConnection(SharedPostgres.jdbcUrl("project_revision"), SharedPostgres.username(), SharedPostgres.password())) {
             blocker.setAutoCommit(false);
             try (var statement = blocker.prepareStatement("SELECT id FROM projects WHERE id=? FOR UPDATE")) {
                 statement.setString(1, oldId);
@@ -241,7 +236,7 @@ class ProjectRevisionIntegrationTest {
             try (var statement = blocker.createStatement(); var rows = statement.executeQuery("SELECT pg_backend_pid()")) {
                 assertTrue(rows.next()); blockerPid = rows.getInt(1);
             }
-            var recovering = executor.submit(() -> recovery.recover());
+            var recovering = executor.submit(() -> recovery.run(new DefaultApplicationArguments()));
             try {
                 // Wait for an observed database lock, not an arbitrary delay or a retry of the operation.
                 await().atMost(Duration.ofSeconds(10)).until(() -> Boolean.TRUE.equals(jdbc.queryForObject(
@@ -263,7 +258,7 @@ class ProjectRevisionIntegrationTest {
         String id = create();
         // V2 introduced nullable job IDs without backfilling older PROCESSING rows.
         jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING',floor_plan_job_id=NULL WHERE id=?", id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertRevision(read(id), 1);
         assertFalse(upload(id).isBlank());
@@ -277,7 +272,7 @@ class ProjectRevisionIntegrationTest {
         assertTrue(coordinator.markReady(id, job));
         Map<String, Object> terminal = jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job);
         jdbc.update("UPDATE projects SET floor_plan_status='PROCESSING' WHERE id=?", id);
-        recovery.recover();
+        recovery.run(new DefaultApplicationArguments());
         assertEquals(terminal, jdbc.queryForMap("SELECT * FROM floor_plan_jobs WHERE job_id=?", job));
         assertEquals("FAILED", read(id).path("floorPlan").path("status").asText());
         assertRevision(read(id), 3);

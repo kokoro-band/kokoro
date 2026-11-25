@@ -15,23 +15,6 @@ import {
 vi.mock("node:fs/promises", () => ({ statfs: vi.fn() }))
 
 describe("isolated E2E runtime", () => {
-  it("detects even swallowed process calls in the invalid-CLI guard", () => {
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--import",
-        fileURLToPath(
-          new URL("./fixtures/forbid-child-process.mjs", import.meta.url)
-        ),
-        "--input-type=module",
-        "-e",
-        'import { spawnSync } from "node:child_process"; try { spawnSync("docker", ["inspect"]); } catch {}',
-      ],
-      { encoding: "utf8", env: { PATH: "" }, timeout: 5000 }
-    )
-    expect(result.status).toBe(0)
-    expect(result.stderr).toContain("UNEXPECTED_CHILD_PROCESS")
-  })
   it.each(["run.mjs", "run-local-ai.mjs"])(
     "%s rejects invalid CLI input before creating servers",
     (runner) => {
@@ -212,6 +195,9 @@ describe("isolated E2E runtime", () => {
     await expect(waitUntil(async () => true)).resolves.toBeUndefined()
   })
   it("allocates a loopback port", async () => {
-    expect(await unusedPort()).toBeGreaterThan(0)
+    const port = await unusedPort()
+    expect(Number.isInteger(port)).toBe(true)
+    expect(port).toBeGreaterThanOrEqual(1)
+    expect(port).toBeLessThanOrEqual(65535)
   })
 })

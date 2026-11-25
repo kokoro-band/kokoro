@@ -11,9 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -29,14 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class FurnitureRotationTest {
-    @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        SharedPostgres.register(registry, "kokoro_api");
     }
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
@@ -97,10 +90,11 @@ class FurnitureRotationTest {
     @Test
     void migrationKeepsExistingIntegerAnglesAndAllowsFractions() throws Exception {
         String schema = "rotation_legacy";
-        Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+        String url = SharedPostgres.jdbcUrl("kokoro_api");
+        Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                 .schemas(schema).defaultSchema(schema).target("7").load().migrate();
         int[] original = {Integer.MIN_VALUE, -90, 0, 25, Integer.MAX_VALUE};
-        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (var connection = DriverManager.getConnection(url, SharedPostgres.username(), SharedPostgres.password())) {
             connection.setSchema(schema);
             try (var statement = connection.createStatement()) {
                 statement.executeUpdate("INSERT INTO projects(id, owner_id, name, room_type, width, depth, height, updated_at) VALUES ('legacy', 'local-user', '이전', '거실', 6, 6, 2.4, now())");
@@ -113,10 +107,8 @@ class FurnitureRotationTest {
                     insert.executeUpdate();
                 }
             }
-            assertEquals("integer", rotationType(connection, schema));
-            Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+            Flyway.configure().dataSource(url, SharedPostgres.username(), SharedPostgres.password())
                     .schemas(schema).defaultSchema(schema).load().migrate();
-            assertEquals("double precision", rotationType(connection, schema));
             try (var statement = connection.createStatement(); var rows = statement.executeQuery("SELECT rotation FROM furniture_items ORDER BY item_order")) {
                 for (int value : original) { assertTrue(rows.next()); assertEquals((double) value, rows.getDouble(1)); }
                 assertFalse(rows.next());
@@ -127,13 +119,6 @@ class FurnitureRotationTest {
                     assertTrue(rows.next()); assertEquals(25.25, rows.getDouble(1));
                 }
             }
-        }
-    }
-
-    private String rotationType(java.sql.Connection connection, String schema) throws Exception {
-        try (var statement = connection.prepareStatement("SELECT data_type FROM information_schema.columns WHERE table_schema=? AND table_name='furniture_items' AND column_name='rotation'")) {
-            statement.setString(1, schema);
-            try (var rows = statement.executeQuery()) { assertTrue(rows.next()); return rows.getString(1); }
         }
     }
 

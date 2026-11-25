@@ -2,7 +2,12 @@
 import * as THREE from "three"
 import { describe, expect, it, vi } from "vite-plus/test"
 
-import { animateDoors, buildRoomGroup, type DoorState } from "./room-geometry"
+import {
+  animateDoors,
+  buildRoomGroup,
+  setManualDoorStates,
+  type DoorState,
+} from "./room-geometry"
 import { sampleRoom } from "./sample-room"
 import type { RoomModel, ViewMode } from "./types"
 
@@ -36,14 +41,15 @@ function roomWithDoor(a: [number, number], b: [number, number]): RoomModel {
 
 function leafSide(model: RoomModel, mode: ViewMode) {
   const group = buildRoomGroup(model, mode)
-  const door = (group.userData.doors as DoorState[])[0]
+  const doors = group.userData.doors as DoorState[]
+  const door = doors[0]
   if (mode !== "vr") {
-    door.manualOpen = true
-    animateDoors([door], null, 1)
+    setManualDoorStates(doors, { door: true })
+    animateDoors(doors, null, 1)
   }
   group.updateMatrixWorld(true)
   const leaf = door.hinge.getWorldPosition(new THREE.Vector3())
-  const tip = door.hinge.children[0].getWorldPosition(new THREE.Vector3())
+  const tip = door.hinge.localToWorld(new THREE.Vector3(0.5, 0, 0))
   const wall = model.walls[0]
   const length = Math.hypot(wall.b[0] - wall.a[0], wall.b[1] - wall.a[1])
   const planSide = {

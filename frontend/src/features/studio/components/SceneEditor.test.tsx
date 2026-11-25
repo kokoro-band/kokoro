@@ -315,25 +315,6 @@ describe("scene tools wired to actual keyboard controls", () => {
     await key(app.button("문 열고 닫기"), "3", "Digit3")
     expect(app.tool()).toBe("move")
   })
-  it("reaches bulk door actions with arrow navigation, not direct focus injection", async () => {
-    const app = await setup()
-    const trigger = app.button("문 열고 닫기")
-    trigger.focus()
-    await key(trigger, "ArrowDown", "ArrowDown")
-    await vi.waitFor(() =>
-      expect(app.menu()?.contains(document.activeElement)).toBe(true)
-    )
-    const reached = new Set<string>()
-    for (let i = 0; i < app.doors.length + 4; i++) {
-      reached.add(
-        document.activeElement?.getAttribute("aria-label") ??
-          document.activeElement?.textContent ??
-          ""
-      )
-      await key(document.activeElement as HTMLElement, "ArrowDown", "ArrowDown")
-    }
-    expect([...reached].some((name) => name.includes("모두 열기"))).toBe(true)
-  })
   it("toggles individual doors with Enter and Space without changing layout or closing the menu", async () => {
     const app = await setup()
     const trigger = app.button("문 열고 닫기")

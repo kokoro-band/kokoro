@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 
 import {
-  alignEdges,
   analyzeFloorPlan,
   diagnosePlan,
   planToDraft,
@@ -60,22 +59,6 @@ function drawPlan(
 
   return { gray, alpha, width, height }
 }
-
-describe("alignEdges", () => {
-  it("pulls nearby edges onto one line", () => {
-    const aligned = alignEdges([1.02, 0.98, 1.0, 4.0])
-
-    expect(aligned.get(1.02)).toBe(1)
-    expect(aligned.get(0.98)).toBe(1)
-    expect(aligned.get(4.0)).toBe(4)
-  })
-
-  it("keeps edges that are far apart", () => {
-    const aligned = alignEdges([0, 2, 4])
-
-    expect([...new Set(aligned.values())]).toEqual([0, 2, 4])
-  })
-})
 
 describe("analyzeFloorPlan", () => {
   it("finds two rooms split by a wall", () => {
@@ -230,11 +213,13 @@ describe("plan to draft end to end", () => {
 
 describe("toGrayscale", () => {
   it("turns colour pixels into brightness and keeps alpha", () => {
-    const data = new Uint8Array([255, 255, 255, 255, 0, 0, 0, 128])
-    const { gray, alpha } = toGrayscale(data, 2, 1)
+    const data = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 64])
+    const { gray, alpha } = toGrayscale(data, 3, 1)
 
-    expect([...gray]).toEqual([255, 0])
-    expect([...alpha]).toEqual([255, 128])
+    expect(gray[1]).toBeGreaterThan(gray[0])
+    expect(gray[0]).toBeGreaterThan(gray[2])
+    expect(gray[2]).toBeGreaterThan(0)
+    expect([...alpha]).toEqual([255, 128, 64])
   })
 })
 

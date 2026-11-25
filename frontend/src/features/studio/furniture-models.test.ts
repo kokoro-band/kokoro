@@ -6,10 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { catalog } from "./data"
 import { makeFallbackModel } from "./furniture-fallback"
-import {
-  instantiateFurnitureModel,
-  upgradeFurnitureModel,
-} from "./furniture-models"
+import { upgradeFurnitureModel } from "./furniture-models"
 import type { CatalogItem } from "./types"
 
 function fallback(item: CatalogItem) {
@@ -19,7 +16,10 @@ function fallback(item: CatalogItem) {
   )
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+})
 
 const modelHeights: Record<string, number> = {
   "sofa-cloud": 0.86,
@@ -82,14 +82,24 @@ it.each(catalog)(
 describe("editable model fallback", () => {
   it.each(catalog)(
     "matches $id loaded bounds to the collision footprint",
-    (item) => {
-      const template = new THREE.Group()
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 1))
-      mesh.position.set(2, 4, -3)
-      template.add(mesh)
-      template.userData.bounds = new THREE.Box3().setFromObject(template)
-      const loaded = instantiateFurnitureModel(template, item)
-      const bounds = new THREE.Box3().setFromObject(loaded)
+    async (item) => {
+      vi.spyOn(GLTFLoader.prototype, "load").mockImplementation(
+        (_url, onLoad) => {
+          const scene = new THREE.Group()
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 1))
+          mesh.position.set(2, 4, -3)
+          scene.add(mesh)
+          queueMicrotask(() =>
+            onLoad({ scene } as Parameters<typeof onLoad>[0])
+          )
+        }
+      )
+      const group = new THREE.Group()
+      group.add(fallback(item))
+      expect(
+        await upgradeFurnitureModel(group, item, () => true, vi.fn(), vi.fn())
+      ).toBe(true)
+      const bounds = new THREE.Box3().setFromObject(group)
       const size = bounds.getSize(new THREE.Vector3())
       const center = bounds.getCenter(new THREE.Vector3())
       expect(size.x).toBeCloseTo(item.width, 6)
@@ -99,6 +109,29 @@ describe("editable model fallback", () => {
       expect(center.z).toBeCloseTo(0, 6)
     }
   )
+
+  it.each(["/", "/kokoro/"])(
+    "loads catalog models under the %s deployment base",
+    async (base) => {
+      vi.stubEnv("BASE_URL", base)
+      const load = vi
+        .spyOn(GLTFLoader.prototype, "load")
+        .mockImplementation((_url, onLoad) => {
+          const scene = new THREE.Group()
+          scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)))
+          queueMicrotask(() =>
+            onLoad({ scene } as Parameters<typeof onLoad>[0])
+          )
+        })
+      const item = { ...catalog[0], modelUrl: "/models/base-contract.glb" }
+      const group = new THREE.Group()
+      expect(
+        await upgradeFurnitureModel(group, item, () => true, vi.fn(), vi.fn())
+      ).toBe(true)
+      expect(load.mock.calls[0]?.[0]).toBe(base + "models/base-contract.glb")
+    }
+  )
+
   it.each(catalog)("keeps $id within its exact catalog footprint", (item) => {
     const size = new THREE.Box3()
       .setFromObject(fallback(item))
@@ -125,8 +158,6 @@ describe("editable model fallback", () => {
     ).toBe(false)
     expect(group.children).toEqual([original])
     expect(group.userData.furnitureId).toBe("placed-1")
-    group.position.set(3, 0, 4)
-    expect(group.position.toArray()).toEqual([3, 0, 4])
     expect(dispose).not.toHaveBeenCalled()
     expect(onLoaded).not.toHaveBeenCalled()
     await upgradeFurnitureModel(group, item, () => true, dispose, onLoaded)

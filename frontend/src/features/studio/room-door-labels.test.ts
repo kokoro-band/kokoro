@@ -1,21 +1,13 @@
 import { describe, expect, it } from "vite-plus/test"
 import { sampleRoom } from "./sample-room"
-import { doorLocation, doorMenuLabels } from "./room-door-labels"
+import { doorMenuLabels } from "./room-door-labels"
 import type { RoomModel } from "./types"
 
 describe("door menu locations", () => {
-  it("names rooms on both sides of an interior door", () => {
-    const door = sampleRoom.openings.find(
-      (opening) => opening.id === "door-entry-living"
-    )!
-    expect(doorLocation(sampleRoom, door)).toBe("거실 ↔ 현관")
-  })
-
-  it("names the room beside an exterior door", () => {
-    const door = sampleRoom.openings.find(
-      (opening) => opening.id === "door-front"
-    )!
-    expect(doorLocation(sampleRoom, door)).toBe("현관 출입문")
+  it("names rooms on both sides of an interior door and beside an exterior door", () => {
+    const labels = doorMenuLabels(sampleRoom)
+    expect(labels.get("door-entry-living")).toBe("거실 ↔ 현관")
+    expect(labels.get("door-front")).toBe("현관 출입문")
   })
 
   it("distinguishes nearby doors by their position on the plan", () => {

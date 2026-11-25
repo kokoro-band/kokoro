@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 
 import {
-  formatCombo,
   shortcutCombos,
   shortcuts,
   shortcutText,
@@ -20,8 +19,10 @@ describe("shortcuts", () => {
 
   it("shows the typed character for shifted symbol keys", () => {
     expect(shortcutText("guide", false)).toBe("?")
-    expect(formatCombo(["slash"], false)).toEqual(["/"])
-    expect(formatCombo(["shift", "arrowup"], true)).toEqual(["⇧", "↑"])
+    expect(shortcutText("focusAssistant", false)).toBe("/")
+    expect(shortcutCombos("nudgeFar", true)).toEqual([
+      ["⇧", "↑", "↓", "←", "→"],
+    ])
   })
 
   it("does not bind the same keys twice in one screen", () => {

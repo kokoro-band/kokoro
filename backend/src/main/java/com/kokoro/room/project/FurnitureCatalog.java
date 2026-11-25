@@ -3,8 +3,6 @@ package com.kokoro.room.project;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -14,15 +12,6 @@ public final class FurnitureCatalog {
     static final Set<String> CATEGORIES = Set.of("소파", "테이블", "의자", "장식", "침대", "수납");
 
     private FurnitureCatalog() {}
-
-    public static Map<String, Size> load() {
-        try (var input = FurnitureCatalog.class.getResourceAsStream("/contracts/furniture-catalog.json")) {
-            if (input == null) throw invalid("공통 규격 파일이 없습니다.");
-            return parse(new String(input.readAllBytes(), StandardCharsets.UTF_8));
-        } catch (IOException error) {
-            throw new IllegalStateException("가구 규격을 읽지 못했습니다.", error);
-        }
-    }
 
     public static Map<String, Size> parse(String source) {
         JsonNode root = JsonMapper.builder().build().readTree(source);

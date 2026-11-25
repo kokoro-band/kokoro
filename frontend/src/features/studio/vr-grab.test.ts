@@ -1,85 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 
-import {
-  holdStep,
-  moveSensitivity,
-  moveThreshold,
-  normalizeDegrees,
-  startHold,
-  rotationDelay,
-  rotationRepeat,
-  startTurn,
-  turnHeld,
-  type Hold,
-} from "./vr-grab"
-
-function hold(stickX: number, seconds: number, from = startTurn(0)) {
-  let state = from
-  let steps = 0
-  const frame = 1 / 72
-  for (let time = 0; time < seconds; time += frame) {
-    const next = turnHeld(state, stickX, frame)
-    state = next.state
-    if (next.stepped) steps++
-  }
-  return { state, steps }
-}
-
-describe("normalizeDegrees", () => {
-  it("wraps angles into 0 to 359", () => {
-    expect(normalizeDegrees(-15)).toBe(345)
-    expect(normalizeDegrees(360)).toBe(0)
-    expect(normalizeDegrees(375)).toBe(15)
-  })
-
-  it("keeps the fractional angle a wall left behind", () => {
-    expect(normalizeDegrees(37.5)).toBe(37.5)
-    expect(turnHeld(startTurn(37.5), 1, 1 / 72).state.rotation).toBe(52.5)
-  })
-})
-
-describe("turnHeld", () => {
-  it("turns clockwise seen from above when the stick is pushed right", () => {
-    const { state, stepped } = turnHeld(startTurn(0), 1, 1 / 72)
-
-    expect(stepped).toBe(true)
-    expect(state.rotation).toBe(15)
-    expect(state.turned).toBe(true)
-  })
-
-  it("turns the other way when the stick is pushed left", () => {
-    expect(turnHeld(startTurn(0), -1, 1 / 72).state.rotation).toBe(345)
-  })
-
-  it("ignores a light touch on the stick", () => {
-    const { state, stepped } = turnHeld(startTurn(90), 0.4, 1 / 72)
-
-    expect(stepped).toBe(false)
-    expect(state.rotation).toBe(90)
-    expect(state.turned).toBe(false)
-  })
-
-  it("turns once for a short flick", () => {
-    expect(hold(1, 0.2).steps).toBe(1)
-  })
-
-  it("keeps turning while the stick is held", () => {
-    const seconds = rotationDelay + rotationRepeat * 3 + 0.05
-    const { steps } = hold(1, seconds)
-
-    expect(steps).toBe(5)
-  })
-
-  it("waits for the stick to return before the next quick step", () => {
-    let state = startTurn(0)
-    state = turnHeld(state, 1, 1 / 72).state
-    state = turnHeld(state, 0, 1 / 72).state
-    const again = turnHeld(state, 1, 1 / 72)
-
-    expect(again.stepped).toBe(true)
-    expect(again.state.rotation).toBe(30)
-  })
-})
+import { holdStep, startHold, type Hold } from "./vr-grab"
 
 describe("holdStep", () => {
   const frame = 1 / 72
@@ -95,6 +16,67 @@ describe("holdStep", () => {
     return move
   }
 
+  function holdTurn(stickX: number, seconds: number, initialRotation = 0) {
+    let held = startHold("sofa", [1, 1], [1, 1], initialRotation)
+    let rotation = initialRotation
+    let steps = 0
+    for (let time = 0; time < seconds; time += frame) {
+      const next = holdStep(held, null, stickX, rotation, frame)
+      held = next.held
+      if (next.stepped) {
+        steps++
+        rotation = next.rotate!
+      }
+    }
+    return { rotation, steps }
+  }
+
+  it("turns clockwise on right stick push and wraps angles into 0 to 359", () => {
+    const right = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 360),
+      null,
+      1,
+      360,
+      frame
+    )
+    expect(right.stepped).toBe(true)
+    expect(right.rotate).toBe(15)
+
+    const left = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 0),
+      null,
+      -1,
+      0,
+      frame
+    )
+    expect(left.stepped).toBe(true)
+    expect(left.rotate).toBe(345)
+
+    const wrapped = holdStep(
+      startHold("sofa", [1, 1], [1, 1], 345),
+      null,
+      1,
+      345,
+      frame
+    )
+    expect(wrapped.rotate).toBe(0)
+  })
+
+  it("turns once for a short flick and repeats while held", () => {
+    expect(holdTurn(1, 0.2).steps).toBe(1)
+    expect(holdTurn(1, 1.05).steps).toBe(5)
+  })
+
+  it("waits for the stick to return before the next quick step", () => {
+    let held = startHold("sofa", [1, 1], [1, 1], 0)
+    const first = holdStep(held, null, 1, 0, frame)
+    held = holdStep(first.held, null, 0, first.rotate!, frame).held
+    const again = holdStep(held, null, 1, first.rotate!, frame)
+
+    expect(again.stepped).toBe(true)
+    expect(again.rotate).toBe(30)
+  })
+
   it("does not jump to the ray when grabbed off-centre", () => {
     const held = startHold("sofa", [1, 1], [1.4, 0.8], 0)
     expect(holdStep(held, [1.4, 0.8], 0, 0, frame).move).toBeUndefined()
@@ -104,7 +86,7 @@ describe("holdStep", () => {
     const held = startHold("sofa", [1, 1], [1.4, 0.8], 0)
     const move = settle(held, [2.4, 0.8])
 
-    expect(move?.[0]).toBeCloseTo(1 + moveSensitivity, 2)
+    expect(move?.[0]).toBeCloseTo(1.6, 2)
     expect(move?.[1]).toBeCloseTo(1, 2)
   })
 
@@ -113,7 +95,7 @@ describe("holdStep", () => {
     const first = holdStep(held, [2, 1], 0, 0, frame).move!
 
     expect(first[0]).toBeGreaterThan(1)
-    expect(first[0]).toBeLessThan(1 + moveSensitivity / 4)
+    expect(first[0]).toBeLessThan(1.15)
   })
 
   it("eases at the same speed whatever the frame rate", () => {
@@ -133,7 +115,7 @@ describe("holdStep", () => {
 
   it("ignores hand jitter smaller than a millimetre", () => {
     const held = startHold("sofa", [1, 1], [1, 1], 0)
-    const next = holdStep(held, [1 + moveThreshold / 2, 1], 0, 0, frame)
+    const next = holdStep(held, [1.0005, 1], 0, 0, frame)
 
     expect(next.move).toBeUndefined()
   })

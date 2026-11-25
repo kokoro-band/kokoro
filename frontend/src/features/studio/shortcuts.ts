@@ -116,7 +116,7 @@ export const shortcutGroups: { id: ShortcutGroup; label: string }[] = [
   { id: "arrange", label: "배치" },
 ]
 
-export function isApplePlatform() {
+function isApplePlatform() {
   if (typeof navigator === "undefined") return false
   return /mac|iphone|ipad|ipod/i.test(navigator.userAgent)
 }
@@ -159,7 +159,7 @@ const commonKeys: Record<string, string> = {
 const shiftedKeys: Record<string, string> = { slash: "?" }
 
 /** 키 조합 하나를 화면에 보여 줄 키 이름 목록으로 바꿉니다. */
-export function formatCombo(tokens: string[], apple = isApplePlatform()) {
+function formatCombo(tokens: string[], apple = isApplePlatform()) {
   const platformKeys = apple ? appleKeys : otherKeys
   const [last] = tokens.slice(-1)
   if (tokens.length === 2 && tokens[0] === "shift" && shiftedKeys[last])

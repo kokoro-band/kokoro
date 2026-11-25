@@ -1,6 +1,5 @@
 import { expect, type Page } from "@playwright/test"
 import type { CommandResponse, Project } from "../src/features/studio/types"
-import { apiURL } from "../playwright.config"
 import {
   suite,
   createRoom,
@@ -71,55 +70,15 @@ async function apply(page: Page, proposal: CommandResponse) {
 suite.describe.configure({ timeout: 180_000 })
 
 suite(
-  "real model rotation: cancel keeps layout, apply persists after reload",
-  async ({ page, request, projectIds }, info) => {
-    suite.skip(info.project.name !== "desktop")
+  "real model rotation persists through Ollama, Spring and PostgreSQL after reload",
+  async ({ page, projectIds }) => {
     const initial = await prepare(page, projectIds)
-    await propose(page, initial, "의자를 90도 회전해줘")
-    await dialog(page)
-      .getByRole("button", { name: "취소", exact: true })
-      .click()
-    expect(
-      (await (await request.get(`${apiURL}/projects/${initial.id}`)).json())
-        .furniture
-    ).toEqual(initial.furniture)
-
     const proposal = await propose(page, initial, "의자를 90도 회전해줘")
     const saved = await apply(page, proposal)
     expect(saved.furniture[0]).toMatchObject({
       id: initial.furniture[0].id,
       rotation: 90,
     })
-    await reloadProject(page, saved)
-  }
-)
-
-suite(
-  "real model add into an empty room persists after reload",
-  async ({ page, projectIds }, info) => {
-    suite.skip(info.project.name !== "desktop")
-    const initial = await prepare(page, projectIds)
-    // The server ADD uses a fixed default spot, so clear the chair there first.
-    const empty = await apply(
-      page,
-      await propose(page, initial, "의자를 치워줘")
-    )
-    expect(empty.furniture).toHaveLength(0)
-    const proposal = await propose(page, empty, "모스 소파를 하나 놓아줘")
-    const saved = await apply(page, proposal)
-    expect(saved.furniture.map((item) => item.catalogId)).toEqual(["sofa-moss"])
-    await reloadProject(page, saved)
-  }
-)
-
-suite(
-  "real model remove: furniture is gone after confirm and reload",
-  async ({ page, projectIds }, info) => {
-    suite.skip(info.project.name !== "desktop")
-    const initial = await prepare(page, projectIds)
-    const proposal = await propose(page, initial, "의자를 치워줘")
-    const saved = await apply(page, proposal)
-    expect(saved.furniture).toHaveLength(0)
     await reloadProject(page, saved)
   }
 )

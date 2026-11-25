@@ -34,6 +34,7 @@ import {
 } from "seed-design/ui/menu"
 
 import { SnackbarAvoidOverlap } from "seed-design/ui/snackbar"
+import { VrEntryCard } from "./VrEntryCard"
 import { ToolbarChoice } from "@/components/kokoro/ToolbarChoice"
 import { Type } from "@/components/kokoro/Type"
 import { roomForFurniture } from "@/features/studio/house-navigation"
@@ -163,6 +164,8 @@ export function SceneEditor({
     })
   }
   const minimapButtonRef = useRef<HTMLButtonElement>(null)
+  const showMinimap =
+    Boolean(minimap) && (mode === "3d" || (mode === "2d" && Boolean(focusRoom)))
   const rooms = project.room?.rooms
   const focusIndex = focusRoom && rooms ? rooms.indexOf(focusRoom) : -1
   // VR에서는 고른 방에서 출발해 집 전체를 걸어 다닐 수 있습니다.
@@ -441,6 +444,7 @@ export function SceneEditor({
           }
         >
           <RoomScene
+            dimensions={project.dimensions}
             furniture={visibleFurniture}
             selectedId={selectedId}
             mode={mode}
@@ -461,24 +465,23 @@ export function SceneEditor({
           />
         </Suspense>
         {mode === "vr" && (
-          <div className="viewport-overlay overlay-center">
-            <section className="vr-entry-card" aria-labelledby="vr-entry-title">
-              <Type variant="heading" as="h2" id="vr-entry-title">
-                VR로 들어가기
-              </Type>
-              <Type variant="description" as="p">
-                WebXR을 지원하는 헤드셋이 연결되었는지 확인해주세요.
-              </Type>
-              <div ref={xrEntryRef} className="vr-entry-slot" />
-            </section>
-          </div>
+          <VrEntryCard
+            room={project.room}
+            focusRoom={focusRoom}
+            minimap={minimap}
+            entryRef={xrEntryRef}
+            onReturn={() => {
+              onModeChange("3d")
+              scopeRef.current?.focus()
+            }}
+          />
         )}
-        {minimap && !isMobile && (
+        {showMinimap && !isMobile && (
           <div className="viewport-overlay overlay-top-end viewport-minimap">
             {minimap}
           </div>
         )}
-        {minimap && isMobile && (
+        {showMinimap && isMobile && (
           <div className="viewport-overlay viewport-minimap-mobile">
             {isMinimapOpen && (
               <div id="viewport-minimap-panel" className="viewport-minimap">

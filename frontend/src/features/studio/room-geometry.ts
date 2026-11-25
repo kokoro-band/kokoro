@@ -1,7 +1,12 @@
 import * as THREE from "three"
 
+import { addBox } from "./furniture-fallback"
 import { labelPoint } from "./room-builder"
+import { roomArea } from "./house-navigation"
+import { footprint } from "./placement-issues"
+import { planLabelAnchor } from "./plan-view"
 import type {
+  Furniture,
   Opening,
   Point2,
   RoomLabel,
@@ -107,6 +112,128 @@ function wallFrame(wall: Wall) {
       return new THREE.Vector3(ax + dx * t + offsetX, y, az + dz * t + offsetZ)
     },
   }
+}
+
+function buildPlanWall(
+  wall: Wall,
+  openings: Opening[],
+  exterior: boolean,
+  offsetX: number,
+  offsetZ: number,
+  doors: DoorState[]
+) {
+  const group = new THREE.Group()
+  group.name = wall.id
+  const frame = wallFrame(wall)
+  group.position.copy(frame.pointAt(0, 0, offsetX, offsetZ))
+  group.rotation.y = frame.angle
+  const wallColor = exterior ? "#42564F" : "#73847B"
+  const strip = (
+    parent: THREE.Group,
+    x: number,
+    z: number,
+    length: number,
+    depth: number,
+    color: string,
+    y = 0.04
+  ) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.006, depth),
+      new THREE.MeshBasicMaterial({ color })
+    )
+    mesh.position.set(x, y, z)
+    parent.add(mesh)
+    return mesh
+  }
+  const cuts = openings.map((opening) => ({ ...opening, bottom: 0, top: 1 }))
+  for (const piece of sliceWall(frame.length, 1, cuts)) {
+    strip(
+      group,
+      (piece.from + piece.to) / 2,
+      0,
+      piece.to - piece.from,
+      wall.thickness,
+      wallColor
+    )
+  }
+  for (const opening of openings) {
+    const width = opening.to - opening.from
+    const local = new THREE.Group()
+    local.name = opening.id
+    local.position.x = opening.from
+    group.add(local)
+    if (opening.type === "window") {
+      strip(local, width / 2, 0, width, wall.thickness, "#D3EBEE")
+      strip(
+        local,
+        width / 2,
+        -wall.thickness * 0.41,
+        width,
+        wall.thickness * 0.14,
+        "#437E89",
+        0.046
+      )
+      strip(
+        local,
+        width / 2,
+        wall.thickness * 0.41,
+        width,
+        wall.thickness * 0.14,
+        "#437E89",
+        0.046
+      )
+      strip(
+        local,
+        width / 2,
+        0,
+        Math.min(0.035, width),
+        wall.thickness,
+        "#437E89",
+        0.05
+      )
+      continue
+    }
+    local.userData.doorId = opening.id
+    const hinge = new THREE.Group()
+    local.add(hinge)
+    strip(hinge, width / 2, 0, width, 0.048, "#995D37", 0.058)
+    const arcPoints = Array.from({ length: 25 }, (_, i) => {
+      const theta = (i / 24) * doorOpenAngle
+      return new THREE.Vector3(
+        width * Math.cos(theta),
+        0.049,
+        width * Math.sin(theta)
+      )
+    })
+    const swing = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(arcPoints),
+      new THREE.LineDashedMaterial({
+        color: "#AD967E",
+        dashSize: 0.065,
+        gapSize: 0.035,
+      })
+    )
+    swing.computeLineDistances()
+    swing.name = "door-swing"
+    swing.raycast = () => {} // The arc describes clearance; only the actual leaf toggles the door.
+    local.add(swing)
+    doors.push({
+      id: opening.id,
+      local,
+      hinge,
+      center: frame.pointAt(
+        (opening.from + opening.to) / 2,
+        0,
+        offsetX,
+        offsetZ
+      ),
+      restAngle: 0,
+      angle: 0,
+      openTarget: null,
+      manualOpen: null,
+    })
+  }
+  return group
 }
 
 function buildWall(
@@ -265,7 +392,7 @@ function buildCeiling(
     new THREE.MeshStandardMaterial({
       color: colors.ceiling,
       roughness: 0.95,
-      side: THREE.DoubleSide,
+      side: THREE.BackSide,
     })
   )
   mesh.rotation.x = -Math.PI / 2
@@ -299,12 +426,13 @@ function buildFloor(
   ])
   mesh.rotation.x = -Math.PI / 2
   mesh.position.y = -0.12
+  mesh.name = "room-floor"
   mesh.receiveShadow = true
   mesh.castShadow = true
   return mesh
 }
 
-function makeLabelSprite(text: string, mode: ViewMode) {
+function makeLabelSprite(text: string, mode: ViewMode, area?: string) {
   const canvas = document.createElement("canvas")
   const context = canvas.getContext("2d")
   const scale = 4
@@ -313,20 +441,33 @@ function makeLabelSprite(text: string, mode: ViewMode) {
     typeof document === "undefined"
       ? "sans-serif"
       : getComputedStyle(document.body).fontFamily || "sans-serif"
-  const font = `500 ${14 * scale}px ${family}`
+  const font = `${area ? 600 : 500} ${14 * scale}px ${family}`
   if (!context) return null
   context.font = font
-  const padding = 10 * scale
-  canvas.width = Math.ceil(context.measureText(text).width) + padding * 2
-  canvas.height = 24 * scale
+  const padding = (area ? 2 : 10) * scale
+  const textWidth = Math.max(
+    context.measureText(text).width,
+    area ? context.measureText(area).width : 0
+  )
+  canvas.width = Math.ceil(textWidth) + padding * 2
+  canvas.height = (area ? 28 : 24) * scale
   context.font = font
-  context.fillStyle = "rgba(255, 252, 246, 0.92)"
-  context.beginPath()
-  context.roundRect(0, 0, canvas.width, canvas.height, canvas.height / 2)
-  context.fill()
+  if (!area) {
+    context.fillStyle = "rgba(255, 252, 246, 0.92)"
+    context.beginPath()
+    context.roundRect(0, 0, canvas.width, canvas.height, canvas.height / 2)
+    context.fill()
+  }
   context.fillStyle = colors.label
   context.textBaseline = "middle"
-  context.fillText(text, padding, canvas.height / 2)
+  if (area) {
+    context.textAlign = "center"
+    context.fillStyle = "#34463E"
+    context.fillText(text, canvas.width / 2, 8 * scale)
+    context.font = `400 ${11 * scale}px ${family}`
+    context.fillStyle = "#53655C"
+    context.fillText(area, canvas.width / 2, 21.5 * scale)
+  } else context.fillText(text, padding, canvas.height / 2)
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -345,7 +486,8 @@ function makeLabelSprite(text: string, mode: ViewMode) {
       : window.matchMedia("(max-width: 820px)").matches
         ? 0.48
         : 0.32
-  sprite.scale.set((canvas.width / canvas.height) * worldHeight, worldHeight, 1)
+  const height = area ? worldHeight * 1.42 : worldHeight
+  sprite.scale.set((canvas.width / canvas.height) * height, height, 1)
   sprite.renderOrder = 10
   return sprite
 }
@@ -591,7 +733,19 @@ export function buildRoomGroup(
       ? Math.min(planViewWallHeight, model.wallHeight)
       : model.wallHeight
 
-  group.add(buildFloor(model.outline, offsetX, offsetZ, floorMap))
+  if (mode === "2d") {
+    const shape = new THREE.Shape(
+      model.outline.map(
+        ([x, z]) => new THREE.Vector2(x + offsetX, -z - offsetZ)
+      )
+    )
+    const floor = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshBasicMaterial({ color: "#FFFEF9" })
+    )
+    floor.rotation.x = -Math.PI / 2
+    group.add(floor)
+  } else group.add(buildFloor(model.outline, offsetX, offsetZ, floorMap))
 
   const doorRest = 0
   const doors: DoorState[] = []
@@ -600,6 +754,12 @@ export function buildRoomGroup(
       (opening) => opening.wallId === wall.id
     )
     const exterior = isExteriorWall(wall, model.outline)
+    if (mode === "2d") {
+      group.add(
+        buildPlanWall(wall, openings, exterior, offsetX, offsetZ, doors)
+      )
+      continue
+    }
     group.add(
       buildWall(
         wall,
@@ -631,14 +791,75 @@ export function buildRoomGroup(
     mode === "vr" ? wallHeight - 0.35 : overview ? 0.52 : wallHeight + 0.25
   const labeledRooms = mode === "3d" && focusRoom ? [] : model.rooms
   for (const room of labeledRooms) {
-    const sprite = makeLabelSprite(room.name, mode)
+    const sprite = makeLabelSprite(
+      room.name,
+      mode,
+      mode === "2d" ? `${roomArea(room).toFixed(1)} m²` : undefined
+    )
     if (!sprite) continue
     const [x, z] = labelPoint(room.polygon)
+    if (mode === "2d") sprite.userData.planRoom = room
     sprite.position.set(x + offsetX, labelHeight, z + offsetZ)
     group.add(sprite)
   }
 
-  if (mode !== "vr") group.add(buildPlacementGrid(model, mode === "2d"))
+  if (mode !== "vr") group.add(buildPlacementGrid(model, false))
 
+  return group
+}
+
+export function updatePlanLabels(
+  roomGroup: THREE.Group,
+  model: RoomModel,
+  furniture: Furniture[]
+) {
+  const occupied = furniture.map(footprint).filter((box) => box !== null)
+  for (const sprite of roomGroup.children) {
+    const room = sprite.userData.planRoom as RoomLabel | undefined
+    if (!room) continue
+    const [x, z] = planLabelAnchor(
+      room,
+      occupied,
+      sprite.scale.x,
+      sprite.scale.y
+    )
+    sprite.position.x = x - model.bounds.width / 2
+    sprite.position.z = z - model.bounds.depth / 2
+  }
+}
+
+export function buildDimensionRoom(
+  mode: ViewMode,
+  { width, depth, height }: { width: number; depth: number; height: number }
+) {
+  const group = new THREE.Group()
+  addBox(group, [width, 0.12, depth], [0, -0.06, 0], "#E4E6EB").name =
+    "room-floor"
+  if (mode === "2d") return group
+  addBox(
+    group,
+    [width, height, 0.1],
+    [0, height / 2, -depth / 2 - 0.05],
+    "#FFFFFF"
+  )
+  addBox(
+    group,
+    [0.1, height, depth],
+    [-width / 2 - 0.05, height / 2, 0],
+    "#F7F8FA"
+  )
+  const windowWidth = Math.min(2.4, width * 0.48),
+    windowHeight = Math.min(1.25, height * 0.58)
+  const x = width * 0.14,
+    y = height * 0.625,
+    z = -depth / 2
+  addBox(
+    group,
+    [windowWidth, windowHeight, 0.025],
+    [x, y, z + 0.011],
+    "#B8DAED"
+  )
+  addBox(group, [0.06, windowHeight + 0.04, 0.04], [x, y, z + 0.035], "#FFFFFF")
+  addBox(group, [windowWidth + 0.06, 0.06, 0.04], [x, y, z + 0.05], "#FFFFFF")
   return group
 }

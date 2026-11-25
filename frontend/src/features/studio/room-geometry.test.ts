@@ -2,7 +2,15 @@
 import * as THREE from "three"
 import { describe, expect, it, vi } from "vite-plus/test"
 
-import { animateDoors, buildRoomGroup, type DoorState } from "./room-geometry"
+import {
+  animateDoors,
+  updatePlanLabels,
+  buildDimensionRoom,
+  buildRoomGroup,
+  type DoorState,
+} from "./room-geometry"
+import { sampleProject } from "./data"
+import { footprint, overlaps } from "./placement-issues"
 import { sampleRoom } from "./sample-room"
 import type { RoomModel, ViewMode } from "./types"
 
@@ -135,3 +143,108 @@ describe("whole-house 3D presentation", () => {
     ).toBeUndefined()
   })
 })
+
+describe("architectural plan", () => {
+  it("shows windows above the cut and the swing of closed doors while keeping the placement grid hidden", () => {
+    const room = buildRoomGroup({ ...sampleRoom, rooms: [] }, "2d")
+    const grid = room.getObjectByName("placement-grid")!
+    expect(grid.visible).toBe(false)
+    const windows = sampleRoom.openings.filter(
+      (opening) => opening.type === "window"
+    )
+    for (const window of windows) {
+      const frame = room.getObjectByName(window.id)!
+      expect(frame, window.id).toBeDefined()
+      const extent = new THREE.Box3()
+        .setFromObject(frame)
+        .getSize(new THREE.Vector3())
+      expect(Math.max(extent.x, extent.z)).toBeCloseTo(
+        window.to - window.from,
+        2
+      )
+    }
+    for (const door of room.userData.doors as DoorState[]) {
+      expect(door.hinge.rotation.y).toBe(0)
+      const swing = door.local.getObjectByName("door-swing")
+      expect(swing).toBeInstanceOf(THREE.Line)
+      expect(
+        new THREE.Box3().setFromObject(swing!).getSize(new THREE.Vector3()).z
+      ).toBeGreaterThan(0.3)
+    }
+  })
+
+  it("puts room labels on free floor when the center is occupied", () => {
+    using context = vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+    context.mockReturnValue({
+      measureText: () => ({ width: 80 }),
+      beginPath() {},
+      roundRect() {},
+      fill() {},
+      fillText() {},
+    } as unknown as CanvasRenderingContext2D)
+    const bedroom = sampleRoom.rooms.find((room) => room.name === "안방")!
+    const bed = {
+      ...sampleProject.furniture.find(
+        (item) => item.catalogId === "bed-linen"
+      )!,
+      x: 1.6,
+      z: 4.7,
+    }
+    const model = { ...sampleRoom, rooms: [bedroom] }
+    const scene = buildRoomGroup(model, "2d")
+    updatePlanLabels(scene, model, [bed])
+    const label = scene.children.find((obj) => obj instanceof THREE.Sprite)!
+    expect(
+      overlaps(footprint(bed)!, {
+        center: [
+          label.position.x + sampleRoom.bounds.width / 2,
+          label.position.z + sampleRoom.bounds.depth / 2,
+        ],
+        x: [1, 0],
+        z: [0, 1],
+        width: label.scale.x / 2,
+        depth: label.scale.y / 2,
+      })
+    ).toBe(false)
+    const shifted = label.position.clone()
+    updatePlanLabels(scene, model, [])
+    expect(label.position.distanceTo(shifted)).toBeGreaterThan(0.2)
+  })
+
+  it("labels the room name and floor area in square meters", () => {
+    const texts: string[] = []
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      measureText: () => ({ width: 80 }),
+      beginPath() {},
+      roundRect() {},
+      fill() {},
+      fillText(text: string) {
+        texts.push(text)
+      },
+    } as unknown as CanvasRenderingContext2D)
+    try {
+      buildRoomGroup(sampleRoom, "2d")
+      expect(texts).toContain("안방")
+      expect(texts).toContain("10.9 m²")
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+})
+
+it.each(["2d", "3d", "vr"] as const)(
+  "uses saved dimensions for a %s scene without structural geometry",
+  (mode) => {
+    const dimensions = { width: 9.2, depth: 3.8, height: 3.2 }
+    const shell = buildDimensionRoom(mode, dimensions)
+    const size = new THREE.Box3()
+      .setFromObject(shell.getObjectByName("room-floor")!)
+      .getSize(new THREE.Vector3())
+    expect(size.x).toBeCloseTo(dimensions.width)
+    expect(size.z).toBeCloseTo(dimensions.depth)
+    if (mode !== "2d")
+      expect(new THREE.Box3().setFromObject(shell).max.y).toBeCloseTo(
+        dimensions.height
+      )
+  }
+)

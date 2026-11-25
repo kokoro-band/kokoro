@@ -1,4 +1,4 @@
-import type { RefObject } from "react"
+import { useState, type RefObject } from "react"
 import { IconArrowRightLine } from "@karrotmarket/react-monochrome-icon"
 import { ActionButton, PrefixIcon } from "@seed-design/react"
 import {
@@ -22,8 +22,16 @@ export function FurnitureRoomMenu({
   compact?: boolean
   menuContainer?: RefObject<HTMLElement | null>
 }) {
+  const [open, setOpen] = useState(false)
   return (
-    <MenuRoot placement={compact ? "top-end" : "bottom-start"}>
+    <MenuRoot
+      placement={compact ? "top-end" : "bottom-start"}
+      open={open}
+      onOpenChange={(nextOpen, details) => {
+        if (details?.reason === "escapeKeyDown") details.event.stopPropagation()
+        setOpen(nextOpen)
+      }}
+    >
       <MenuTrigger asChild>
         <ActionButton variant="neutralWeak" size={compact ? "small" : "medium"}>
           {!compact && <PrefixIcon svg={<IconArrowRightLine />} />}

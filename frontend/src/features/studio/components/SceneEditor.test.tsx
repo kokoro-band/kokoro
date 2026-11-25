@@ -88,6 +88,7 @@ async function setup(initialRoom: number | null = null) {
         <output aria-label="화면">{view}</output>
         <SceneEditor
           project={project}
+          minimap={<div aria-label="집 미니맵">축소 도면</div>}
           focusRoom={roomIndex === null ? null : project.room!.rooms[roomIndex]}
           onShowHouse={() => setRoomIndex(null)}
           selectedId={null}
@@ -179,6 +180,36 @@ describe("scene tools wired to actual keyboard controls", () => {
     expect(visible()).toEqual(all)
     await app.click("3D")
     expect(visible()).toEqual(focused)
+  })
+  it("keeps the minimap for a focused room without duplicating the whole-house plan", async () => {
+    const house = await setup()
+    await house.click("2D")
+    expect(house.container.querySelector('[aria-label="집 미니맵"]')).toBeNull()
+    const room = await setup(0)
+    await room.click("2D")
+    expect(
+      room.container.querySelector('[aria-label="집 미니맵"]')
+    ).not.toBeNull()
+  })
+  it("shows the VR starting room, explains controller actions and returns directly to the same room in 3D", async () => {
+    const app = await setup(0)
+    await app.click("VR")
+    const panel = app.container.querySelector(".vr-entry-card")!
+    expect(panel.textContent).toContain(sampleProject.room!.rooms[0].name)
+    expect(
+      panel.querySelector(".vr-controller-guide summary")?.textContent
+    ).toBe("컨트롤러 조작법")
+    expect(panel.textContent).toContain("왼쪽 스틱")
+    expect(panel.textContent).toContain("오른쪽 스틱")
+    expect(panel.textContent).toContain("트리거")
+    await app.click("3D로 돌아가기")
+    expect(document.activeElement).toBe(
+      app.container.querySelector('[aria-label="공간 보기"]')
+    )
+    expect(app.button("3D").getAttribute("aria-checked")).toBe("true")
+    expect(
+      app.container.querySelector('[aria-current="location"]')?.textContent
+    ).toBe(sampleProject.room!.rooms[0].name)
   })
   it("puts the editing area in the tab order and describes how to move furniture", async () => {
     const app = await setup()

@@ -442,7 +442,7 @@ export function ArrangeView({
           selectedRoom={roomIndex}
           onEnter={changeRoom}
           compact
-          keyboardAccessible={isMobile}
+          keyboardAccessible={isMobile || studio.mode === "vr"}
         />
       }
     />

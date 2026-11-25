@@ -383,6 +383,24 @@ describe("moving furniture between rooms", () => {
     )
   })
 
+  it("dismisses the destination menu before Escape deselects the furniture", async () => {
+    const ui = await setup({ ...twoRooms(), furniture: [chair] })
+    await act(async () => ui.controller.current!.selectFurniture(chair.id))
+    const trigger = ui.button("다른 방으로 옮기기")
+    trigger.focus()
+    await ui.click("다른 방으로 옮기기")
+    expect(trigger.getAttribute("aria-expanded")).toBe("true")
+
+    await ui.key(trigger, "Escape")
+    expect(ui.controller.current!.selectedId).toBe(chair.id)
+    expect(trigger.getAttribute("aria-expanded")).toBe("false")
+    expect(ui.saved().furniture).toEqual([chair])
+    expect(ui.controller.current!.canUndo).toBe(false)
+
+    await ui.key(trigger, "Escape")
+    expect(ui.controller.current!.selectedId).toBeNull()
+  })
+
   it("moves the selected furniture using the mobile quick tools with the keyboard", async () => {
     const ui = await setup({ ...twoRooms(), furniture: [chair] }, true)
     await act(async () => ui.controller.current!.selectFurniture(chair.id))

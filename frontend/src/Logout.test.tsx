@@ -27,8 +27,6 @@ afterEach(() => {
 })
 afterAll(() => vi.unstubAllEnvs())
 
-const activeKey = "kokoro-active-server-project-v1"
-
 async function flush() {
   await act(async () => {
     for (let i = 0; i < 40; i++) await Promise.resolve()
@@ -40,7 +38,6 @@ async function setup() {
     "kokoro-remodel-project-v1",
     JSON.stringify(structuredClone(sampleProject))
   )
-  localStorage.setItem(activeKey, "previous-users-project")
   saveSession({
     token: "t-1",
     username: "maker-01",
@@ -90,14 +87,5 @@ describe("signing out", () => {
     expect(document.querySelector('input[name="username"]')).not.toBeNull()
     expect(document.querySelector('input[name="password"]')).not.toBeNull()
     expect(currentSession()).toBeNull()
-  })
-
-  it("forgets the previous person's open project so the next person starts clean", async () => {
-    const ui = await setup()
-    await ui.click(`${sampleProject.name} 프로젝트 메뉴`)
-
-    await ui.click("로그아웃")
-
-    expect(localStorage.getItem(activeKey)).toBeNull()
   })
 })

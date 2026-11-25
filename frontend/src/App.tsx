@@ -27,7 +27,7 @@ import {
   type Notice,
 } from "@/features/studio/hooks/useStudioController"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
-import { forgetActiveProject } from "@/features/studio/project-api"
+import { isServerMode } from "@/features/studio/project-api"
 import {
   authRequired,
   currentSession,
@@ -162,8 +162,7 @@ function Studio() {
       !window.confirm("저장하지 않은 변경이 있어요. 그래도 로그아웃할까요?")
     )
       return
-    // Drop what the previous person had open, then show the login form again.
-    forgetActiveProject()
+    // Each account keeps its own remembered project, so only cached data is dropped here.
     queryClient.clear()
     logout()
   }
@@ -186,7 +185,12 @@ function Studio() {
         onSave={studio.saveProject}
         onRestoreSaved={() => studio.restoreSavedProject()}
         onCreateProject={() => requestTarget("create")}
-        onOpenSample={() => requestTarget("sample")}
+        // The server sample belongs to the local owner, so signed-in accounts cannot open it.
+        onOpenSample={
+          authRequired && isServerMode
+            ? undefined
+            : () => requestTarget("sample")
+        }
         onOpenFloorPlan={() => setFloorPlanOpen(true)}
         onExport={studio.exportProject}
         onOpenShortcuts={() => setGuideOpen(true)}
@@ -198,6 +202,7 @@ function Studio() {
             state={studio.projectLoad}
             onRetry={studio.retryProjectLoad}
             onCreate={() => setNewProjectOpen(true)}
+            onLogout={authRequired && signedIn ? signOut : undefined}
           />
         ) : (
           <>

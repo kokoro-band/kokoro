@@ -73,7 +73,8 @@ export function AppBar({
   onSave: () => void
   onRestoreSaved: () => void
   onCreateProject: () => void
-  onOpenSample: () => void
+  /** Left out when there is no sample this person can open. */
+  onOpenSample?: () => void
   onOpenFloorPlan: () => void
   onExport: () => void
   onOpenShortcuts: () => void
@@ -116,11 +117,13 @@ export function AppBar({
                     prefixIcon={<IconPlusLine />}
                     onClick={onCreateProject}
                   />
-                  <MenuItem
-                    label="예제 집 열기"
-                    prefixIcon={<IconHouseLine />}
-                    onClick={onOpenSample}
-                  />
+                  {onOpenSample && (
+                    <MenuItem
+                      label="예제 집 열기"
+                      prefixIcon={<IconHouseLine />}
+                      onClick={onOpenSample}
+                    />
+                  )}
                 </MenuGroup>
                 <MenuGroup>
                   <MenuItem

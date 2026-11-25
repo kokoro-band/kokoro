@@ -147,6 +147,7 @@ export type CommandReview = {
 export type ProjectLoadState =
   | { status: "loading"; message: "" }
   | { status: "ready"; message: "" }
+  | { status: "empty"; message: "" }
   | { status: "error"; message: string }
 
 export type UploadAttempt = {

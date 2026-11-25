@@ -97,6 +97,19 @@ class SignupTest {
     }
 
     @Test
+    void theLocalOwnerThatHoldsTheSeedProjectCannotBeTakenOrSignedInto() throws Exception {
+        mvc.perform(signup("local-user", "correct-horse")).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail", containsString("이미")));
+        mvc.perform(signup("Local-User", "correct-horse")).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_users WHERE username = 'local-user'", Integer.class)).isZero();
+
+        // A row left by an earlier build must not sign in as the owner of the seed and local projects.
+        jdbc.update("INSERT INTO app_users (username, password_hash) VALUES ('local-user', ?)", ENCODER.encode("correct-horse"));
+        mvc.perform(login("local-user", "correct-horse")).andExpect(status().isUnauthorized());
+        jdbc.update("DELETE FROM app_users WHERE username = 'local-user'");
+    }
+
+    @Test
     void invalidUsernamesAndPasswordsAreRejectedWithAReason() throws Exception {
         mvc.perform(signup("ab", "correct-horse")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail", containsString("아이디")));

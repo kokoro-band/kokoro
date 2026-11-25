@@ -27,15 +27,19 @@ public class UserAccounts {
     private final JdbcTemplate jdbc;
     private final DemoAccounts demoAccounts;
     private final int maxUsers;
+    // Owns the seed project and anything created without a login, and project ownership follows the token subject.
+    private final String localOwner;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     // Compared against for unknown names so a missing account takes about as long as a wrong password.
     private final String unknownHash = encoder.encode(UUID.randomUUID().toString());
 
     public UserAccounts(JdbcTemplate jdbc, DemoAccounts demoAccounts,
-                        @Value("${app.security.demo.max-users:200}") int maxUsers) {
+                        @Value("${app.security.demo.max-users:200}") int maxUsers,
+                        @Value("${app.security.local-user:local-user}") String localOwner) {
         this.jdbc = jdbc;
         this.demoAccounts = demoAccounts;
         this.maxUsers = maxUsers;
+        this.localOwner = normalize(localOwner);
     }
 
     public static String normalize(String username) {
@@ -50,7 +54,7 @@ public class UserAccounts {
         if (password == null || password.length() < MIN_PASSWORD_CHARS
                 || password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호는 8자 이상이어야 하고 너무 길 수 없어요.");
-        if (demoAccounts.has(username))
+        if (demoAccounts.has(username) || username.equals(localOwner))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디예요.");
         Integer count = jdbc.queryForObject("SELECT count(*) FROM app_users", Integer.class);
         if (count != null && count >= maxUsers)
@@ -65,9 +69,11 @@ public class UserAccounts {
 
     public boolean matches(String rawUsername, String password) {
         if (password == null) return false;
+        String username = normalize(rawUsername);
         List<String> hashes = jdbc.queryForList("SELECT password_hash FROM app_users WHERE username = ?",
-                String.class, normalize(rawUsername));
+                String.class, username);
         boolean matched = encoder.matches(password, hashes.isEmpty() ? unknownHash : hashes.get(0));
-        return !hashes.isEmpty() && matched;
+        // A row an earlier build let through must not sign in as the local owner.
+        return !hashes.isEmpty() && matched && !username.equals(localOwner);
     }
 }

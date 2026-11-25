@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { authRequired } from "@/lib/auth-session"
 import { ApiError } from "@/lib/http-client"
 import { commandLayoutKey, CommandReviewExpiredError } from "../command-review"
 import { parseStoredProject } from "../project-validation"
@@ -13,6 +14,7 @@ import {
   fetchFurnitureCatalog,
   sendLayoutIntent,
   getProject,
+  listProjects,
   makeFurniture,
   readActiveProjectId,
   readSavedProjectWithRecovery,
@@ -219,7 +221,10 @@ export function useStudioController() {
     createProjectMutationOptions(queryClient)
   )
 
-  const activeProjectIdRef = useRef(readActiveProjectId() ?? sampleProject.id)
+  // A signed-in account never falls back to the shared sample, which another owner holds.
+  const activeProjectIdRef = useRef(
+    readActiveProjectId() ?? (authRequired ? null : sampleProject.id)
+  )
   const startedInitialLoadRef = useRef(false)
   /** The queue holds the server-confirmed snapshot; this ref holds the visible draft. */
   const projectRef = useRef(project)
@@ -550,13 +555,39 @@ export function useStudioController() {
     [closeQueue, closingFor, openProject, queryClient]
   )
 
+  /** Opens the remembered project, or else the account's most recent one. */
+  const loadStartupProject = useCallback(
+    async function loadStartupProject() {
+      if (activeProjectIdRef.current)
+        return loadServerProject(activeProjectIdRef.current)
+      const navigation = (navigationRef.current += 1)
+      setProjectLoad({ status: "loading", message: "" })
+      try {
+        const [latest] = await listProjects()
+        if (navigationRef.current !== navigation) return
+        if (latest) return loadServerProject(latest.id)
+        setProjectLoad({ status: "empty", message: "" })
+      } catch (error) {
+        if (navigationRef.current !== navigation) return
+        setProjectLoad({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "프로젝트 목록을 불러오지 못했어요.",
+        })
+      }
+    },
+    [loadServerProject]
+  )
+
   useEffect(
     function loadInitialServerProject() {
       if (!isServerMode || startedInitialLoadRef.current) return
       startedInitialLoadRef.current = true
-      void loadServerProject(activeProjectIdRef.current)
+      void loadStartupProject()
     },
-    [loadServerProject]
+    [loadStartupProject]
   )
 
   useEffect(
@@ -1621,7 +1652,7 @@ export function useStudioController() {
     saveRejected: saveError === "rejected",
     canUndo: !editingLocked && past.length > 0,
     canRedo: !editingLocked && future.length > 0,
-    retryProjectLoad: () => void loadServerProject(activeProjectIdRef.current),
+    retryProjectLoad: () => void loadStartupProject(),
     openSampleProject,
     exportProject,
     // The local demo keeps one project, so opening another one overwrites it.

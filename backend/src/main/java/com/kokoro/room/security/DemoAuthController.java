@@ -26,28 +26,42 @@ public class DemoAuthController {
     record LoginResponse(String token, String username, Instant expiresAt) {}
 
     private final DemoAccounts accounts;
+    private final UserAccounts users;
     private final JwtEncoder encoder;
     private final Duration ttl;
 
-    public DemoAuthController(DemoAccounts accounts, JwtEncoder encoder,
+    public DemoAuthController(DemoAccounts accounts, UserAccounts users, JwtEncoder encoder,
                               @Value("${app.security.demo.token-ttl:PT12H}") Duration ttl) {
         this.accounts = accounts;
+        this.users = users;
         this.encoder = encoder;
         this.ttl = ttl;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        if (!accounts.matches(request.username(), request.password())) {
+        String username = UserAccounts.normalize(request.username());
+        if (!accounts.matches(username, request.password()) && !users.matches(username, request.password())) {
             ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED,
                     "아이디 또는 비밀번호가 맞지 않아요.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
         }
+        return ResponseEntity.ok(issue(username));
+    }
+
+    /** Creates an account and signs it in, so the person lands in the studio right after signing up. */
+    @PostMapping("/signup")
+    public ResponseEntity<LoginResponse> signup(@RequestBody LoginRequest request) {
+        String username = users.register(request.username(), request.password());
+        return ResponseEntity.status(HttpStatus.CREATED).body(issue(username));
+    }
+
+    private LoginResponse issue(String username) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(ttl);
-        JwtClaimsSet claims = JwtClaimsSet.builder().subject(request.username()).issuedAt(now).expiresAt(expiresAt).build();
+        JwtClaimsSet claims = JwtClaimsSet.builder().subject(username).issuedAt(now).expiresAt(expiresAt).build();
         String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
-        return ResponseEntity.ok(new LoginResponse(token, request.username(), expiresAt));
+        return new LoginResponse(token, username, expiresAt);
     }
 }

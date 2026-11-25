@@ -1,3 +1,4 @@
+import { authRequired, currentSession } from "@/lib/auth-session"
 import { request, UPLOAD_TIMEOUT_MS } from "@/lib/http-client"
 
 import { catalog, sampleProject } from "./data"
@@ -89,20 +90,51 @@ function persistProject(project: Project): Project {
   return validated
 }
 
+/** Signed-in builds remember one project per account, so another account never inherits it. */
+function activeProjectKey() {
+  if (!authRequired) return activeProjectStorageKey
+  const session = currentSession()
+  return session ? `${activeProjectStorageKey}:${session.username}` : null
+}
+
 export function readActiveProjectId(): string | null {
+  const key = activeProjectKey()
+  if (!key) return null
   try {
-    return localStorage.getItem(activeProjectStorageKey)
+    return localStorage.getItem(key)
   } catch {
     return null
   }
 }
 
 export function rememberActiveProject(projectId: string) {
+  const key = activeProjectKey()
+  if (!key) return
   try {
-    localStorage.setItem(activeProjectStorageKey, projectId)
+    localStorage.setItem(key, projectId)
   } catch {
     // The open project still works when browser storage is unavailable.
   }
+}
+
+/** Drops a remembered project the server no longer has, such as after a database reset. */
+export function forgetActiveProject() {
+  const key = activeProjectKey()
+  if (!key) return
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Nothing was remembered.
+  }
+}
+
+/** The signed-in account's projects, most recently updated first. */
+export function listProjects() {
+  return request<Project[]>({ url: "/projects" }).then((projects) => {
+    if (!Array.isArray(projects))
+      throw new Error("프로젝트 목록을 읽지 못했어요.")
+    return projects.map((project) => validateServerProject(project))
+  })
 }
 
 export function getProject(projectId: string) {

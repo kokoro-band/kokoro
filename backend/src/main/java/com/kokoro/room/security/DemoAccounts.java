@@ -6,6 +6,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /** Demo accounts from configuration: "name:bcryptHash,name2:bcryptHash". */
@@ -26,7 +27,7 @@ public class DemoAccounts {
             String hash = split < 0 ? "" : entry.substring(split + 1).trim();
             if (name.isEmpty() || !hash.matches("\\$2[aby]\\$\\d{2}\\$.{53}"))
                 throw new IllegalStateException("데모 계정은 이름:bcrypt해시 형식이어야 합니다.");
-            hashes.put(name, hash);
+            hashes.put(name.toLowerCase(Locale.ROOT), hash);
         }
         byte[] key = signingKey == null ? new byte[0] : signingKey.getBytes(StandardCharsets.UTF_8);
         if (key.length < MIN_KEY_BYTES)
@@ -34,9 +35,13 @@ public class DemoAccounts {
         this.signingKey = new SecretKeySpec(key, "HmacSHA256");
     }
 
+    public boolean has(String username) {
+        return username != null && hashes.containsKey(username.toLowerCase(Locale.ROOT));
+    }
+
     public boolean matches(String username, String password) {
         if (username == null || password == null) return false;
-        String hash = hashes.get(username);
+        String hash = hashes.get(username.toLowerCase(Locale.ROOT));
         boolean matched = encoder.matches(password, hash == null ? unknownHash : hash);
         return hash != null && matched;
     }

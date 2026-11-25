@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import {
   Snackbar,
   SnackbarProvider,
@@ -21,6 +27,14 @@ import {
   type Notice,
 } from "@/features/studio/hooks/useStudioController"
 import { useShortcut } from "@/features/studio/hooks/useShortcut"
+import { isServerMode } from "@/features/studio/project-api"
+import {
+  authRequired,
+  currentSession,
+  logout,
+  subscribeSession,
+} from "@/lib/auth"
+import { queryClient } from "@/lib/query-client"
 import { useMediaQuery } from "@/lib/use-media-query"
 
 export default function App() {
@@ -84,6 +98,9 @@ function NoticeSnackbar({
 
 function Studio() {
   const studio = useStudioController()
+  const signedIn = Boolean(
+    useSyncExternalStore(subscribeSession, currentSession)
+  )
   const uploadRef = useRef<HTMLInputElement>(null)
   const isMobile = useMediaQuery("(max-width: 820px)")
   const hasRooms = Boolean(studio.project.room?.rooms?.length)
@@ -139,6 +156,17 @@ function Studio() {
     else openTarget(target)
   }
 
+  const signOut = () => {
+    if (
+      studio.dirty &&
+      !window.confirm("저장하지 않은 변경이 있어요. 그래도 로그아웃할까요?")
+    )
+      return
+    // Each account keeps its own remembered project, so only cached data is dropped here.
+    queryClient.clear()
+    logout()
+  }
+
   return (
     <div className="studio-app">
       <AppBar
@@ -157,10 +185,16 @@ function Studio() {
         onSave={studio.saveProject}
         onRestoreSaved={() => studio.restoreSavedProject()}
         onCreateProject={() => requestTarget("create")}
-        onOpenSample={() => requestTarget("sample")}
+        // The server sample belongs to the local owner, so signed-in accounts cannot open it.
+        onOpenSample={
+          authRequired && isServerMode
+            ? undefined
+            : () => requestTarget("sample")
+        }
         onOpenFloorPlan={() => setFloorPlanOpen(true)}
         onExport={studio.exportProject}
         onOpenShortcuts={() => setGuideOpen(true)}
+        onLogout={authRequired && signedIn ? signOut : undefined}
       />
       <main id="workspace" className="workspace">
         {!ready ? (
@@ -168,6 +202,7 @@ function Studio() {
             state={studio.projectLoad}
             onRetry={studio.retryProjectLoad}
             onCreate={() => setNewProjectOpen(true)}
+            onLogout={authRequired && signedIn ? signOut : undefined}
           />
         ) : (
           <>

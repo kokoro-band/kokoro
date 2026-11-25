@@ -7,3 +7,5 @@ app:
       # At least 32 bytes. Set only through the environment.
       jwt-secret: ${DEMO_JWT_SECRET:}
       token-ttl: ${DEMO_TOKEN_TTL:PT12H}
+      # Most accounts the sign-up creates. Once reached, sign-up is refused until accounts are removed.
+      max-users: ${DEMO_MAX_USERS:200}

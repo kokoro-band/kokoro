@@ -5,6 +5,7 @@ import {
   IconChevronDownLine,
   IconDocumentLine,
   IconHouseLine,
+  IconPersonLine,
   IconPlusLine,
   IconQuestionmarkCircleLine,
 } from "@karrotmarket/react-monochrome-icon"
@@ -53,6 +54,7 @@ export function AppBar({
   onOpenFloorPlan,
   onExport,
   onOpenShortcuts,
+  onLogout,
 }: {
   projectName: string
   view: StudioView
@@ -71,10 +73,13 @@ export function AppBar({
   onSave: () => void
   onRestoreSaved: () => void
   onCreateProject: () => void
-  onOpenSample: () => void
+  /** Left out when there is no sample this person can open. */
+  onOpenSample?: () => void
   onOpenFloorPlan: () => void
   onExport: () => void
   onOpenShortcuts: () => void
+  /** Only passed when the studio sits behind a login. */
+  onLogout?: () => void
 }) {
   return (
     <header className="app-bar">
@@ -112,11 +117,13 @@ export function AppBar({
                     prefixIcon={<IconPlusLine />}
                     onClick={onCreateProject}
                   />
-                  <MenuItem
-                    label="예제 집 열기"
-                    prefixIcon={<IconHouseLine />}
-                    onClick={onOpenSample}
-                  />
+                  {onOpenSample && (
+                    <MenuItem
+                      label="예제 집 열기"
+                      prefixIcon={<IconHouseLine />}
+                      onClick={onOpenSample}
+                    />
+                  )}
                 </MenuGroup>
                 <MenuGroup>
                   <MenuItem
@@ -130,6 +137,15 @@ export function AppBar({
                     onClick={onExport}
                   />
                 </MenuGroup>
+                {onLogout && (
+                  <MenuGroup>
+                    <MenuItem
+                      label="로그아웃"
+                      prefixIcon={<IconPersonLine />}
+                      onClick={onLogout}
+                    />
+                  </MenuGroup>
+                )}
               </MenuContent>
             </MenuRoot>
           </>

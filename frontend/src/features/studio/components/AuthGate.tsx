@@ -11,37 +11,73 @@ import {
   authRequired,
   currentSession,
   login,
+  passwordError,
+  signup,
   subscribeSession,
+  usernameError,
 } from "@/lib/auth"
 import { Type } from "@/components/kokoro/Type"
 import { normalizeApiError } from "@/lib/http-client"
 
+type DemoHint = { username: string; password: string }
+
+// An optional public demo account shown as gray placeholder text; it is a hint and never filled in.
+const envHint: DemoHint | undefined = import.meta.env.VITE_DEMO_HINT_USER
+  ? {
+      username: import.meta.env.VITE_DEMO_HINT_USER,
+      password: import.meta.env.VITE_DEMO_HINT_PASSWORD ?? "",
+    }
+  : undefined
+
 /** Shows the login screen first when the build asks for a demo login. */
 export function AuthGate({
   required = authRequired,
+  hint = envHint,
   children,
 }: {
   required?: boolean
+  hint?: DemoHint
   children: ReactNode
 }) {
   const session = useSyncExternalStore(subscribeSession, currentSession)
   if (!required || session) return <>{children}</>
-  return <LoginScreen />
+  return <LoginScreen hint={hint} />
 }
 
-function LoginScreen() {
+function LoginScreen({ hint }: { hint?: DemoHint }) {
+  const [mode, setMode] = useState<"login" | "signup">("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [confirm, setConfirm] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const signingUp = mode === "signup"
+
+  function switchMode() {
+    setMode(signingUp ? "login" : "signup")
+    setPassword("")
+    setConfirm("")
+    setError(null)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
+    if (signingUp) {
+      const problem =
+        usernameError(username) ??
+        passwordError(password) ??
+        (password === confirm ? null : "비밀번호가 서로 달라요.")
+      if (problem) {
+        setError(problem)
+        return
+      }
+    }
     setBusy(true)
     setError(null)
     try {
-      await login(username.trim(), password)
+      if (signingUp) await signup(username.trim(), password)
+      else await login(username.trim(), password)
     } catch (caught) {
       setError(normalizeApiError(caught).message)
       setBusy(false)
@@ -55,7 +91,9 @@ function LoginScreen() {
           코코로 리모델링 스튜디오
         </Type>
         <Type variant="description" as="p">
-          시연용 계정으로 로그인해 주세요.
+          {signingUp
+            ? "아이디와 비밀번호만 정하면 바로 시작할 수 있어요."
+            : "계정으로 로그인하거나 새로 가입해 주세요."}
         </Type>
         <TextField
           label="아이디"
@@ -69,6 +107,7 @@ function LoginScreen() {
             autoComplete="username"
             autoFocus
             maxLength={64}
+            placeholder={signingUp ? undefined : hint?.username}
           />
         </TextField>
         <TextField
@@ -81,10 +120,27 @@ function LoginScreen() {
           <TextFieldInput
             name="password"
             type="password"
-            autoComplete="current-password"
+            autoComplete={signingUp ? "new-password" : "current-password"}
             maxLength={128}
+            placeholder={signingUp ? undefined : hint?.password}
           />
         </TextField>
+        {signingUp && (
+          <TextField
+            label="비밀번호 확인"
+            size="medium"
+            value={confirm}
+            onValueChange={({ value }) => setConfirm(value)}
+            required
+          >
+            <TextFieldInput
+              name="password-confirm"
+              type="password"
+              autoComplete="new-password"
+              maxLength={128}
+            />
+          </TextField>
+        )}
         {error && (
           <Type variant="body" as="p" role="alert" color="fg.critical">
             {error}
@@ -94,10 +150,21 @@ function LoginScreen() {
           type="submit"
           variant="brandSolid"
           size="large"
-          disabled={busy || !username.trim() || !password}
+          disabled={
+            busy || !username.trim() || !password || (signingUp && !confirm)
+          }
           loading={busy}
         >
-          로그인
+          {signingUp ? "가입하고 시작하기" : "로그인"}
+        </ActionButton>
+        <ActionButton
+          type="button"
+          variant="neutralWeak"
+          size="large"
+          disabled={busy}
+          onClick={switchMode}
+        >
+          {signingUp ? "로그인으로 돌아가기" : "회원가입"}
         </ActionButton>
       </form>
     </main>

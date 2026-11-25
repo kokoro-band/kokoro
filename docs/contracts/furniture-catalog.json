@@ -371,6 +371,78 @@
         "modelAsset": "sofa-reading.glb",
         "modelSha256": "d6cda4c9b26935335d2b147adacc7235439c5cc558d3fdd90810a06b115b73a1"
       }
+    },
+    {
+      "id": "table-island",
+      "name": "스톤 주방 아일랜드",
+      "category": "테이블",
+      "description": "넓은 석재 상판과 오픈 선반을 갖춘 주방 작업대",
+      "price": 620000,
+      "width": 1.5,
+      "depth": 0.75,
+      "color": "#7A897B",
+      "modelUrl": "/models/table-island.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "table-island.glb",
+        "modelSha256": "646921c2b3887e9423c4b2b6949a01effc6959e3b95f06b519d278fa895b018a"
+      }
+    },
+    {
+      "id": "storage-cart",
+      "name": "롤링 서빙 카트",
+      "category": "수납",
+      "description": "밀어서 옮길 수 있는 손잡이와 바퀴 달린 트레이",
+      "price": 169000,
+      "width": 0.76,
+      "depth": 0.45,
+      "color": "#98594A",
+      "modelUrl": "/models/storage-cart.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-cart.glb",
+        "modelSha256": "cf88945705da3ab3f8f6675cb0cf375108645c314e6a2b87ea4212a9c7794e00"
+      }
+    },
+    {
+      "id": "storage-linen",
+      "name": "오크 린넨장",
+      "category": "수납",
+      "description": "수건을 보관하는 폭이 좁은 세로형 수납장",
+      "price": 325000,
+      "width": 0.55,
+      "depth": 0.42,
+      "color": "#BA9269",
+      "modelUrl": "/models/storage-linen.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-linen.glb",
+        "modelSha256": "21788de6e55dd476ff25e6228e978dc98187651ca64bb81050a19c583b156f13"
+      }
+    },
+    {
+      "id": "storage-vanity",
+      "name": "도기 세면 수납장",
+      "category": "수납",
+      "description": "도기 볼과 수전이 달린 욕실 하부장",
+      "price": 458000,
+      "width": 0.86,
+      "depth": 0.5,
+      "color": "#788C91",
+      "modelUrl": "/models/storage-vanity.glb",
+      "provenance": {
+        "kind": "kokoro-blender",
+        "dimensionKind": "example",
+        "priceKind": "example",
+        "modelAsset": "storage-vanity.glb",
+        "modelSha256": "5d84f494e539df908a6e782b6320302f9b0852cdf415564321a333691db0dbf8"
+      }
     }
   ],
   "dimensionKind": "example",

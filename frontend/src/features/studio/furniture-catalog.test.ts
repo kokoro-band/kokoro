@@ -29,6 +29,10 @@ describe("shared furniture catalog", () => {
         ["chair-sand", 0.65, 0.65],
         ["plant-olive", 0.55, 0.55],
         ["lamp-arc", 0.5, 0.5],
+        ["table-island", 1.5, 0.75],
+        ["storage-cart", 0.76, 0.45],
+        ["storage-linen", 0.55, 0.42],
+        ["storage-vanity", 0.86, 0.5],
       ])
     )
     for (const item of catalog) {

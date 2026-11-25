@@ -42,6 +42,10 @@ const modelHeights: Record<string, number> = {
   "chair-bench": 0.46,
   "chair-stool": 0.55,
   "sofa-reading": 0.85,
+  "table-island": 0.9,
+  "storage-cart": 0.86,
+  "storage-linen": 1.75,
+  "storage-vanity": 1.01,
 }
 
 it("publishes the complete furniture collection", () => {

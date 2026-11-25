@@ -27,7 +27,7 @@ class FurnitureCatalogTest {
                 "table-oak", new Size(1.25, 0.7), "table-white", new Size(1, 1),
                 "chair-shell", new Size(0.65, 0.65), "chair-sand", new Size(0.65, 0.65),
                 "plant-olive", new Size(0.55, 0.55), "lamp-arc", new Size(0.5, 0.5)));
-        assertThat(catalog).hasSize(20)
+        assertThat(catalog).hasSize(24)
                 .containsEntry("bed-linen", new Size(1.65, 2.12))
                 .containsEntry("storage-open", new Size(0.88, 0.33));
         var validator = new FurniturePlacementValidator();
